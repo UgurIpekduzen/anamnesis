@@ -221,3 +221,6 @@ __marimo__/
 CLAUDE.md
 ARCHIVE.md
 TASKS.md
+
+# ADK local session/state cache
+.adk/
