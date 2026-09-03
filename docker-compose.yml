@@ -1,0 +1,10 @@
+services:
+  terraform:
+    image: hashicorp/terraform:1.9
+    working_dir: /workspace
+    volumes:
+      - ./terraform:/workspace
+      # Shares ADC so the Google provider authenticates the same way the
+      # host's gcloud CLI does, without baking credentials into the image.
+      - ~/.config/gcloud:/root/.config/gcloud:ro
+    entrypoint: ["terraform"]
