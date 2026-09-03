@@ -224,3 +224,8 @@ TASKS.md
 
 # ADK local session/state cache
 .adk/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
