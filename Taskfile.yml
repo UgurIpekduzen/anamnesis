@@ -1,0 +1,54 @@
+version: '3'
+
+tasks:
+  tf:init:
+    cmds:
+      - docker compose run --rm terraform init
+
+  tf:fmt:
+    cmds:
+      - docker compose run --rm terraform fmt -check
+
+  tf:validate:
+    cmds:
+      - docker compose run --rm terraform validate
+
+  tf:plan:
+    cmds:
+      - docker compose run --rm terraform plan
+
+  tf:apply:
+    cmds:
+      - docker compose run --rm terraform apply
+
+  tf:check:
+    desc: Run init, fmt, validate, and plan in sequence
+    cmds:
+      - task: tf:init
+      - task: tf:fmt
+      - task: tf:validate
+      - task: tf:plan
+
+  app:build:
+    cmds:
+      - docker compose build streamlit
+
+  app:up:
+    desc: Run the Streamlit container locally in the background for a pre-deploy smoke test
+    cmds:
+      - docker compose up -d streamlit
+
+  app:logs:
+    desc: Tail logs from the running Streamlit container
+    cmds:
+      - docker compose logs -f streamlit
+
+  app:down:
+    desc: Stop and remove the local Streamlit container
+    cmds:
+      - docker compose down streamlit
+
+  app:push:
+    desc: Push the built image to Artifact Registry
+    cmds:
+      - docker compose push streamlit
