@@ -1,0 +1,12 @@
+.venv/
+.git/
+.terraform/
+terraform/
+__pycache__/
+*.pyc
+.env
+.env.example
+.adk/
+ARCHIVE.md
+TASKS.md
+CLAUDE.md

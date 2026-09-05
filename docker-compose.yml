@@ -8,3 +8,25 @@ services:
       # host's gcloud CLI does, without baking credentials into the image.
       - ~/.config/gcloud:/root/.config/gcloud:ro
     entrypoint: ["terraform"]
+
+  streamlit:
+    build:
+      context: .
+    image: us-central1-docker.pkg.dev/gen-lang-client-0424267124/anamnesis/streamlit-app:latest
+    ports:
+      - "8080:8080"
+    # No env_file here on purpose: .env carries the emulator-oriented
+    # FIRESTORE_EMULATOR_HOST/PUBSUB_EMULATOR_HOST, and even an empty
+    # override doesn't fully unset them for the Google client libraries.
+    # This container should hit real GCP, like it will on Cloud Run.
+    environment:
+      PORT: 8080
+      GCP_PROJECT_ID: gen-lang-client-0424267124
+      GOOGLE_GENAI_USE_ENTERPRISE: "1"
+      GOOGLE_CLOUD_PROJECT: gen-lang-client-0424267124
+      GOOGLE_CLOUD_LOCATION: us-central1
+    volumes:
+      # Local-only: lets the container authenticate as the developer's
+      # own gcloud identity for this smoke test. Cloud Run doesn't need
+      # this — it authenticates as agent_sa automatically.
+      - ~/.config/gcloud:/root/.config/gcloud:ro
