@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from google.cloud import firestore
 
-load_dotenv()
+load_dotenv(os.environ.get("DOTENV_PATH", ".env"))
 
 
 def get_client() -> firestore.Client:
