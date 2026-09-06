@@ -27,7 +27,10 @@ def get_jira_status(project_key: str) -> list[dict]:
     Data minimization (APPCE-29): only returns key, summary, status, and
     issue type — never assignee/reporter/comment-author fields, since
     those could identify a third party (e.g. a Recruiter.AI candidate
-    referenced in a ticket).
+    referenced in a ticket). `summary` itself isn't filtered further: the
+    result is never persisted (unlike git_activity_sync's Firestore
+    writes), it's only shown back to the same user who already has Jira
+    access, so it doesn't create new exposure.
 
     Args:
         project_key: The Jira project key, e.g. "APPCE".
