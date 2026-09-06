@@ -52,3 +52,43 @@ tasks:
     desc: Push the built image to Artifact Registry
     cmds:
       - docker compose push streamlit
+
+  emulators:up:
+    desc: Start the Firestore and Pub/Sub emulators in the background
+    cmds:
+      - docker compose up -d firestore-emulator pubsub-emulator
+
+  emulators:down:
+    desc: Stop the Firestore and Pub/Sub emulators
+    cmds:
+      - docker compose down firestore-emulator pubsub-emulator
+
+  subscriber:up:
+    desc: Run the dev subscriber (against the dockerized emulators) in the background
+    cmds:
+      - docker compose up -d subscriber
+
+  subscriber:logs:
+    desc: Tail logs from the dev subscriber
+    cmds:
+      - docker compose logs -f subscriber
+
+  subscriber:down:
+    desc: Stop the dev subscriber
+    cmds:
+      - docker compose down subscriber
+
+  adk:up:
+    desc: Run adk web (against the dockerized emulators) in the background
+    cmds:
+      - docker compose up -d adk-web
+
+  adk:logs:
+    desc: Tail logs from adk web
+    cmds:
+      - docker compose logs -f adk-web
+
+  adk:down:
+    desc: Stop adk web
+    cmds:
+      - docker compose down adk-web
