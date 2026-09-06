@@ -2,12 +2,12 @@ from google.adk.agents.llm_agent import Agent
 
 from src.facts import get_tenant_facts
 from src.publisher import publish_fact
-from src.tenants import list_tenants
+from src.tenants import add_tenant, list_tenants
 
 root_agent = Agent(
     model='gemini-2.5-flash',
     name='root_agent',
-    description='Answers questions about the user\'s personal projects and records new facts.',
+    description='Answers questions about the user\'s personal projects, records new facts, and registers new projects.',
     instruction=(
         'You help the user recall and record information about their '
         'personal projects (tenants). Before calling get_tenant_facts or '
@@ -22,7 +22,11 @@ root_agent = Agent(
         'When the user asks you to remember, note, or record something '
         'about a project, call publish_fact with tenant_id, content, and '
         'a category (architecture, decision, bug, status, or todo — ask '
-        'the user if it is unclear which one fits).'
+        'the user if it is unclear which one fits).\n'
+        'When the user asks you to add, register, or create a new project, '
+        'first call list_tenants to make sure it does not already exist, '
+        'then call add_tenant with just the project name — do not invent a '
+        'tenant_id yourself, add_tenant generates it from the name.'
     ),
-    tools=[list_tenants, get_tenant_facts, publish_fact],
+    tools=[list_tenants, get_tenant_facts, publish_fact, add_tenant],
 )
