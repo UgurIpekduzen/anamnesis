@@ -34,15 +34,34 @@ def add_tenant(name: str) -> str:
     return tenant_id
 
 
+def set_jira_project_key(tenant_id: str, jira_project_key: str) -> None:
+    """Attach a Jira project key to an existing tenant.
+
+    Stored on the tenant document (not a local config file) since a Jira
+    project key isn't machine-specific — the deployed agent needs it too,
+    unlike a local git repo path.
+    """
+    client = get_client()
+    client.collection("tenants").document(tenant_id).update(
+        {"jira_project_key": jira_project_key}
+    )
+
+
 def list_tenants() -> list[dict]:
     """List all known projects (tenants).
 
     Returns:
         A list of dicts with "tenant_id" (use this exact value when calling
-        get_tenant_facts) and "name" (human-readable project name).
+        get_tenant_facts), "name" (human-readable project name), and
+        "jira_project_key" (None if not set — not every tenant necessarily
+        has one).
     """
     client = get_client()
     return [
-        {"tenant_id": doc.id, "name": doc.get("name")}
+        {
+            "tenant_id": doc.id,
+            "name": doc.get("name"),
+            "jira_project_key": doc.get("jira_project_key"),
+        }
         for doc in client.collection("tenants").stream()
     ]
