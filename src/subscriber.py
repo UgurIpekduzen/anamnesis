@@ -1,9 +1,29 @@
 import json
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from src.facts import create_fact
 from src.pubsub_client import get_subscriber_client, subscription_path
 
 SUBSCRIPTION_ID = "fact-events-sub"
+
+
+class _HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass  # Cloud Run's own request logging covers this; stay quiet.
+
+
+def _serve_health_check() -> None:
+    # Cloud Run expects every service to listen on $PORT and answer health
+    # checks, but this process is otherwise a pure Pub/Sub pull loop with
+    # no HTTP surface — this thread exists only to satisfy that.
+    port = int(os.environ.get("PORT", 8080))
+    HTTPServer(("0.0.0.0", port), _HealthHandler).serve_forever()
 
 
 def _handle_message(message) -> None:
@@ -20,6 +40,8 @@ def _handle_message(message) -> None:
 
 
 def run():
+    threading.Thread(target=_serve_health_check, daemon=True).start()
+
     subscriber = get_subscriber_client()
     subscription = subscription_path(SUBSCRIPTION_ID)
 
