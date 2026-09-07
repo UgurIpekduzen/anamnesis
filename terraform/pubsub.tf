@@ -16,6 +16,13 @@ resource "google_pubsub_subscription" "fact_events_sub" {
   name  = "fact-events-sub"
   topic = google_pubsub_topic.fact_events.id
 
+  ack_deadline_seconds = 30
+
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "60s"
+  }
+
   dead_letter_policy {
     dead_letter_topic     = google_pubsub_topic.fact_events_dlq.id
     max_delivery_attempts = 5
