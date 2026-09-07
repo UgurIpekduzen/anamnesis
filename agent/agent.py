@@ -3,7 +3,7 @@ from google.adk.agents.llm_agent import Agent
 from src.facts import get_tenant_facts
 from src.jira_client import get_jira_status
 from src.publisher import publish_fact
-from src.tenants import add_tenant, list_tenants, set_jira_project_key
+from src.tenants import add_tenant, delete_tenant, list_tenants, rename_tenant, set_jira_project_key
 
 root_agent = Agent(
     model='gemini-2.5-flash',
@@ -33,11 +33,27 @@ root_agent = Agent(
         'Jira key for TMDB is ADVBK"), resolve the tenant_id via '
         'list_tenants first, then call set_jira_project_key with that '
         'tenant_id and the key.\n'
+        'When the user asks you to rename a project, resolve the tenant_id '
+        'via list_tenants first, then call rename_tenant with that '
+        'tenant_id and the new name.\n'
+        'When the user asks you to delete or remove a project, resolve the '
+        'tenant_id via list_tenants first, then confirm with the user '
+        '(name the project and say this will also delete all of its saved '
+        'facts) before calling delete_tenant — this is irreversible.\n'
         'When the user asks about open tickets, tasks, or issues for a '
         'project, look up that tenant\'s jira_project_key via list_tenants '
         'and call get_jira_status with it — this is live Jira data, not '
         'stored facts. If the tenant has no jira_project_key, tell the '
         'user there is no linked Jira project instead of guessing one.'
     ),
-    tools=[list_tenants, get_tenant_facts, publish_fact, add_tenant, set_jira_project_key, get_jira_status],
+    tools=[
+        list_tenants,
+        get_tenant_facts,
+        publish_fact,
+        add_tenant,
+        rename_tenant,
+        delete_tenant,
+        set_jira_project_key,
+        get_jira_status,
+    ],
 )
