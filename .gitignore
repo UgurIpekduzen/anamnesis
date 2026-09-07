@@ -231,3 +231,4 @@ TASKS.md
 **/.terraform/
 *.tfstate
 *.tfstate.backup
+terraform.tfvars

@@ -1,9 +1,17 @@
 variable "project_id" {
-  type    = string
-  default = "gen-lang-client-0424267124"
+  type = string
 }
 
 variable "region" {
-  type    = string
-  default = "us-central1"
+  type = string
+}
+
+variable "jira_base_url" {
+  type        = string
+  description = "Jira Cloud site URL, e.g. https://yourorg.atlassian.net"
+}
+
+variable "jira_email" {
+  type        = string
+  description = "Email associated with the Jira API token"
 }
