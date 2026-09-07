@@ -92,3 +92,31 @@ tasks:
     desc: Stop adk web
     cmds:
       - docker compose down adk-web
+
+  gcloud:
+    desc: Run an arbitrary gcloud command via the dockerized CLI (task gcloud -- <args>)
+    cmds:
+      - docker compose run --rm gcloud {{.CLI_ARGS}}
+
+  gcloud:run:services:list:
+    desc: List Cloud Run services (task gcloud:run:services:list -- --region=us-central1)
+    cmds:
+      - docker compose run --rm gcloud run services list {{.CLI_ARGS}}
+
+  gcloud:run:services:delete:
+    desc: Delete a Cloud Run service (task gcloud:run:services:delete -- anamnesis-subscriber --region=us-central1)
+    cmds:
+      - docker compose run --rm gcloud run services delete {{.CLI_ARGS}}
+
+  gcloud:run:logs:
+    desc: Read recent logs for a Cloud Run service (task gcloud:run:logs -- anamnesis-subscriber)
+    cmds:
+      - >-
+        docker compose run --rm gcloud logging read
+        'resource.type="cloud_run_revision" AND resource.labels.service_name="{{.CLI_ARGS}}"'
+        --limit=30 --format="value(timestamp,severity,textPayload)" --freshness=1d
+
+  gcloud:pubsub:pull:
+    desc: Pull messages from a subscription without acking (task gcloud:pubsub:pull -- fact-events-dlq-sub)
+    cmds:
+      - docker compose run --rm gcloud pubsub subscriptions pull {{.CLI_ARGS}} --auto-ack=false --limit=10
