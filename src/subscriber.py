@@ -23,7 +23,18 @@ def _serve_health_check() -> None:
     # checks, but this process is otherwise a pure Pub/Sub pull loop with
     # no HTTP surface — this thread exists only to satisfy that.
     port = int(os.environ.get("PORT", 8080))
-    HTTPServer(("0.0.0.0", port), _HealthHandler).serve_forever()
+    try:
+        server = HTTPServer(("0.0.0.0", port), _HealthHandler)
+        print(f"Health check server listening on 0.0.0.0:{port}", flush=True)
+        server.serve_forever()
+    except Exception:
+        # A daemon thread's exception doesn't reliably surface in Cloud
+        # Run's log parser otherwise — print it explicitly so a silent
+        # bind/listen failure is diagnosable instead of just timing out
+        # the startup probe with no explanation.
+        import traceback
+
+        traceback.print_exc()
 
 
 def _handle_message(message) -> None:
