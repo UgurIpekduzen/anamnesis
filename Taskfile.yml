@@ -119,4 +119,4 @@ tasks:
   gcloud:pubsub:pull:
     desc: Pull messages from a subscription without acking (task gcloud:pubsub:pull -- fact-events-dlq-sub)
     cmds:
-      - docker compose run --rm gcloud pubsub subscriptions pull {{.CLI_ARGS}} --auto-ack=false --limit=10
+      - docker compose run --rm gcloud pubsub subscriptions pull {{.CLI_ARGS}} --limit=10
