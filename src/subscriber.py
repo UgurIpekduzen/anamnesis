@@ -38,12 +38,23 @@ def _serve_health_check() -> None:
 
 
 def _handle_message(message) -> None:
-    payload = json.loads(message.data.decode("utf-8"))
-    create_fact(
-        tenant_id=payload["tenant_id"],
-        content=payload["content"],
-        category=payload["category"],
-    )
+    try:
+        payload = json.loads(message.data.decode("utf-8"))
+        create_fact(
+            tenant_id=payload["tenant_id"],
+            content=payload["content"],
+            category=payload["category"],
+        )
+    except (KeyError, json.JSONDecodeError):
+        # An uncaught exception here doesn't just fail this one message —
+        # it can take down the whole streaming-pull gRPC connection (see
+        # APPCE-30), crashing the process instead of isolating the bad
+        # message. Nack explicitly so the client library's callback
+        # wrapper never sees the exception.
+        message.nack()
+        print(f"Malformed message, nacking: {message.data!r}")
+        return
+
     # Tell Pub/Sub the message was processed; an unacked message is
     # redelivered after the ack deadline elapses.
     message.ack()
