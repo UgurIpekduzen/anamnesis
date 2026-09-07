@@ -60,8 +60,9 @@ def list_tenants() -> list[dict]:
     return [
         {
             "tenant_id": doc.id,
-            "name": doc.get("name"),
-            "jira_project_key": doc.get("jira_project_key"),
+            "name": data.get("name"),
+            "jira_project_key": data.get("jira_project_key"),
         }
         for doc in client.collection("tenants").stream()
+        for data in [doc.to_dict()]
     ]
