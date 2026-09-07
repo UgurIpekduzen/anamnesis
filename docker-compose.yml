@@ -74,6 +74,13 @@ services:
     depends_on:
       - firestore-emulator
       - pubsub-emulator
+    # Brings in JIRA_EMAIL/JIRA_API_TOKEN/JIRA_BASE_URL for get_jira_status.
+    # Safe to combine with the environment overrides below: Compose always
+    # lets `environment:` win over `env_file:` for the same key, so the
+    # emulator hostnames here still take priority over .env's localhost
+    # values — unlike streamlit's case, this container is meant to keep
+    # using the emulators, not switch to real GCP.
+    env_file: .env
     environment:
       FIRESTORE_EMULATOR_HOST: firestore-emulator:8080
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
