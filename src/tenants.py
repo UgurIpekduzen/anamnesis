@@ -62,15 +62,27 @@ def delete_tenant(tenant_id: str) -> None:
 
 
 def set_jira_project_key(tenant_id: str, jira_project_key: str) -> None:
-    """Attach a Jira project key to an existing tenant.
-
-    Stored on the tenant document (not a local config file) since a Jira
-    project key isn't machine-specific — the deployed agent needs it too,
-    unlike a local git repo path.
-    """
+    """Attach a Jira project key to an existing tenant."""
     client = get_client()
     client.collection("tenants").document(tenant_id).update(
         {"jira_project_key": jira_project_key}
+    )
+
+
+def set_git_repo_path(tenant_id: str, git_repo_path: str) -> None:
+    """Attach a local git repo path to an existing tenant, used by
+    git_activity_sync.py to summarize recent commit activity (see
+    APPCE-28, APPCE-34).
+
+    This is machine-specific (see APPCE-34): storing it on the tenant
+    document means it only makes sense on the machine whose filesystem
+    it refers to — if you sync this project across multiple machines,
+    set it separately on each, or leave it unset where the repo doesn't
+    exist locally.
+    """
+    client = get_client()
+    client.collection("tenants").document(tenant_id).update(
+        {"git_repo_path": git_repo_path}
     )
 
 
@@ -79,9 +91,9 @@ def list_tenants() -> list[dict]:
 
     Returns:
         A list of dicts with "tenant_id" (use this exact value when calling
-        get_tenant_facts), "name" (human-readable project name), and
-        "jira_project_key" (None if not set — not every tenant necessarily
-        has one).
+        get_tenant_facts), "name" (human-readable project name),
+        "jira_project_key" (None if not set), and "git_repo_path" (None if
+        not set — not every tenant necessarily has either).
     """
     client = get_client()
     return [
@@ -89,6 +101,7 @@ def list_tenants() -> list[dict]:
             "tenant_id": doc.id,
             "name": data.get("name"),
             "jira_project_key": data.get("jira_project_key"),
+            "git_repo_path": data.get("git_repo_path"),
         }
         for doc in client.collection("tenants").stream()
         for data in [doc.to_dict()]

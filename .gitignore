@@ -150,7 +150,6 @@ activemq-data/
 # Environments
 .env
 .env.production
-git_activity_config.json
 .envrc
 .venv
 env/

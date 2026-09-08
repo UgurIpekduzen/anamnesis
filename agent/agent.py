@@ -3,7 +3,14 @@ from google.adk.agents.llm_agent import Agent
 from src.facts import delete_fact, get_tenant_facts, update_fact
 from src.jira_client import get_jira_status
 from src.publisher import publish_fact
-from src.tenants import add_tenant, delete_tenant, list_tenants, rename_tenant, set_jira_project_key
+from src.tenants import (
+    add_tenant,
+    delete_tenant,
+    list_tenants,
+    rename_tenant,
+    set_git_repo_path,
+    set_jira_project_key,
+)
 
 root_agent = Agent(
     model='gemini-2.5-flash',
@@ -49,6 +56,11 @@ root_agent = Agent(
         'tenant_id via list_tenants first, then confirm with the user '
         '(name the project and say this will also delete all of its saved '
         'facts) before calling delete_tenant — this is irreversible.\n'
+        'When the user tells you a project\'s local git repo path (e.g. '
+        '"the repo for recruiter_ai is /home/user/repos/recruiter_ai"), '
+        'resolve the tenant_id via list_tenants first, then call '
+        'set_git_repo_path with that tenant_id and the path. Mention that '
+        'this path is specific to the machine it was set on.\n'
         'When the user asks about open tickets, tasks, or issues for a '
         'project, look up that tenant\'s jira_project_key via list_tenants '
         'and call get_jira_status with it — this is live Jira data, not '
@@ -64,6 +76,7 @@ root_agent = Agent(
         add_tenant,
         rename_tenant,
         delete_tenant,
+        set_git_repo_path,
         set_jira_project_key,
         get_jira_status,
     ],
