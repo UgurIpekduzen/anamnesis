@@ -34,13 +34,13 @@ resource "google_service_account_iam_member" "github_actions_wif" {
 }
 
 resource "google_project_iam_member" "github_actions_viewer" {
-  project = data.google_project.current.project_id
+  project = var.project_id
   role    = "roles/viewer"
   member  = "serviceAccount:${google_service_account.github_actions.email}"
 }
 
 resource "google_storage_bucket_iam_member" "github_actions_tfstate" {
   bucket = "anamnesis-tfstate-gen-lang-client-0424267124"
-  role   = "roles/storage.objectAdmin"
+  role   = "roles/storage.admin"
   member = "serviceAccount:${google_service_account.github_actions.email}"
 }

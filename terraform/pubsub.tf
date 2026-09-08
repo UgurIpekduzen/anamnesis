@@ -29,7 +29,13 @@ resource "google_pubsub_subscription" "fact_events_sub" {
   }
 }
 
-data "google_project" "current" {}
+resource "google_project_service" "cloudresourcemanager" {
+  service = "cloudresourcemanager.googleapis.com"
+}
+
+data "google_project" "current" {
+  depends_on = [google_project_service.cloudresourcemanager]
+}
 
 resource "google_pubsub_topic_iam_member" "dlq_publisher" {
   topic  = google_pubsub_topic.fact_events_dlq.name
