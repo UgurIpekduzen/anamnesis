@@ -1,0 +1,122 @@
+version: '3'
+
+tasks:
+  tf:init:
+    cmds:
+      - docker compose run --rm terraform init
+
+  tf:fmt:
+    cmds:
+      - docker compose run --rm terraform fmt -check
+
+  tf:validate:
+    cmds:
+      - docker compose run --rm terraform validate
+
+  tf:plan:
+    cmds:
+      - docker compose run --rm terraform plan
+
+  tf:apply:
+    cmds:
+      - docker compose run --rm terraform apply
+
+  tf:check:
+    desc: Run init, fmt, validate, and plan in sequence
+    cmds:
+      - task: tf:init
+      - task: tf:fmt
+      - task: tf:validate
+      - task: tf:plan
+
+  app:build:
+    cmds:
+      - docker compose build streamlit
+
+  app:up:
+    desc: Run the Streamlit container locally in the background for a pre-deploy smoke test
+    cmds:
+      - docker compose up -d streamlit
+
+  app:logs:
+    desc: Tail logs from the running Streamlit container
+    cmds:
+      - docker compose logs -f streamlit
+
+  app:down:
+    desc: Stop and remove the local Streamlit container
+    cmds:
+      - docker compose down streamlit
+
+  app:push:
+    desc: Push the built image to Artifact Registry
+    cmds:
+      - docker compose push streamlit
+
+  emulators:up:
+    desc: Start the Firestore and Pub/Sub emulators in the background
+    cmds:
+      - docker compose up -d firestore-emulator pubsub-emulator
+
+  emulators:down:
+    desc: Stop the Firestore and Pub/Sub emulators
+    cmds:
+      - docker compose down firestore-emulator pubsub-emulator
+
+  subscriber:up:
+    desc: Run the dev subscriber (against the dockerized emulators) in the background
+    cmds:
+      - docker compose up -d subscriber
+
+  subscriber:logs:
+    desc: Tail logs from the dev subscriber
+    cmds:
+      - docker compose logs -f subscriber
+
+  subscriber:down:
+    desc: Stop the dev subscriber
+    cmds:
+      - docker compose down subscriber
+
+  adk:up:
+    desc: Run adk web (against the dockerized emulators) in the background
+    cmds:
+      - docker compose up -d adk-web
+
+  adk:logs:
+    desc: Tail logs from adk web
+    cmds:
+      - docker compose logs -f adk-web
+
+  adk:down:
+    desc: Stop adk web
+    cmds:
+      - docker compose down adk-web
+
+  gcloud:
+    desc: Run an arbitrary gcloud command via the dockerized CLI (task gcloud -- <args>)
+    cmds:
+      - docker compose run --rm gcloud {{.CLI_ARGS}}
+
+  gcloud:run:services:list:
+    desc: List Cloud Run services (task gcloud:run:services:list -- --region=us-central1)
+    cmds:
+      - docker compose run --rm gcloud run services list {{.CLI_ARGS}}
+
+  gcloud:run:services:delete:
+    desc: Delete a Cloud Run service (task gcloud:run:services:delete -- anamnesis-subscriber --region=us-central1)
+    cmds:
+      - docker compose run --rm gcloud run services delete {{.CLI_ARGS}}
+
+  gcloud:run:logs:
+    desc: Read recent logs for a Cloud Run service (task gcloud:run:logs -- anamnesis-subscriber)
+    cmds:
+      - >-
+        docker compose run --rm gcloud logging read
+        'resource.type="cloud_run_revision" AND resource.labels.service_name="{{.CLI_ARGS}}"'
+        --limit=30 --format="value(timestamp,severity,textPayload)" --freshness=1d
+
+  gcloud:pubsub:pull:
+    desc: Pull messages from a subscription without acking (task gcloud:pubsub:pull -- fact-events-dlq-sub)
+    cmds:
+      - docker compose run --rm gcloud pubsub subscriptions pull {{.CLI_ARGS}} --limit=10

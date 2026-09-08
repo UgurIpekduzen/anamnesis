@@ -1,0 +1,95 @@
+services:
+  gcloud:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    volumes:
+      # Same identity as the host gcloud CLI — no separate login needed.
+      - ~/.config/gcloud:/root/.config/gcloud
+    entrypoint: ["gcloud"]
+
+  terraform:
+    image: hashicorp/terraform:1.9
+    working_dir: /workspace
+    volumes:
+      - ./terraform:/workspace
+      # Shares ADC so the Google provider authenticates the same way the
+      # host's gcloud CLI does, without baking credentials into the image.
+      - ~/.config/gcloud:/root/.config/gcloud:ro
+    entrypoint: ["terraform"]
+
+  streamlit:
+    build:
+      context: .
+    image: us-central1-docker.pkg.dev/gen-lang-client-0424267124/anamnesis/streamlit-app:latest
+    ports:
+      - "8080:8080"
+    # No env_file here on purpose: .env carries the emulator-oriented
+    # FIRESTORE_EMULATOR_HOST/PUBSUB_EMULATOR_HOST, and even an empty
+    # override doesn't fully unset them for the Google client libraries.
+    # This container should hit real GCP, like it will on Cloud Run.
+    environment:
+      PORT: 8080
+      GCP_PROJECT_ID: gen-lang-client-0424267124
+      GOOGLE_GENAI_USE_ENTERPRISE: "1"
+      GOOGLE_CLOUD_PROJECT: gen-lang-client-0424267124
+      GOOGLE_CLOUD_LOCATION: us-central1
+    volumes:
+      # Local-only: lets the container authenticate as the developer's
+      # own gcloud identity for this smoke test. Cloud Run doesn't need
+      # this — it authenticates as agent_sa automatically.
+      - ~/.config/gcloud:/root/.config/gcloud:ro
+
+  firestore-emulator:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
+    command: gcloud emulators firestore start --host-port=0.0.0.0:8080
+    ports:
+      - "8080:8080"
+
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
+    command: gcloud beta emulators pubsub start --project=anamnesis-local --host-port=0.0.0.0:8085
+    ports:
+      - "8085:8085"
+
+  subscriber:
+    build:
+      context: .
+    command: ["python", "-m", "src.subscriber"]
+    depends_on:
+      - firestore-emulator
+      - pubsub-emulator
+    environment:
+      # Container-to-container traffic uses the compose service names,
+      # not localhost — unlike host-run scripts, which still reach the
+      # emulators via localhost thanks to the ports mapping above.
+      FIRESTORE_EMULATOR_HOST: firestore-emulator:8080
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      GCP_PROJECT_ID: anamnesis-local
+
+  adk-web:
+    build:
+      context: .
+    command: ["adk", "web", "--host=0.0.0.0", "--port=8000"]
+    ports:
+      - "8001:8000"
+    depends_on:
+      - firestore-emulator
+      - pubsub-emulator
+    # Brings in JIRA_EMAIL/JIRA_API_TOKEN/JIRA_BASE_URL for get_jira_status.
+    # Safe to combine with the environment overrides below: Compose always
+    # lets `environment:` win over `env_file:` for the same key, so the
+    # emulator hostnames here still take priority over .env's localhost
+    # values — unlike streamlit's case, this container is meant to keep
+    # using the emulators, not switch to real GCP.
+    env_file: .env
+    environment:
+      FIRESTORE_EMULATOR_HOST: firestore-emulator:8080
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      GCP_PROJECT_ID: anamnesis-local
+    volumes:
+      # Vertex AI (ADC) — agent/.env has the project/location settings
+      # baked into the image already, but still needs real credentials.
+      - ~/.config/gcloud:/root/.config/gcloud:ro
+      # Live code reload: edit agent.py or src/ on the host and see it
+      # without rebuilding the image.
+      - ./agent:/app/agent
+      - ./src:/app/src

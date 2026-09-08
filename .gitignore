@@ -149,6 +149,7 @@ activemq-data/
 
 # Environments
 .env
+.env.production
 .envrc
 .venv
 env/
@@ -216,3 +217,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Personal working notes
+CLAUDE.md
+ARCHIVE.md
+TASKS.md
+
+# ADK local session/state cache
+.adk/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+terraform.tfvars
