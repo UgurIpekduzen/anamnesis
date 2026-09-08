@@ -32,3 +32,15 @@ resource "google_service_account_iam_member" "github_actions_wif" {
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_actions.name}/attribute.repository/UgurIpekduzen/anamnesis"
 }
+
+resource "google_project_iam_member" "github_actions_viewer" {
+  project = data.google_project.current.project_id
+  role    = "roles/viewer"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+resource "google_storage_bucket_iam_member" "github_actions_tfstate" {
+  bucket = "anamnesis-tfstate-gen-lang-client-0424267124"
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.github_actions.email}"
+}
