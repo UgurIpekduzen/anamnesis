@@ -38,16 +38,50 @@ def get_tenant_facts(tenant_id: str) -> list[dict]:
         tenant_id: The project identifier, e.g. "recruiter_ai".
 
     Returns:
-        A list of fact dicts with "content", "category", and "created_at".
+        A list of fact dicts with "fact_id" (use this exact value when
+        calling update_fact/delete_fact), "content", "category", and
+        "created_at".
     """
     client = get_client()
     facts_ref = client.collection("tenants").document(tenant_id).collection("facts")
 
     return [
         {
+            "fact_id": doc.id,
             "content": doc.get("content"),
             "category": doc.get("category"),
             "created_at": doc.get("created_at"),
         }
         for doc in facts_ref.stream()
     ]
+
+
+def update_fact(
+    tenant_id: str, fact_id: str, content: str | None = None, category: str | None = None
+) -> None:
+    """Update an existing fact's content and/or category.
+
+    At least one of content/category should be given — omit the field
+    you don't want to change instead of passing its old value back in.
+    """
+    if category is not None:
+        validate_category(category)
+
+    updates = {"updated_at": datetime.now(timezone.utc)}
+    if content is not None:
+        updates["content"] = content
+    if category is not None:
+        updates["category"] = category
+
+    client = get_client()
+    client.collection("tenants").document(tenant_id).collection("facts").document(
+        fact_id
+    ).update(updates)
+
+
+def delete_fact(tenant_id: str, fact_id: str) -> None:
+    """Delete a single fact."""
+    client = get_client()
+    client.collection("tenants").document(tenant_id).collection("facts").document(
+        fact_id
+    ).delete()
