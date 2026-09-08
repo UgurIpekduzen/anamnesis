@@ -29,8 +29,13 @@ resource "google_pubsub_subscription" "fact_events_sub" {
   }
 }
 
+resource "google_project_service" "serviceusage" {
+  service = "serviceusage.googleapis.com"
+}
+
 resource "google_project_service" "cloudresourcemanager" {
-  service = "cloudresourcemanager.googleapis.com"
+  service    = "cloudresourcemanager.googleapis.com"
+  depends_on = [google_project_service.serviceusage]
 }
 
 data "google_project" "current" {
