@@ -21,3 +21,15 @@ variable "image_tag" {
   type        = string
   default     = "latest"
 }
+
+variable "artifact_retention_count" {
+  description = "Number of most recent container image versions to always keep"
+  type        = number
+  default     = 10
+}
+
+variable "artifact_retention_days" {
+  description = "Delete container images older than this many days (beyond the retained count)"
+  type        = number
+  default     = 30
+}
