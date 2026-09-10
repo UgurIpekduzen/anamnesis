@@ -9,6 +9,11 @@ tasks:
     cmds:
       - docker compose run --rm terraform fmt -check
 
+  tf:fmt:fix:
+    desc: Auto-format .tf/.tfvars files (fixes what tf:fmt only reports)
+    cmds:
+      - docker compose run --rm terraform fmt
+
   tf:validate:
     cmds:
       - docker compose run --rm terraform validate
@@ -22,10 +27,10 @@ tasks:
       - docker compose run --rm terraform apply
 
   tf:check:
-    desc: Run init, fmt, validate, and plan in sequence
+    desc: Run init, auto-fix formatting, validate, and plan in sequence
     cmds:
       - task: tf:init
-      - task: tf:fmt
+      - task: tf:fmt:fix
       - task: tf:validate
       - task: tf:plan
 
