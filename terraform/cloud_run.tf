@@ -3,7 +3,7 @@ resource "google_project_service" "run" {
 }
 
 locals {
-  image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app_images.repository_id}/streamlit-app:latest"
+  image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app_images.repository_id}/streamlit-app:${var.image_tag}"
 }
 
 resource "google_cloud_run_v2_service" "ui" {

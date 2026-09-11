@@ -2,3 +2,7 @@ project_id    = "your-gcp-project-id"
 region        = "us-central1"
 jira_base_url = "https://yourorg.atlassian.net"
 jira_email    = "you@example.com"
+
+# Optional — defaults shown below, uncomment to override
+# artifact_retention_count = 10
+# artifact_retention_days  = 30
