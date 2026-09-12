@@ -1,6 +1,9 @@
 services:
   gcloud:
-    image: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    build:
+      context: .
+      dockerfile: Dockerfile.gcloud
+    network_mode: host
     volumes:
       # Same identity as the host gcloud CLI — no separate login needed.
       - ~/.config/gcloud:/root/.config/gcloud
