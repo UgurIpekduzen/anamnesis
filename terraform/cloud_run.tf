@@ -58,11 +58,11 @@ resource "google_cloud_run_v2_service" "ui" {
   }
 }
 
-resource "google_cloud_run_v2_service_iam_member" "ui_public" {
+resource "google_cloud_run_v2_service_iam_member" "ui_owner" {
   name     = google_cloud_run_v2_service.ui.name
   location = var.region
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = "user:${var.owner_email}"
 }
 
 resource "google_cloud_run_v2_service" "subscriber" {

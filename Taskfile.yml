@@ -23,8 +23,15 @@ tasks:
       - docker compose run --rm terraform plan
 
   tf:apply:
+    desc: Apply Terraform, defaulting image_tag to whatever is currently deployed (unless TF_VAR_image_tag is already set)
     cmds:
-      - docker compose run --rm terraform apply
+      - |
+        CURRENT_TAG=$(docker compose run --rm gcloud run services describe anamnesis-ui --region=us-central1 --format="value(spec.template.spec.containers[0].image)" 2>/dev/null | sed 's/.*://')
+        if [ -n "$CURRENT_TAG" ]; then
+          TF_VAR_image_tag="${TF_VAR_image_tag:-$CURRENT_TAG}" docker compose run --rm terraform apply
+        else
+          docker compose run --rm terraform apply
+        fi
 
   tf:check:
     desc: Run init, auto-fix formatting, validate, and plan in sequence
@@ -97,6 +104,11 @@ tasks:
     desc: Stop adk web
     cmds:
       - docker compose down adk-web
+
+  ui:proxy:
+    desc: Open an authenticated local proxy to anamnesis-ui (owner-only access, no public URL)
+    cmds:
+      - docker compose run --rm gcloud run services proxy anamnesis-ui --region=us-central1 --port=8080
 
   gcloud:
     desc: Run an arbitrary gcloud command via the dockerized CLI (task gcloud -- <args>)

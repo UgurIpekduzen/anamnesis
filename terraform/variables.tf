@@ -33,3 +33,8 @@ variable "artifact_retention_days" {
   type        = number
   default     = 30
 }
+
+variable "owner_email" {
+  description = "Google account authorized to access anamnesis-ui via IAP"
+  type        = string
+}
