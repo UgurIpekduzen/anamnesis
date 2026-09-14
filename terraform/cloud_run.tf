@@ -78,7 +78,7 @@ resource "google_cloud_run_v2_service" "subscriber" {
   template {
     service_account = google_service_account.agent_sa.email
     scaling {
-      min_instance_count = 1
+      min_instance_count = var.subscriber_min_instances
     }
     containers {
       image   = local.image

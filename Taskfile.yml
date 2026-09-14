@@ -41,6 +41,16 @@ tasks:
       - task: tf:validate
       - task: tf:plan
 
+  tf:subscriber:up:
+    desc: Scale anamnesis-subscriber back up (starts its continuous billing again)
+    cmds:
+      - TF_VAR_subscriber_min_instances=1 task tf:apply
+
+  tf:subscriber:down:
+    desc: Scale anamnesis-subscriber down to stop its continuous cost (queued facts won't be processed until scaled back up)
+    cmds:
+      - TF_VAR_subscriber_min_instances=0 task tf:apply
+
   app:build:
     cmds:
       - docker compose build streamlit
