@@ -77,20 +77,21 @@ resource "google_cloud_run_v2_service" "subscriber" {
 
   template {
     service_account = google_service_account.agent_sa.email
-    scaling {
-      min_instance_count = 1
-    }
     containers {
       image   = local.image
       command = ["python", "-m", "src.subscriber"]
 
-      resources {
-        cpu_idle = false
-      }
       env {
         name  = "GCP_PROJECT_ID"
         value = var.project_id
       }
     }
   }
+}
+
+resource "google_cloud_run_v2_service_iam_member" "subscriber_pubsub_invoker" {
+  name     = google_cloud_run_v2_service.subscriber.name
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.agent_sa.email}"
 }

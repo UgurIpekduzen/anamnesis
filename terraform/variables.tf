@@ -38,3 +38,4 @@ variable "owner_email" {
   description = "Google account authorized to access anamnesis-ui via IAP"
   type        = string
 }
+
