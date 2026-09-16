@@ -71,7 +71,6 @@ def _render_result(response) -> None:
 
 
 def _render_trace_body(trace: list[dict] | None) -> None:
-    st.header("Agent trace")
     if not trace:
         st.caption("No tool calls for the latest response.")
         return
@@ -98,7 +97,7 @@ def _render_trace_body(trace: list[dict] | None) -> None:
         _render_result(entry["response"])
 
 
-def ask(runner: Runner, tenant: dict) -> None:
+def ask(runner: Runner, tenant: dict, trace_container) -> None:
     history = _history_for(tenant["tenant_id"])
 
     for turn in history:
@@ -114,7 +113,7 @@ def ask(runner: Runner, tenant: dict) -> None:
             (turn.get("trace") for turn in reversed(history) if turn.get("trace") is not None),
             None,
         )
-        with st.sidebar:
+        with trace_container:
             _render_trace_body(last_trace)
         return
 
@@ -126,7 +125,7 @@ def ask(runner: Runner, tenant: dict) -> None:
         parts=[types.Part(text=f"[Project: {tenant['name']}] {question}")],
     )
 
-    live_trace = st.sidebar.empty()
+    live_trace = trace_container.empty()
     events = []
     try:
         with st.spinner("Thinking..."):
@@ -136,14 +135,13 @@ def ask(runner: Runner, tenant: dict) -> None:
                 new_message=message,
             ):
                 events.append(event)
-                # Redraw the sidebar after every event instead of only
+                # Redraw the trace tab after every event instead of only
                 # once at the end, so tool calls appear one by one as
                 # the agent actually makes them.
                 tool_names_so_far = list(
                     dict.fromkeys(entry["name"] for entry in _build_trace(events))
                 )
                 with live_trace.container():
-                    st.header("Agent trace")
                     if tool_names_so_far:
                         for name in tool_names_so_far:
                             st.write(f"🔧 {name}")
