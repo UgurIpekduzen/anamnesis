@@ -24,10 +24,11 @@ def render_facts(tenant: dict) -> None:
     ordered_categories += [c for c in by_category if c not in CATEGORY_ORDER]
 
     for category in ordered_categories:
-        st.markdown(f"**{category.capitalize()}**")
-        for fact in by_category[category]:
-            with st.container(border=True):
-                st.write(fact["content"])
-                created_at = fact.get("created_at")
-                if created_at is not None:
-                    st.caption(created_at.strftime("%b %d, %Y at %I:%M %p"))
+        label = f"{category.capitalize()} ({len(by_category[category])})"
+        with st.expander(label, expanded=True):
+            for fact in by_category[category]:
+                with st.container(border=True):
+                    st.write(fact["content"])
+                    created_at = fact.get("created_at")
+                    if created_at is not None:
+                        st.caption(created_at.strftime("%b %d, %Y at %I:%M %p"))
