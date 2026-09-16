@@ -1,6 +1,6 @@
 import streamlit as st
 
-from app.chat import ask
+from app.chat import ask, clear_history
 from app.facts import render_facts
 from app.runner import get_runner
 from app.tenant_selector import select_tenant
@@ -13,6 +13,10 @@ runner = get_runner()
 tenant = select_tenant()
 
 with st.sidebar:
+    if st.button("🗑️ Clear chat"):
+        clear_history(tenant["tenant_id"])
+        st.rerun()
+
     trace_tab, facts_tab = st.tabs(["Agent trace", "Facts"])
 
 with facts_tab:

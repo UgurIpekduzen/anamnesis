@@ -9,6 +9,10 @@ def _history_for(tenant_id: str) -> list[dict]:
     return st.session_state.chat_history.setdefault(tenant_id, [])
 
 
+def clear_history(tenant_id: str) -> None:
+    _history_for(tenant_id).clear()
+
+
 def _render_message(role: str, content: str) -> None:
     with st.chat_message(role):
         st.write(content)
