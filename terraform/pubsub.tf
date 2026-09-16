@@ -27,6 +27,13 @@ resource "google_pubsub_subscription" "fact_events_sub" {
     dead_letter_topic     = google_pubsub_topic.fact_events_dlq.id
     max_delivery_attempts = 5
   }
+
+  push_config {
+    push_endpoint = google_cloud_run_v2_service.subscriber.uri
+    oidc_token {
+      service_account_email = google_service_account.agent_sa.email
+    }
+  }
 }
 
 resource "google_project_service" "serviceusage" {
@@ -64,4 +71,10 @@ resource "google_pubsub_subscription_iam_member" "agent_subscribe" {
   subscription = google_pubsub_subscription.fact_events_sub.name
   role         = "roles/pubsub.subscriber"
   member       = "serviceAccount:${google_service_account.agent_sa.email}"
+}
+
+resource "google_service_account_iam_member" "pubsub_can_mint_agent_tokens" {
+  service_account_id = google_service_account.agent_sa.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }

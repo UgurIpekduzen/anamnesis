@@ -39,8 +39,3 @@ variable "owner_email" {
   type        = string
 }
 
-variable "subscriber_min_instances" {
-  description = "Minimum instance count for anamnesis-subscriber (0 to pause its continuous billing, 1 to keep it always processing)"
-  type        = number
-  default     = 0
-}
