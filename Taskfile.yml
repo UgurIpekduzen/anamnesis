@@ -27,10 +27,14 @@ tasks:
     cmds:
       - |
         CURRENT_TAG=$(docker compose run --rm gcloud run services describe anamnesis-ui --region=us-central1 --format="value(spec.template.spec.containers[0].image)" 2>/dev/null | sed 's/.*://')
+        # docker compose run does NOT forward the invoking shell's env
+        # vars into the container by default — -e <NAME> (no value) is
+        # what actually pulls it from the host, this was silently
+        # missing before and TF_VAR_* overrides never reached terraform.
         if [ -n "$CURRENT_TAG" ]; then
-          TF_VAR_image_tag="${TF_VAR_image_tag:-$CURRENT_TAG}" docker compose run --rm terraform apply
+          TF_VAR_image_tag="${TF_VAR_image_tag:-$CURRENT_TAG}" docker compose run --rm -e TF_VAR_image_tag -e TF_VAR_subscriber_min_instances terraform apply
         else
-          docker compose run --rm terraform apply
+          docker compose run --rm -e TF_VAR_image_tag -e TF_VAR_subscriber_min_instances terraform apply
         fi
 
   tf:check:
