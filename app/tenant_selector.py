@@ -3,8 +3,8 @@ import streamlit as st
 from src.tenants import list_tenants
 
 
-def select_tenant() -> dict:
-    tenants = list_tenants()
+def select_tenant(owner_uid: str) -> dict:
+    tenants = list_tenants(owner_uid)
     if not tenants:
         st.warning("No projects found. Run seed_data.py first.")
         st.stop()
