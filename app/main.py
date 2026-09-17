@@ -1,5 +1,6 @@
 import streamlit as st
 
+from app.auth import get_current_user_email
 from app.chat import ask, clear_history
 from app.facts import render_facts
 from app.runner import get_runner
@@ -13,6 +14,10 @@ runner = get_runner()
 tenant = select_tenant()
 
 with st.sidebar:
+    user_email = get_current_user_email()
+    if user_email is not None:
+        st.caption(f"Signed in as {user_email}")
+
     if st.button("🗑️ Clear chat"):
         clear_history(tenant["tenant_id"])
         st.rerun()

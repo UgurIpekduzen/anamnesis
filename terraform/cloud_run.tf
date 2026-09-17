@@ -62,7 +62,7 @@ resource "google_cloud_run_v2_service_iam_member" "ui_owner" {
   name     = google_cloud_run_v2_service.ui.name
   location = var.region
   role     = "roles/run.invoker"
-  member   = "user:${var.owner_email}"
+  member   = "group:${var.owner_group_email}"
 }
 
 resource "google_cloud_run_v2_service" "subscriber" {
