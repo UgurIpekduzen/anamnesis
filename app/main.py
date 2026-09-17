@@ -5,6 +5,7 @@ from app.chat import ask, clear_history
 from app.facts import render_facts
 from app.runner import get_runner
 from app.tenant_selector import select_tenant
+from src.usage import DAILY_MESSAGE_WARNING_THRESHOLD, get_today_count
 
 st.set_page_config(page_title="Anamnesis")
 st.title("Anamnesis")
@@ -24,6 +25,11 @@ with st.sidebar:
     if user_email is not None:
         st.caption(f"Signed in as {user_email}")
 
+    today_count = get_today_count(owner_uid)
+    st.caption(f"{today_count} messages today")
+    if today_count >= DAILY_MESSAGE_WARNING_THRESHOLD:
+        st.warning("You've sent a lot of messages today — just flagging it, nothing is blocked.")
+
     if st.button("🗑️ Clear chat"):
         clear_history(tenant["tenant_id"])
         st.rerun()
@@ -33,4 +39,4 @@ with st.sidebar:
 with facts_tab:
     render_facts(tenant)
 
-ask(runner, tenant, trace_tab)
+ask(runner, tenant, trace_tab, owner_uid)
