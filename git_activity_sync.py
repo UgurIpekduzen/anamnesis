@@ -5,13 +5,17 @@ from src.publisher import publish_fact
 from src.tenants import list_tenants
 
 DAYS = int(os.environ.get("GIT_ACTIVITY_DAYS", 7))
+# This script runs locally, scoped to whoever's machine it's on — there's
+# no Cloud Run identity to read here, so the owner is given explicitly
+# instead of defaulting silently to the wrong person's projects.
+OWNER_UID = os.environ["GIT_ACTIVITY_OWNER_UID"]
 
 
 def summarize_and_publish():
     # git_repo_path is set per tenant via the agent (set_git_repo_path,
     # APPCE-34) rather than a local config file — machine-specific, so a
     # tenant with no repo on this machine simply has it unset here.
-    tenants_with_repo = [t for t in list_tenants() if t.get("git_repo_path")]
+    tenants_with_repo = [t for t in list_tenants(OWNER_UID) if t.get("git_repo_path")]
 
     for tenant in tenants_with_repo:
         tenant_id = tenant["tenant_id"]
@@ -38,7 +42,7 @@ def summarize_and_publish():
         # Data minimization (APPCE-29): only a count, never raw commit
         # message text — commit messages could reference third parties.
         content = f"{commit_count} commits in the last {DAYS} days."
-        publish_fact(tenant_id, content, category="status")
+        publish_fact(tenant_id, content, category="status", owner_uid=OWNER_UID)
         print(f"{tenant_id}: {commit_count} commits -> published")
 
 

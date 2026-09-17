@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from src.categories import validate_category
 from src.firestore_client import get_client
+from src.tenants import get_owned_tenant
 
 
 def create_fact(tenant_id: str, content: str, category: str) -> None:
@@ -24,7 +25,7 @@ def create_fact(tenant_id: str, content: str, category: str) -> None:
     )
 
 
-def get_tenant_facts(tenant_id: str) -> list[dict]:
+def get_tenant_facts(tenant_id: str, owner_uid: str) -> list[dict]:
     """Retrieve all stored facts for a given project (tenant).
 
     No category filter is exposed here on purpose (see APPCE-26): the
@@ -42,6 +43,7 @@ def get_tenant_facts(tenant_id: str) -> list[dict]:
         calling update_fact/delete_fact), "content", "category", and
         "created_at".
     """
+    get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     facts_ref = client.collection("tenants").document(tenant_id).collection("facts")
 
@@ -57,13 +59,18 @@ def get_tenant_facts(tenant_id: str) -> list[dict]:
 
 
 def update_fact(
-    tenant_id: str, fact_id: str, content: str | None = None, category: str | None = None
+    tenant_id: str,
+    fact_id: str,
+    owner_uid: str,
+    content: str | None = None,
+    category: str | None = None,
 ) -> None:
     """Update an existing fact's content and/or category.
 
     At least one of content/category should be given — omit the field
     you don't want to change instead of passing its old value back in.
     """
+    get_owned_tenant(tenant_id, owner_uid)
     if category is not None:
         validate_category(category)
 
@@ -79,8 +86,9 @@ def update_fact(
     ).update(updates)
 
 
-def delete_fact(tenant_id: str, fact_id: str) -> None:
+def delete_fact(tenant_id: str, fact_id: str, owner_uid: str) -> None:
     """Delete a single fact."""
+    get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     client.collection("tenants").document(tenant_id).collection("facts").document(
         fact_id
