@@ -18,13 +18,18 @@ st.caption("Personal Project Context Engine")
 user_email = get_current_user_email()
 owner_uid = user_email or "local-dev@anamnesis.local"
 
+if user_email is not None:
+    st.caption(f"Signed in as {user_email}")
+else:
+    # TEMPORARY (APPCE-46 diagnosis): show which header names actually
+    # arrived so we can tell whether Cloud Run forwards Authorization at
+    # all, without printing token values. Remove once diagnosed.
+    st.caption(f"debug: header keys seen = {list(st.context.headers.keys())}")
+
 runner = get_runner(owner_uid)
 tenant = select_tenant(owner_uid)
 
 with st.sidebar:
-    if user_email is not None:
-        st.caption(f"Signed in as {user_email}")
-
     today_count = get_today_count(owner_uid)
     st.caption(f"{today_count} messages today")
     if today_count >= DAILY_MESSAGE_WARNING_THRESHOLD:
