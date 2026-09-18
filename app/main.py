@@ -20,6 +20,20 @@ owner_uid = user_email or "local-dev@anamnesis.local"
 
 if user_email is not None:
     st.caption(f"Signed in as {user_email}")
+else:
+    # TEMPORARY (APPCE-46 diagnosis, round 2): the header is present but
+    # something about its value or decoding isn't matching what we
+    # expect — show enough to tell what, without leaking the full token.
+    raw = st.context.headers.get("X-Serverless-Authorization")
+    st.caption(f"debug: raw prefix = {raw[:20]!r} len={len(raw) if raw else 0}")
+    if raw:
+        from app.auth import _decode_jwt_payload
+
+        try:
+            claims = _decode_jwt_payload(raw.removeprefix("Bearer "))
+            st.caption(f"debug: decoded claim keys = {list(claims.keys())}")
+        except Exception as exc:
+            st.caption(f"debug: decode failed = {exc!r}")
 
 runner = get_runner(owner_uid)
 tenant = select_tenant(owner_uid)
