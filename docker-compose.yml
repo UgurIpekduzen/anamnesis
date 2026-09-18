@@ -68,6 +68,20 @@ services:
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       GCP_PROJECT_ID: anamnesis-local
 
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      # Live code reload: edit frontend/src on the host and see it without
+      # rebuilding the image (same pattern as adk-web below).
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      # Anonymous volume so the container's own npm-installed
+      # node_modules isn't shadowed by the host bind mounts above.
+      - /app/node_modules
+
   adk-web:
     build:
       context: .

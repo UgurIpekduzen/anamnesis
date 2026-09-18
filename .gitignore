@@ -231,3 +231,7 @@ TASKS.md
 *.tfstate
 *.tfstate.backup
 terraform.tfvars
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/

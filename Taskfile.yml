@@ -94,6 +94,21 @@ tasks:
     cmds:
       - docker compose down subscriber
 
+  frontend:up:
+    desc: Run the React dev server in the background (APPCE-52)
+    cmds:
+      - docker compose up -d frontend
+
+  frontend:logs:
+    desc: Tail logs from the React dev server
+    cmds:
+      - docker compose logs -f frontend
+
+  frontend:down:
+    desc: Stop the React dev server
+    cmds:
+      - docker compose down frontend
+
   adk:up:
     desc: Run adk web (against the dockerized emulators) in the background
     cmds:
