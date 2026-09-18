@@ -1,9 +1,9 @@
-from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from google.genai import types
 
-from api.deps import get_current_owner_uid
+from api.deps import get_current_owner_uid, verify_token
 from api.runner import get_runner
 from src.facts import get_tenant_facts
 from src.tenants import list_tenants
@@ -45,9 +45,19 @@ def _event_to_messages(event) -> list[dict]:
 
 
 @app.websocket("/ws/chat/{tenant_id}")
-async def chat(websocket: WebSocket, tenant_id: str, owner_uid: str):
-    # TEMPORARY (APPCE-53 scaffolding, matches api/deps.py): owner_uid as
-    # a query param, unverified. Replaced by real auth in APPCE-54.
+async def chat(websocket: WebSocket, tenant_id: str, token: str):
+    # Native browser WebSockets can't send custom headers, so the ID
+    # token travels as a query param instead of Authorization — verified
+    # the same way as the REST endpoints (see api/deps.py). Checked once
+    # at connect time; a token that expires mid-conversation closes the
+    # socket on its next send, and the frontend reconnects with its
+    # background-refreshed token (see APPCE-54).
+    try:
+        owner_uid = verify_token(token)
+    except HTTPException as exc:
+        await websocket.close(code=1008, reason=exc.detail)
+        return
+
     await websocket.accept()
     runner = get_runner(owner_uid)
 

@@ -16,23 +16,23 @@ export interface Fact {
   created_at: string;
 }
 
-export async function listTenants(ownerUid: string): Promise<Tenant[]> {
+export async function listTenants(idToken: string): Promise<Tenant[]> {
   const res = await fetch(`${API_BASE}/tenants`, {
-    headers: { "X-Owner-Uid": ownerUid },
+    headers: { Authorization: `Bearer ${idToken}` },
   });
   if (!res.ok) throw new Error(`listTenants failed: ${res.status}`);
   return res.json();
 }
 
-export async function getTenantFacts(ownerUid: string, tenantId: string): Promise<Fact[]> {
+export async function getTenantFacts(idToken: string, tenantId: string): Promise<Fact[]> {
   const res = await fetch(`${API_BASE}/tenants/${tenantId}/facts`, {
-    headers: { "X-Owner-Uid": ownerUid },
+    headers: { Authorization: `Bearer ${idToken}` },
   });
   if (!res.ok) throw new Error(`getTenantFacts failed: ${res.status}`);
   return res.json();
 }
 
-export function chatSocketUrl(ownerUid: string, tenantId: string): string {
+export function chatSocketUrl(idToken: string, tenantId: string): string {
   const base = API_BASE.replace("http", "ws");
-  return `${base}/ws/chat/${tenantId}?owner_uid=${encodeURIComponent(ownerUid)}`;
+  return `${base}/ws/chat/${tenantId}?token=${encodeURIComponent(idToken)}`;
 }

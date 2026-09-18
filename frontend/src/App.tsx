@@ -1,52 +1,53 @@
 import { useEffect, useState } from "react";
 
 import { listTenants, type Tenant } from "./api";
+import Auth from "./components/Auth";
 import Chat from "./components/Chat";
 import Facts from "./components/Facts";
 import TenantSelector from "./components/TenantSelector";
 
 type Tab = "chat" | "facts";
 
+function decodeEmail(idToken: string): string {
+  const payload = JSON.parse(atob(idToken.split(".")[1]));
+  return payload.email;
+}
+
 function App() {
-  // TEMPORARY (APPCE-53/54 scaffolding): the backend can't verify who's
-  // calling yet, so the owner_uid is just typed in here. Replaced by a
-  // real Google Sign-In identity once APPCE-54 lands.
-  const [ownerUid, setOwnerUid] = useState("");
+  const [idToken, setIdToken] = useState<string | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("chat");
 
   useEffect(() => {
-    if (!ownerUid) return;
-    listTenants(ownerUid).then((fetched) => {
+    if (!idToken) return;
+    listTenants(idToken).then((fetched) => {
       setTenants(fetched);
       setSelectedTenantId(fetched[0]?.tenant_id ?? null);
     });
-  }, [ownerUid]);
+  }, [idToken]);
 
   return (
     <main>
       <h1>Anamnesis</h1>
       <p>Personal Project Context Engine</p>
 
-      <label>
-        Owner UID (temporary):{" "}
-        <input value={ownerUid} onChange={(e) => setOwnerUid(e.target.value)} />
-      </label>
+      {!idToken && <Auth onSignIn={setIdToken} />}
+      {idToken && <p>Signed in as {decodeEmail(idToken)}</p>}
 
-      {ownerUid && (
+      {idToken && (
         <TenantSelector tenants={tenants} selectedId={selectedTenantId} onSelect={setSelectedTenantId} />
       )}
 
-      {selectedTenantId && (
+      {idToken && selectedTenantId && (
         <>
           <div>
             <button onClick={() => setTab("chat")}>Chat</button>
             <button onClick={() => setTab("facts")}>Facts</button>
           </div>
 
-          {tab === "chat" && <Chat ownerUid={ownerUid} tenantId={selectedTenantId} />}
-          {tab === "facts" && <Facts ownerUid={ownerUid} tenantId={selectedTenantId} />}
+          {tab === "chat" && <Chat idToken={idToken} tenantId={selectedTenantId} />}
+          {tab === "facts" && <Facts idToken={idToken} tenantId={selectedTenantId} />}
         </>
       )}
     </main>

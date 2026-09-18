@@ -53,6 +53,10 @@ services:
       GOOGLE_GENAI_USE_ENTERPRISE: "1"
       GOOGLE_CLOUD_PROJECT: gen-lang-client-0424267124
       GOOGLE_CLOUD_LOCATION: us-central1
+      # Not a secret — a Google OAuth client ID is meant to be public,
+      # it's embedded in the frontend's JS bundle too (see APPCE-54).
+      GOOGLE_OAUTH_CLIENT_ID: 430288501339-aiifao42l0fp6qirm2kiluh8fv4qfb3k.apps.googleusercontent.com
+      ALLOWED_EMAILS: u.ipkdzn@gmail.com
     volumes:
       - ~/.config/gcloud:/root/.config/gcloud:ro
 

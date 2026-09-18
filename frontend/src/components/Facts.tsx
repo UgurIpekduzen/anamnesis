@@ -5,7 +5,7 @@ import { getTenantFacts, type Fact } from "../api";
 const CATEGORY_ORDER = ["architecture", "decision", "bug", "status", "todo"];
 
 interface Props {
-  ownerUid: string;
+  idToken: string;
   tenantId: string;
 }
 
@@ -22,16 +22,16 @@ function groupByCategory(facts: Fact[]): [string, Fact[]][] {
   return [...known, ...unknown].map((category) => [category, groups.get(category)!]);
 }
 
-function Facts({ ownerUid, tenantId }: Props) {
+function Facts({ idToken, tenantId }: Props) {
   const [facts, setFacts] = useState<Fact[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setError(null);
-    getTenantFacts(ownerUid, tenantId)
+    getTenantFacts(idToken, tenantId)
       .then(setFacts)
       .catch((err) => setError(String(err)));
-  }, [ownerUid, tenantId]);
+  }, [idToken, tenantId]);
 
   if (error) return <p>Error loading facts: {error}</p>;
   if (facts.length === 0) return <p>No facts recorded yet.</p>;
