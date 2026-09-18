@@ -11,20 +11,15 @@ st.set_page_config(page_title="Anamnesis")
 st.title("Anamnesis")
 st.caption("Personal Project Context Engine")
 
-# Cloud Run forwards the caller's verified identity via the Authorization
-# header (see app/auth.py). Locally (docker compose), that header doesn't
-# exist, so we fall back to a fixed dev identity — there's no real IAM
-# check to satisfy there anyway.
+# Cloud Run forwards the caller's verified identity via the
+# X-Serverless-Authorization header (see app/auth.py). Locally (docker
+# compose), that header doesn't exist, so we fall back to a fixed dev
+# identity — there's no real IAM check to satisfy there anyway.
 user_email = get_current_user_email()
 owner_uid = user_email or "local-dev@anamnesis.local"
 
 if user_email is not None:
     st.caption(f"Signed in as {user_email}")
-else:
-    # TEMPORARY (APPCE-46 diagnosis): show which header names actually
-    # arrived so we can tell whether Cloud Run forwards Authorization at
-    # all, without printing token values. Remove once diagnosed.
-    st.caption(f"debug: header keys seen = {list(st.context.headers.keys())}")
 
 runner = get_runner(owner_uid)
 tenant = select_tenant(owner_uid)
