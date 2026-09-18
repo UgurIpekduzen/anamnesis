@@ -39,3 +39,7 @@ variable "owner_email" {
   type        = string
 }
 
+variable "owner_group_email" {
+  description = "Google Group granted access to anamnesis-ui, e.g. anamnesis-users@googlegroups.com"
+  type        = string
+}

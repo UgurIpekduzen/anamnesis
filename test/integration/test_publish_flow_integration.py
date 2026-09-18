@@ -12,6 +12,7 @@ from src.subscriber import _process_push_message
 from src.tenants import add_tenant, delete_tenant
 
 SUBSCRIPTION_ID = "fact-events-sub"
+OWNER_UID = "test-owner@example.com"
 
 
 def _pull_one(subscriber, subscription, timeout_seconds=5):
@@ -26,13 +27,18 @@ def _pull_one(subscriber, subscription, timeout_seconds=5):
 
 @pytest.fixture
 def tenant_id():
-    tenant_id = add_tenant(f"Integration Test Tenant {uuid.uuid4().hex[:8]}")
+    tenant_id = add_tenant(f"Integration Test Tenant {uuid.uuid4().hex[:8]}", OWNER_UID)
     yield tenant_id
-    delete_tenant(tenant_id)
+    delete_tenant(tenant_id, OWNER_UID)
 
 
 def test_publish_fact_is_delivered_and_written_by_the_subscriber(tenant_id):
-    publish_fact(tenant_id, content="Published via the event-driven path", category="decision")
+    publish_fact(
+        tenant_id,
+        content="Published via the event-driven path",
+        category="decision",
+        owner_uid=OWNER_UID,
+    )
 
     subscriber = get_subscriber_client()
     subscription = subscription_path(SUBSCRIPTION_ID)
@@ -50,7 +56,7 @@ def test_publish_fact_is_delivered_and_written_by_the_subscriber(tenant_id):
     subscriber.acknowledge(request={"subscription": subscription, "ack_ids": [received.ack_id]})
 
     assert status == 200
-    facts = get_tenant_facts(tenant_id)
+    facts = get_tenant_facts(tenant_id, OWNER_UID)
     assert len(facts) == 1
     assert facts[0]["content"] == "Published via the event-driven path"
     assert facts[0]["category"] == "decision"

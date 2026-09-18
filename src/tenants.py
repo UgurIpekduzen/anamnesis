@@ -1,6 +1,8 @@
 import re
 from datetime import datetime, timezone
 
+from google.cloud import firestore
+
 from src.firestore_client import get_client
 
 
@@ -11,8 +13,24 @@ def _slugify(name: str) -> str:
     return slug
 
 
-def add_tenant(name: str) -> str:
-    """Register a new project (tenant).
+def get_owned_tenant(tenant_id: str, owner_uid: str) -> dict:
+    """Fetch a tenant document, enforcing that it belongs to owner_uid.
+
+    Raises:
+        PermissionError: if the tenant doesn't exist or belongs to a
+            different owner — callers must not distinguish between the
+            two, so a user can't tell "wrong owner" from "never existed"
+            for someone else's project (see APPCE-48).
+    """
+    client = get_client()
+    doc = client.collection("tenants").document(tenant_id).get()
+    if not doc.exists or doc.to_dict().get("owner_uid") != owner_uid:
+        raise PermissionError(f"No project '{tenant_id}' found for this user.")
+    return doc.to_dict()
+
+
+def add_tenant(name: str, owner_uid: str) -> str:
+    """Register a new project (tenant), owned by owner_uid.
 
     The tenant_id is derived from the name rather than accepted as a
     parameter — a caller (human or agent) inventing an ID is exactly how
@@ -28,23 +46,25 @@ def add_tenant(name: str) -> str:
         {
             "name": name,
             "status": "active",
+            "owner_uid": owner_uid,
             "created_at": datetime.now(timezone.utc),
         }
     )
     return tenant_id
 
 
-def rename_tenant(tenant_id: str, new_name: str) -> None:
+def rename_tenant(tenant_id: str, new_name: str, owner_uid: str) -> None:
     """Change a tenant's display name.
 
     The tenant_id itself (the Firestore document ID) is immutable — it
     stays derived from whatever name was used at add_tenant time.
     """
+    get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     client.collection("tenants").document(tenant_id).update({"name": new_name})
 
 
-def delete_tenant(tenant_id: str) -> None:
+def delete_tenant(tenant_id: str, owner_uid: str) -> None:
     """Delete a tenant and all of its facts.
 
     Cascade-deletes the "facts" subcollection first — leaving orphaned
@@ -52,6 +72,7 @@ def delete_tenant(tenant_id: str) -> None:
     minimization principle (see APPCE-29) for no benefit, since nothing
     can reference them once the tenant document is gone.
     """
+    get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     tenant_ref = client.collection("tenants").document(tenant_id)
 
@@ -61,15 +82,16 @@ def delete_tenant(tenant_id: str) -> None:
     tenant_ref.delete()
 
 
-def set_jira_project_key(tenant_id: str, jira_project_key: str) -> None:
+def set_jira_project_key(tenant_id: str, jira_project_key: str, owner_uid: str) -> None:
     """Attach a Jira project key to an existing tenant."""
+    get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     client.collection("tenants").document(tenant_id).update(
         {"jira_project_key": jira_project_key}
     )
 
 
-def set_git_repo_path(tenant_id: str, git_repo_path: str) -> None:
+def set_git_repo_path(tenant_id: str, git_repo_path: str, owner_uid: str) -> None:
     """Attach a local git repo path to an existing tenant, used by
     git_activity_sync.py to summarize recent commit activity (see
     APPCE-28, APPCE-34).
@@ -80,14 +102,15 @@ def set_git_repo_path(tenant_id: str, git_repo_path: str) -> None:
     set it separately on each, or leave it unset where the repo doesn't
     exist locally.
     """
+    get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     client.collection("tenants").document(tenant_id).update(
         {"git_repo_path": git_repo_path}
     )
 
 
-def list_tenants() -> list[dict]:
-    """List all known projects (tenants).
+def list_tenants(owner_uid: str) -> list[dict]:
+    """List all projects (tenants) owned by owner_uid.
 
     Returns:
         A list of dicts with "tenant_id" (use this exact value when calling
@@ -96,6 +119,9 @@ def list_tenants() -> list[dict]:
         not set — not every tenant necessarily has either).
     """
     client = get_client()
+    query = client.collection("tenants").where(
+        filter=firestore.FieldFilter("owner_uid", "==", owner_uid)
+    )
     return [
         {
             "tenant_id": doc.id,
@@ -103,6 +129,6 @@ def list_tenants() -> list[dict]:
             "jira_project_key": data.get("jira_project_key"),
             "git_repo_path": data.get("git_repo_path"),
         }
-        for doc in client.collection("tenants").stream()
+        for doc in query.stream()
         for data in [doc.to_dict()]
     ]

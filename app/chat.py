@@ -2,6 +2,8 @@ import streamlit as st
 from google.adk.runners import Runner
 from google.genai import types
 
+from src.usage import record_message
+
 
 def _history_for(tenant_id: str) -> list[dict]:
     if "chat_history" not in st.session_state:
@@ -101,7 +103,7 @@ def _render_trace_body(trace: list[dict] | None) -> None:
         _render_result(entry["response"])
 
 
-def ask(runner: Runner, tenant: dict, trace_container) -> None:
+def ask(runner: Runner, tenant: dict, trace_container, owner_uid: str) -> None:
     history = _history_for(tenant["tenant_id"])
 
     for turn in history:
@@ -123,6 +125,7 @@ def ask(runner: Runner, tenant: dict, trace_container) -> None:
 
     history.append({"role": "user", "content": question})
     _render_message("user", question)
+    record_message(owner_uid)
 
     message = types.Content(
         role="user",
