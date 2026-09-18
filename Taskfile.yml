@@ -94,6 +94,21 @@ tasks:
     cmds:
       - docker compose down subscriber
 
+  api:up:
+    desc: Run the FastAPI backend in the background (APPCE-53)
+    cmds:
+      - docker compose up -d api
+
+  api:logs:
+    desc: Tail logs from the FastAPI backend
+    cmds:
+      - docker compose logs -f api
+
+  api:down:
+    desc: Stop the FastAPI backend
+    cmds:
+      - docker compose down api
+
   frontend:up:
     desc: Run the React dev server in the background (APPCE-52)
     cmds:

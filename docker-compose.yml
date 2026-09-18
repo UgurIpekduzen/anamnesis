@@ -41,6 +41,21 @@ services:
       # this — it authenticates as agent_sa automatically.
       - ~/.config/gcloud:/root/.config/gcloud:ro
 
+  api:
+    build:
+      context: .
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8010:8000"
+    # Same real-GCP reasoning as streamlit above — no emulator env vars.
+    environment:
+      GCP_PROJECT_ID: gen-lang-client-0424267124
+      GOOGLE_GENAI_USE_ENTERPRISE: "1"
+      GOOGLE_CLOUD_PROJECT: gen-lang-client-0424267124
+      GOOGLE_CLOUD_LOCATION: us-central1
+    volumes:
+      - ~/.config/gcloud:/root/.config/gcloud:ro
+
   firestore-emulator:
     image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
     command: gcloud emulators firestore start --host-port=0.0.0.0:8080

@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ src/
 COPY agent/ agent/
 COPY app/ app/
+COPY api/ api/
 
 ENV PYTHONUNBUFFERED=1
 # Streamlit adds its entry script's own directory to sys.path, not the
