@@ -5,6 +5,7 @@ import Auth from "./components/Auth";
 import Chat from "./components/Chat";
 import Facts from "./components/Facts";
 import TenantSelector from "./components/TenantSelector";
+import UsageCounter from "./components/UsageCounter";
 
 type Tab = "chat" | "facts";
 
@@ -18,6 +19,7 @@ function App() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("chat");
+  const [usageRefreshKey, setUsageRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!idToken) return;
@@ -34,6 +36,7 @@ function App() {
 
       {!idToken && <Auth onSignIn={setIdToken} />}
       {idToken && <p>Signed in as {decodeEmail(idToken)}</p>}
+      {idToken && <UsageCounter idToken={idToken} refreshKey={usageRefreshKey} />}
 
       {idToken && (
         <TenantSelector tenants={tenants} selectedId={selectedTenantId} onSelect={setSelectedTenantId} />
@@ -46,7 +49,17 @@ function App() {
             <button onClick={() => setTab("facts")}>Facts</button>
           </div>
 
-          {tab === "chat" && <Chat idToken={idToken} tenantId={selectedTenantId} />}
+          {tab === "chat" && (
+            // Keyed by tenantId so switching projects gets a fresh Chat
+            // instance (separate history per project) instead of one
+            // shared conversation bleeding across tenants.
+            <Chat
+              key={selectedTenantId}
+              idToken={idToken}
+              tenantId={selectedTenantId}
+              onMessageSent={() => setUsageRefreshKey((k) => k + 1)}
+            />
+          )}
           {tab === "facts" && <Facts idToken={idToken} tenantId={selectedTenantId} />}
         </>
       )}

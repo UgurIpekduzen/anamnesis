@@ -7,6 +7,7 @@ from api.deps import get_current_owner_uid, verify_token
 from api.runner import get_runner
 from src.facts import get_tenant_facts
 from src.tenants import list_tenants
+from src.usage import DAILY_MESSAGE_WARNING_THRESHOLD, get_today_count, record_message
 
 app = FastAPI(title="Anamnesis API")
 
@@ -33,6 +34,14 @@ def get_tenants(owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
 @app.get("/tenants/{tenant_id}/facts")
 def get_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
     return get_tenant_facts(tenant_id, owner_uid)
+
+
+@app.get("/usage")
+def get_usage(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    return {
+        "count": get_today_count(owner_uid),
+        "threshold": DAILY_MESSAGE_WARNING_THRESHOLD,
+    }
 
 
 def _event_to_messages(event) -> list[dict]:
@@ -65,6 +74,7 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
         while True:
             data = await websocket.receive_json()
             question = data["message"]
+            record_message(owner_uid)
 
             message = types.Content(role="user", parts=[types.Part(text=question)])
             final_text = "(no response)"

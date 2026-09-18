@@ -36,3 +36,16 @@ export function chatSocketUrl(idToken: string, tenantId: string): string {
   const base = API_BASE.replace("http", "ws");
   return `${base}/ws/chat/${tenantId}?token=${encodeURIComponent(idToken)}`;
 }
+
+export interface Usage {
+  count: number;
+  threshold: number;
+}
+
+export async function getUsage(idToken: string): Promise<Usage> {
+  const res = await fetch(`${API_BASE}/usage`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`getUsage failed: ${res.status}`);
+  return res.json();
+}

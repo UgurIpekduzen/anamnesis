@@ -5,6 +5,7 @@ import { chatSocketUrl } from "../api";
 interface Props {
   idToken: string;
   tenantId: string;
+  onMessageSent?: () => void;
 }
 
 interface ChatMessage {
@@ -17,12 +18,16 @@ interface TraceEntry {
   name: string;
 }
 
-function Chat({ idToken, tenantId }: Props) {
+function Chat({ idToken, tenantId, onMessageSent }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [trace, setTrace] = useState<TraceEntry[]>([]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
+  // Read inside onclose without re-subscribing the effect on every
+  // isThinking flip — a ref mirrors the latest value for that purpose.
+  const isThinkingRef = useRef(false);
+  isThinkingRef.current = isThinking;
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +53,18 @@ function Chat({ idToken, tenantId }: Props) {
       // Code 1008 (policy violation) means the backend rejected the
       // token outright (e.g. not on the allowlist) — reconnecting won't
       // help there, so don't loop on it.
+      //
+      // A close that interrupts an in-flight question (isThinking still
+      // true) is surfaced as a friendly error instead of silently
+      // vanishing — mirrors app/chat.py's try/except in the Streamlit UI.
       socket.onclose = (event) => {
+        if (isThinkingRef.current) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: "Something went wrong while talking to the agent. Please try again." },
+          ]);
+          setIsThinking(false);
+        }
         if (!cancelled && event.code !== 1008) connect();
       };
     }
@@ -69,10 +85,18 @@ function Chat({ idToken, tenantId }: Props) {
     setIsThinking(true);
     setInput("");
     socketRef.current.send(JSON.stringify({ message: question }));
+    onMessageSent?.();
+  }
+
+  function clearChat() {
+    setMessages([]);
+    setTrace([]);
   }
 
   return (
     <div>
+      <button onClick={clearChat}>🗑️ Clear chat</button>
+
       <div>
         {messages.map((msg, i) => (
           <p key={i}>
