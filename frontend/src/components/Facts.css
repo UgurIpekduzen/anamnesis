@@ -1,0 +1,48 @@
+.facts {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.facts-category {
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.facts-category summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  font-weight: 600;
+  text-transform: capitalize;
+  list-style: none;
+}
+
+.facts-category summary::-webkit-details-marker {
+  display: none;
+}
+
+.facts-category summary::before {
+  content: "▾ ";
+  color: var(--text-muted);
+}
+
+.facts-category[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.fact-card {
+  border-top: 1px solid var(--border);
+  padding: 12px 14px;
+  background: var(--bg-card);
+}
+
+.fact-card:first-of-type {
+  border-top: none;
+}
+
+.fact-card p {
+  margin: 0 0 6px;
+}

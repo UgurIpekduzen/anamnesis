@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getTenantFacts, type Fact } from "../api";
+import "./Facts.css";
 
 const CATEGORY_ORDER = ["architecture", "decision", "bug", "status", "todo"];
 
@@ -37,14 +38,14 @@ function Facts({ idToken, tenantId }: Props) {
   if (facts.length === 0) return <p>No facts recorded yet.</p>;
 
   return (
-    <div>
+    <div className="facts">
       {groupByCategory(facts).map(([category, categoryFacts]) => (
-        <details key={category} open>
+        <details key={category} className="facts-category" open>
           <summary>
             {category} ({categoryFacts.length})
           </summary>
           {categoryFacts.map((fact) => (
-            <div key={fact.fact_id} style={{ border: "1px solid #444", borderRadius: 8, padding: 8, margin: "8px 0" }}>
+            <div key={fact.fact_id} className="fact-card">
               <p>{fact.content}</p>
               <small>{new Date(fact.created_at).toLocaleString()}</small>
             </div>

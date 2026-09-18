@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 
 import { chatSocketUrl } from "../api";
+import "./Chat.css";
 
 interface Props {
   idToken: string;
-  tenantId: string;
+  tenantId: string | null;
   onMessageSent?: () => void;
 }
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  isError?: boolean;
 }
 
 interface TraceEntry {
@@ -30,10 +32,16 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
   isThinkingRef.current = isThinking;
 
   useEffect(() => {
+    // No project selected yet (e.g. right after switching accounts,
+    // or an account with no projects at all) — keep the input visible
+    // but there's nothing to connect to.
+    if (!tenantId) return;
+    const currentTenantId = tenantId;
+
     let cancelled = false;
 
     function connect() {
-      const socket = new WebSocket(chatSocketUrl(idToken, tenantId));
+      const socket = new WebSocket(chatSocketUrl(idToken, currentTenantId));
       socketRef.current = socket;
 
       socket.onmessage = (event) => {
@@ -61,7 +69,11 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
         if (isThinkingRef.current) {
           setMessages((prev) => [
             ...prev,
-            { role: "assistant", content: "Something went wrong while talking to the agent. Please try again." },
+            {
+              role: "assistant",
+              content: "Something went wrong while talking to the agent. Please try again.",
+              isError: true,
+            },
           ]);
           setIsThinking(false);
         }
@@ -78,7 +90,7 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
 
   function sendMessage() {
     const question = input.trim();
-    if (!question || !socketRef.current) return;
+    if (!question || !socketRef.current || !tenantId) return;
 
     setMessages((prev) => [...prev, { role: "user", content: question }]);
     setTrace([]);
@@ -94,35 +106,49 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
   }
 
   return (
-    <div>
-      <button onClick={clearChat}>🗑️ Clear chat</button>
-
-      <div>
+    <div className="chat">
+      <div className="chat-messages">
         {messages.map((msg, i) => (
-          <p key={i}>
-            <strong>{msg.role === "user" ? "You" : "Anamnesis"}:</strong> {msg.content}
-          </p>
+          <div key={i} className={`chat-bubble ${msg.role}${msg.isError ? " error" : ""}`}>
+            {msg.content}
+          </div>
         ))}
+
+        {isThinking && (
+          <div className="chat-trace">
+            <span>Thinking…</span>
+            {trace.map((entry, i) => (
+              <span key={i} className="chat-trace-entry">
+                {entry.type === "tool_call" ? "🔧" : "✅"} {entry.name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
-      {isThinking && (
-        <div>
-          <em>Thinking...</em>
-          {trace.map((entry, i) => (
-            <div key={i}>
-              {entry.type === "tool_call" ? "🔧" : "✅"} {entry.name}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-        placeholder="Ask or record something"
-      />
-      <button onClick={sendMessage}>Send</button>
+      <div className="chat-input-row">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          placeholder={tenantId ? "Ask or record something" : "Select a project first"}
+          disabled={!tenantId}
+        />
+        <button onClick={sendMessage} disabled={!tenantId} title="Send" className="send-button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+        </button>
+        <button onClick={clearChat} title="Clear chat" className="icon-button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <line x1="10" y1="11" x2="10" y2="17" />
+            <line x1="14" y1="11" x2="14" y2="17" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }

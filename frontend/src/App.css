@@ -1,0 +1,105 @@
+.app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.sidebar select {
+  width: 100%;
+}
+
+.resize-handle {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: var(--border);
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--accent);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs button {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+}
+
+.tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  padding: 32px 40px;
+}
+
+.main-inner {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.main-inner h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.main-inner > p:first-of-type {
+  color: var(--text-muted);
+  margin: 0 0 20px;
+  text-align: center;
+}
+
+.signin-screen {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.signin-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.signin-gate h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.signin-gate > p {
+  color: var(--text-muted);
+  margin: 0;
+}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getUsage, type Usage } from "../api";
+import "./UsageCounter.css";
 
 interface Props {
   idToken: string;
@@ -22,7 +23,7 @@ function UsageCounter({ idToken, refreshKey }: Props) {
     <div>
       <small>{usage.count} messages today</small>
       {usage.count >= usage.threshold && (
-        <p>You've sent a lot of messages today — just flagging it, nothing is blocked.</p>
+        <p className="usage-warning">You've sent a lot of messages today — just flagging it, nothing is blocked.</p>
       )}
     </div>
   );
