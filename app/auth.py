@@ -23,15 +23,19 @@ def get_current_user_email() -> str | None:
     "Authorization" header and re-exposes the same token to the
     container under "X-Serverless-Authorization" instead — confirmed by
     inspecting st.context.headers in production (APPCE-46 diagnosis).
+    That value's scheme comes through as lowercase "bearer ", not the
+    "Bearer " capitalization the Authorization header itself normally
+    uses — also confirmed in production — so the prefix check here is
+    case-insensitive.
 
     Returns None when running outside Cloud Run's IAM auth (e.g. local
     docker compose), where no such header is present.
     """
     auth_header = st.context.headers.get("X-Serverless-Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
+    if not auth_header or not auth_header.lower().startswith("bearer "):
         return None
 
-    token = auth_header.removeprefix("Bearer ")
+    token = auth_header[len("bearer "):]
     try:
         claims = _decode_jwt_payload(token)
     except (IndexError, ValueError):
