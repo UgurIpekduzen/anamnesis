@@ -37,6 +37,6 @@ with st.sidebar:
     trace_tab, facts_tab = st.tabs(["Agent trace", "Facts"])
 
 with facts_tab:
-    render_facts(tenant)
+    render_facts(tenant, owner_uid)
 
 ask(runner, tenant, trace_tab, owner_uid)

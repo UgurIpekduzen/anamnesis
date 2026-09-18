@@ -8,8 +8,8 @@ from src.facts import get_tenant_facts
 CATEGORY_ORDER = ["architecture", "decision", "bug", "status", "todo"]
 
 
-def render_facts(tenant: dict) -> None:
-    facts = get_tenant_facts(tenant["tenant_id"])
+def render_facts(tenant: dict, owner_uid: str) -> None:
+    facts = get_tenant_facts(tenant["tenant_id"], owner_uid)
     if not facts:
         st.caption("No facts recorded yet.")
         return
