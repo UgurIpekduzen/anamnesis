@@ -1,14 +1,14 @@
-import os
-
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types
 
-# Caps how many past user turns are sent to the model on each call, so a
+from src.settings import get_settings
+
+# The window size is a per-user setting (src/settings.py, APPCE-58); it
+# caps how many past user turns are sent to the model on each call, so a
 # long-running session's token cost doesn't grow without bound. A plain
 # window instead of summarization on purpose — summarizing costs an extra
 # LLM call, which defeats the point at this usage scale (see APPCE-57).
-MAX_HISTORY_TURNS = int(os.environ.get("MAX_HISTORY_TURNS", 20))
 
 
 def _starts_user_turn(content: types.Content) -> bool:
@@ -35,6 +35,17 @@ def trim_to_last_turns(contents: list[types.Content], max_turns: int) -> list[ty
     return contents[starts[-max_turns] :]
 
 
-def limit_history(callback_context: CallbackContext, llm_request: LlmRequest) -> None:
-    llm_request.contents = trim_to_last_turns(llm_request.contents, MAX_HISTORY_TURNS)
-    return None
+def make_history_limiter(owner_uid: str):
+    """Build a before_model_callback bound to one user's window setting.
+
+    The setting is read on each call rather than captured once, so a change
+    in Settings takes effect on the next turn without rebuilding the cached
+    Runner (which would throw away every user's in-memory conversation).
+    """
+
+    def limit_history(callback_context: CallbackContext, llm_request: LlmRequest) -> None:
+        max_turns = get_settings(owner_uid)["history_turns"]
+        llm_request.contents = trim_to_last_turns(llm_request.contents, max_turns)
+        return None
+
+    return limit_history

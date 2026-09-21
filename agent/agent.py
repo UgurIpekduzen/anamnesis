@@ -2,7 +2,7 @@ import os
 
 from google.adk.agents.llm_agent import Agent
 
-from agent.history import limit_history
+from agent.history import make_history_limiter
 from src.facts import delete_fact, get_tenant_facts, update_fact
 from src.jira_client import get_jira_status
 from src.publisher import publish_fact
@@ -16,9 +16,9 @@ from src.tenants import (
 )
 
 
-# A tool result stays in the session history for up to MAX_HISTORY_TURNS
-# turns and is resent on every model call, so an unbounded fact list is
-# an expensive one (APPCE-59).
+# A tool result stays in the session history for as many turns as the
+# user's history window (src/settings.py) and is resent on every model
+# call, so an unbounded fact list is an expensive one (APPCE-59).
 MAX_FACTS_PER_TOOL_CALL = int(os.environ.get("MAX_FACTS_PER_TOOL_CALL", 50))
 
 
@@ -94,7 +94,7 @@ def build_agent(owner_uid: str) -> Agent:
     return Agent(
         model='gemini-2.5-flash',
         name='root_agent',
-        before_model_callback=limit_history,
+        before_model_callback=make_history_limiter(owner_uid),
         description='Answers questions about the user\'s personal projects, records new facts, registers new projects, and checks live Jira status.',
         instruction=(
             'You help the user recall and record information about their '

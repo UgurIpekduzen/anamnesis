@@ -1,6 +1,8 @@
+from types import SimpleNamespace
+
 from google.genai import types
 
-from agent.history import trim_to_last_turns
+from agent.history import make_history_limiter, trim_to_last_turns
 
 
 def _user(text: str) -> types.Content:
@@ -70,3 +72,28 @@ def test_a_tool_result_is_not_counted_as_a_user_turn():
 def test_returns_history_unchanged_when_there_are_no_user_turns():
     contents = [_model("orphan")]
     assert trim_to_last_turns(contents, max_turns=1) == contents
+
+
+def test_the_limiter_applies_the_users_window_from_settings(monkeypatch):
+    monkeypatch.setattr("agent.history.get_settings", lambda owner_uid: {"history_turns": 1})
+    request = SimpleNamespace(contents=[_user("one"), _model("a"), _user("two")])
+
+    make_history_limiter("test@example.com")(None, request)
+
+    assert [c.parts[0].text for c in request.contents] == ["two"]
+
+
+def test_the_limiter_picks_up_a_changed_setting_without_being_rebuilt(monkeypatch):
+    current = {"history_turns": 1}
+    monkeypatch.setattr("agent.history.get_settings", lambda owner_uid: dict(current))
+    limiter = make_history_limiter("test@example.com")
+    contents = [_user("one"), _model("a"), _user("two")]
+
+    first = SimpleNamespace(contents=list(contents))
+    limiter(None, first)
+    assert len(first.contents) == 1
+
+    current["history_turns"] = 5
+    second = SimpleNamespace(contents=list(contents))
+    limiter(None, second)
+    assert len(second.contents) == 3
