@@ -6,6 +6,7 @@ import AccountMenu from "./components/AccountMenu";
 import Auth from "./components/Auth";
 import Chat from "./components/Chat";
 import Facts from "./components/Facts";
+import SettingsDialog from "./components/SettingsDialog";
 import TenantSelector from "./components/TenantSelector";
 import UsageCounter from "./components/UsageCounter";
 import { initGoogleAuth, whenGoogleReady } from "./googleAuth";
@@ -31,6 +32,7 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const isResizing = useRef(false);
   const [googleReady, setGoogleReady] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (!idToken) return;
@@ -110,7 +112,22 @@ function App() {
 
   return (
     <div className="app">
-      <AccountMenu idToken={idToken} onSignOut={signOut} onChangeAccount={changeAccount} />
+      <AccountMenu
+        idToken={idToken}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onSignOut={signOut}
+        onChangeAccount={changeAccount}
+      />
+
+      {settingsOpen && (
+        <SettingsDialog
+          idToken={idToken}
+          onClose={() => setSettingsOpen(false)}
+          // The warning threshold lives in Settings, so the counter in the
+          // sidebar has to refetch to pick up a new one.
+          onSaved={() => setUsageRefreshKey((k) => k + 1)}
+        />
+      )}
 
       <aside className="sidebar" style={{ width: sidebarWidth }}>
         <UsageCounter idToken={idToken} refreshKey={usageRefreshKey} />

@@ -4,6 +4,7 @@ import "./AccountMenu.css";
 
 interface Props {
   idToken: string;
+  onOpenSettings: () => void;
   onSignOut: () => void;
   onChangeAccount: () => void;
 }
@@ -17,7 +18,7 @@ function decodeClaims(idToken: string): TokenClaims {
   return JSON.parse(atob(idToken.split(".")[1]));
 }
 
-function AccountMenu({ idToken, onSignOut, onChangeAccount }: Props) {
+function AccountMenu({ idToken, onOpenSettings, onSignOut, onChangeAccount }: Props) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const claims = decodeClaims(idToken);
@@ -45,6 +46,14 @@ function AccountMenu({ idToken, onSignOut, onChangeAccount }: Props) {
       {open && (
         <div className="account-dropdown">
           <p className="account-email">{claims.email}</p>
+          <button
+            onClick={() => {
+              setOpen(false);
+              onOpenSettings();
+            }}
+          >
+            Settings
+          </button>
           <button onClick={onChangeAccount}>Change account</button>
           <button onClick={onSignOut}>Sign out</button>
         </div>
