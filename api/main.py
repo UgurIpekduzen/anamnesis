@@ -9,9 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, verify_token
 from api.runner import get_runner
+from api.session_memory import format_user_message
 from src.facts import get_tenant_facts
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
-from src.tenants import list_tenants
+from src.tenants import get_owned_tenant, list_tenants
 from src.usage import get_today_count, record_message
 
 # Token-cost guards (see APPCE-59). A message stays in the session history
@@ -121,6 +122,15 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
         await websocket.close(code=1008, reason=exc.detail)
         return
 
+    # Also confirms tenant_id is a project this user owns — until now it
+    # was only ever used to name the session — and gives us the display
+    # name the agent needs (below).
+    try:
+        tenant_name = get_owned_tenant(tenant_id, owner_uid)["name"]
+    except PermissionError:
+        await websocket.close(code=1008, reason="Unknown project")
+        return
+
     await websocket.accept()
     runner = get_runner(owner_uid)
     session_id = f"session_{tenant_id}"
@@ -157,7 +167,9 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
 
             record_message(owner_uid)
 
-            message = types.Content(role="user", parts=[types.Part(text=question)])
+            message = types.Content(
+                role="user", parts=[types.Part(text=format_user_message(tenant_name, question))]
+            )
             final_text = "(no response)"
 
             try:

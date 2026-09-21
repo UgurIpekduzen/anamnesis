@@ -7,6 +7,7 @@ os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
 
 import pytest  # noqa: E402
 from starlette.testclient import TestClient  # noqa: E402
+from starlette.websockets import WebSocketDisconnect  # noqa: E402
 
 import api.main as api_main  # noqa: E402
 
@@ -45,7 +46,13 @@ class FakeRunner:
         self.session_service = FakeSessionService()
 
     def run(self, *, user_id, session_id, new_message, run_config):
-        self.calls.append({"session_id": session_id, "run_config": run_config})
+        self.calls.append(
+            {
+                "session_id": session_id,
+                "run_config": run_config,
+                "text": new_message.parts[0].text,
+            }
+        )
         if self.fail:
             raise RuntimeError("boom")
         yield FakeEvent("hi")
@@ -56,6 +63,7 @@ def chat(monkeypatch):
     runner = FakeRunner()
     recorded = []
     monkeypatch.setattr(api_main, "verify_token", lambda token: OWNER)
+    monkeypatch.setattr(api_main, "get_owned_tenant", lambda tenant_id, owner_uid: {"name": "Some Tenant"})
     monkeypatch.setattr(api_main, "get_runner", lambda owner_uid: runner)
     monkeypatch.setattr(api_main, "record_message", lambda owner_uid: recorded.append(owner_uid))
     return TestClient(api_main.app), runner, recorded
@@ -115,3 +123,34 @@ def test_reset_deletes_the_server_side_session(chat):
         assert ws.receive_json()["type"] == "final"
 
     assert runner.session_service.deleted == [("anamnesis", OWNER, "session_some_tenant")]
+
+
+def test_the_agent_is_told_which_project_the_ui_has_selected(chat):
+    client, runner, _ = chat
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"message": "what do you know?"})
+        assert ws.receive_json()["type"] == "final"
+
+    assert runner.calls[0]["text"] == "[Project: Some Tenant] what do you know?"
+
+
+def test_the_length_limit_applies_to_what_the_user_typed_not_the_project_prefix(chat):
+    client, runner, _ = chat
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"message": "x" * api_main.MAX_MESSAGE_CHARS})
+        assert ws.receive_json()["type"] == "final"
+
+
+def test_connecting_to_a_project_the_user_does_not_own_is_refused(chat, monkeypatch):
+    client, runner, _ = chat
+
+    def not_owned(tenant_id, owner_uid):
+        raise PermissionError("nope")
+
+    monkeypatch.setattr(api_main, "get_owned_tenant", not_owned)
+
+    with pytest.raises(WebSocketDisconnect) as excinfo:
+        with client.websocket_connect(WS_URL):
+            pass
+    assert excinfo.value.code == 1008
+    assert runner.calls == []
