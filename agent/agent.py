@@ -1,3 +1,5 @@
+import os
+
 from google.adk.agents.llm_agent import Agent
 
 from agent.history import limit_history
@@ -12,6 +14,12 @@ from src.tenants import (
     set_git_repo_path,
     set_jira_project_key,
 )
+
+
+# A tool result stays in the session history for up to MAX_HISTORY_TURNS
+# turns and is resent on every model call, so an unbounded fact list is
+# an expensive one (APPCE-59).
+MAX_FACTS_PER_TOOL_CALL = int(os.environ.get("MAX_FACTS_PER_TOOL_CALL", 50))
 
 
 def build_agent(owner_uid: str) -> Agent:
@@ -30,7 +38,7 @@ def build_agent(owner_uid: str) -> Agent:
         return list_tenants(owner_uid)
 
     def _get_tenant_facts(tenant_id: str) -> list[dict]:
-        return get_tenant_facts(tenant_id, owner_uid)
+        return get_tenant_facts(tenant_id, owner_uid, limit=MAX_FACTS_PER_TOOL_CALL)
 
     def _publish_fact(tenant_id: str, content: str, category: str) -> str:
         return publish_fact(tenant_id, content, category, owner_uid)
@@ -75,6 +83,13 @@ def build_agent(owner_uid: str) -> Agent:
     ]:
         wrapper.__name__ = original.__name__
         wrapper.__doc__ = original.__doc__
+
+    # The model has to know the list can be cut short, or it would treat
+    # a truncated list as the project's complete history.
+    _get_tenant_facts.__doc__ += (
+        f"\n\n    Only the {MAX_FACTS_PER_TOOL_CALL} most recent facts are returned, newest"
+        " first — a project may have older ones that are not shown."
+    )
 
     return Agent(
         model='gemini-2.5-flash',

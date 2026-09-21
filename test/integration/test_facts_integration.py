@@ -31,6 +31,18 @@ def test_create_fact_is_retrievable_via_get_tenant_facts(tenant_id):
     assert facts[0]["category"] == "architecture"
 
 
+def test_get_tenant_facts_limit_keeps_the_newest_facts(tenant_id):
+    create_fact(tenant_id, content="oldest", category="todo")
+    create_fact(tenant_id, content="middle", category="todo")
+    create_fact(tenant_id, content="newest", category="todo")
+
+    limited = get_tenant_facts(tenant_id, OWNER_UID, limit=2)
+    assert [f["content"] for f in limited] == ["newest", "middle"]
+
+    # No limit still returns everything — the UI's Facts tab relies on it.
+    assert len(get_tenant_facts(tenant_id, OWNER_UID)) == 3
+
+
 def test_update_fact_changes_content_and_category(tenant_id):
     create_fact(tenant_id, content="Original content", category="status")
     fact_id = get_tenant_facts(tenant_id, OWNER_UID)[0]["fact_id"]

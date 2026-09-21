@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from google.cloud import firestore
+
 from src.categories import validate_category
 from src.firestore_client import get_client
 from src.tenants import get_owned_tenant
@@ -25,7 +27,7 @@ def create_fact(tenant_id: str, content: str, category: str) -> None:
     )
 
 
-def get_tenant_facts(tenant_id: str, owner_uid: str) -> list[dict]:
+def get_tenant_facts(tenant_id: str, owner_uid: str, limit: int | None = None) -> list[dict]:
     """Retrieve all stored facts for a given project (tenant).
 
     No category filter is exposed here on purpose (see APPCE-26): the
@@ -47,6 +49,14 @@ def get_tenant_facts(tenant_id: str, owner_uid: str) -> list[dict]:
     client = get_client()
     facts_ref = client.collection("tenants").document(tenant_id).collection("facts")
 
+    # limit is for the agent's tool (a fact list lands in the model's
+    # context and stays there — see APPCE-59); the UI's Facts tab passes
+    # none and still gets everything. Newest first so a cap keeps the
+    # most relevant facts.
+    query = facts_ref
+    if limit is not None:
+        query = facts_ref.order_by("created_at", direction=firestore.Query.DESCENDING).limit(limit)
+
     return [
         {
             "fact_id": doc.id,
@@ -54,7 +64,7 @@ def get_tenant_facts(tenant_id: str, owner_uid: str) -> list[dict]:
             "category": doc.get("category"),
             "created_at": doc.get("created_at"),
         }
-        for doc in facts_ref.stream()
+        for doc in query.stream()
     ]
 
 
