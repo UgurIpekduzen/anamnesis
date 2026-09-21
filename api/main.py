@@ -1,8 +1,9 @@
 import asyncio
 import json
 import os
+import time
 
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from google.adk.agents.run_config import RunConfig
@@ -47,6 +48,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_request_duration(request: Request, call_next):
+    """One line per REST call: how long the server took to answer (APPCE-68).
+
+    Only the path is logged, never the query string. CORS preflights are
+    skipped as noise, and the chat WebSocket isn't an HTTP request (it stays
+    open for a whole conversation, so a duration would mean nothing).
+    """
+    started = time.perf_counter()
+    response = await call_next(request)
+    if request.method != "OPTIONS":
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        print(f"{request.method} {request.url.path} -> {response.status_code} in {elapsed_ms:.0f} ms")
+    return response
 
 
 @app.get("/health")

@@ -1,4 +1,5 @@
 import os
+import re
 from contextlib import contextmanager
 import threading
 import time
@@ -481,3 +482,34 @@ def test_a_connection_that_never_authenticates_is_dropped(chat, monkeypatch):
 
     with client.websocket_connect(WS_URL) as ws:
         _assert_closed_with_policy_violation(ws)
+
+
+# --- Request duration log (APPCE-68)
+
+
+def test_each_rest_call_logs_its_duration(chat, capsys):
+    client, _, _ = chat
+    assert client.get("/health").status_code == 200
+
+    out = capsys.readouterr().out
+    assert re.search(r"^GET /health -> 200 in \d+ ms$", out, re.MULTILINE)
+
+
+def test_the_duration_log_never_includes_the_query_string(chat, capsys):
+    client, _, _ = chat
+    client.get("/health?token=super-secret&x=1")
+
+    out = capsys.readouterr().out
+    assert "GET /health -> 200" in out
+    assert "super-secret" not in out
+    assert "?" not in out
+
+
+def test_cors_preflights_are_not_logged(chat, capsys):
+    client, _, _ = chat
+    client.options(
+        "/health",
+        headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "GET"},
+    )
+
+    assert "OPTIONS" not in capsys.readouterr().out
