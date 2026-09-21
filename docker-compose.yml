@@ -45,6 +45,10 @@ services:
     build:
       context: .
     command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    # WSL2 restarts (sleep, idle shutdown) stop every container; with this the
+    # service comes back once Docker does. `docker compose stop/down` still
+    # keeps it stopped.
+    restart: unless-stopped
     ports:
       - "8010:8000"
     # Same real-GCP reasoning as streamlit above — no emulator env vars.
@@ -90,6 +94,7 @@ services:
   frontend:
     build:
       context: ./frontend
+    restart: unless-stopped
     ports:
       - "5173:5173"
     volumes:
