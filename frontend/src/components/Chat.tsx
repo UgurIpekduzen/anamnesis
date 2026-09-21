@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { chatSocketUrl } from "../api";
+import { chatSocketUrl, getChatHistory } from "../api";
 import "./Chat.css";
 
 // Mirrors the backend's MAX_MESSAGE_CHARS default (api/main.py) purely as
@@ -39,6 +39,39 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
   const isThinkingRef = useRef(false);
   isThinkingRef.current = isThinking;
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // The history load below runs once per project; it shouldn't restart
+  // every time the ID token silently refreshes, so it reads the latest
+  // token from a ref instead of depending on it.
+  const idTokenRef = useRef(idToken);
+  idTokenRef.current = idToken;
+  // Set by Clear chat so a slow history response can't bring back a
+  // conversation the user just cleared.
+  const clearedRef = useRef(false);
+
+  // Saved conversation (APPCE-60): survives page reloads, live-reload
+  // during development, switching projects, and other devices.
+  useEffect(() => {
+    if (!tenantId) return;
+    let cancelled = false;
+
+    getChatHistory(idTokenRef.current, tenantId)
+      .then((turns) => {
+        if (cancelled || clearedRef.current || turns.length === 0) return;
+        const restored: ChatMessage[] = turns.flatMap((turn) => [
+          { role: "user" as const, content: turn.question },
+          { role: "assistant" as const, content: turn.answer },
+        ]);
+        // Prepend: anything already typed while this loaded stays after it.
+        setMessages((prev) => [...restored, ...prev]);
+      })
+      .catch(() => {
+        // History is a convenience — the chat itself works without it.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
@@ -142,6 +175,7 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: "reset" }));
     }
+    clearedRef.current = true;
     setMessages([]);
     setTrace([]);
   }

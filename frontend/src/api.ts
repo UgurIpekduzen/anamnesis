@@ -89,3 +89,17 @@ export async function resetSettings(idToken: string): Promise<SettingsResponse> 
   if (!res.ok) throw new Error(`resetSettings failed: ${res.status}`);
   return res.json();
 }
+
+export interface SavedTurn {
+  question: string;
+  answer: string;
+  created_at: string;
+}
+
+export async function getChatHistory(idToken: string, tenantId: string): Promise<SavedTurn[]> {
+  const res = await fetch(`${API_BASE}/tenants/${tenantId}/history`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`getChatHistory failed: ${res.status}`);
+  return res.json();
+}
