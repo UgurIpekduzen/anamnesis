@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import "./App.css";
 import { listTenants, type Tenant } from "./api";
@@ -11,6 +11,7 @@ import TenantSelector from "./components/TenantSelector";
 import TracePanel from "./components/TracePanel";
 import UsageCounter from "./components/UsageCounter";
 import { initGoogleAuth, whenGoogleReady } from "./googleAuth";
+import { tokenSubject } from "./tokenIdentity";
 import { traceReducer, type ChatEvent } from "./trace";
 
 type SidebarTab = "facts" | "trace";
@@ -40,13 +41,21 @@ function App() {
   const [googleReady, setGoogleReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // The token is refreshed silently about every 50 minutes; the account it
+  // belongs to is what decides whether the project list is stale.
+  const userId = useMemo(() => tokenSubject(idToken), [idToken]);
+  const idTokenRef = useRef(idToken);
+  idTokenRef.current = idToken;
+
   useEffect(() => {
-    if (!idToken) return;
+    if (!userId || !idTokenRef.current) return;
     // Clear immediately (not just on the fetch resolving) so Chat/Facts
     // — gated on selectedTenantId — briefly unmount instead of running
     // a moment longer against the previous account's stale tenant_id
     // while the new account's list is still loading (matters most for
     // "Change account", which swaps idToken without a full page reset).
+    // Keyed on the account, not the token: a plain token refresh must not
+    // reset the selected project or throw away the Trace (APPCE-65).
     setTenants([]);
     setSelectedTenantId(null);
     setTenantsError(false);
@@ -54,7 +63,7 @@ function App() {
     // Ignore a response that lands after the token changed (or after a
     // retry) — it belongs to a request nobody is waiting on anymore.
     let cancelled = false;
-    listTenants(idToken)
+    listTenants(idTokenRef.current)
       .then((fetched) => {
         if (cancelled) return;
         setTenants(fetched);
@@ -66,7 +75,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [idToken, tenantsReloadKey]);
+  }, [userId, tenantsReloadKey]);
 
   useEffect(() => {
     return whenGoogleReady(() => {
