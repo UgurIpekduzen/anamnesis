@@ -97,7 +97,10 @@ tasks:
   api:up:
     desc: Run the FastAPI backend in the background (APPCE-53)
     cmds:
-      - docker compose up -d api
+      # The API's code is baked into its image (no bind mount), so without
+      # --build a restart quietly keeps running the previous code. Docker's
+      # layer cache makes this fast when nothing changed.
+      - docker compose up -d --build api
 
   api:logs:
     desc: Tail logs from the FastAPI backend
