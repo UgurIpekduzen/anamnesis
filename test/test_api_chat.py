@@ -1,4 +1,5 @@
 import os
+import time
 from types import SimpleNamespace
 
 # api.deps reads these at import time.
@@ -281,3 +282,29 @@ def test_a_failing_clear_does_not_break_the_conversation(chat, monkeypatch):
         ws.send_json({"type": "reset"})
         ws.send_json({"message": "hello"})
         assert ws.receive_json()["type"] == "final"
+
+
+def test_a_running_turn_does_not_block_other_requests(chat, monkeypatch):
+    client, runner, _ = chat
+
+    original_run = runner.run
+
+    def slow_run(**kwargs):
+        time.sleep(1.0)  # stands in for the model + Firestore-backed tools
+        yield from original_run(**kwargs)
+
+    monkeypatch.setattr(runner, "run", slow_run)
+
+    with client as running:  # one shared event loop, like the real server
+        with running.websocket_connect(WS_URL) as ws:
+            ws.send_json({"message": "hello"})
+            time.sleep(0.2)  # the turn is now mid-flight
+
+            started = time.perf_counter()
+            assert running.get("/health").status_code == 200
+            elapsed = time.perf_counter() - started
+
+            assert ws.receive_json()["type"] == "final"
+
+    # Blocked, this waits out the remaining ~0.8 s of the turn.
+    assert elapsed < 0.4

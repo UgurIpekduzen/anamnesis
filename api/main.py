@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -113,6 +114,24 @@ def delete_settings(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
     return _settings_response(reset_settings(owner_uid))
 
 
+_DONE = object()
+
+
+async def _iterate_off_loop(generator):
+    """Iterate a blocking generator without blocking the event loop.
+
+    Runner.run is a sync generator: each next() waits on the model and on
+    Firestore-backed tools. Called directly from the async handler that
+    froze every other request on the server for the whole turn (APPCE-62);
+    a worker thread per step keeps the loop free.
+    """
+    while True:
+        item = await asyncio.to_thread(next, generator, _DONE)
+        if item is _DONE:
+            return
+        yield item
+
+
 def _event_to_messages(event) -> list[dict]:
     # The id pairs a result with its call for the UI's Trace tab — matching
     # by tool name alone breaks as soon as the model calls one tool twice.
@@ -135,7 +154,7 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
     # socket on its next send, and the frontend reconnects with its
     # background-refreshed token (see APPCE-54).
     try:
-        owner_uid = verify_token(token)
+        owner_uid = await asyncio.to_thread(verify_token, token)
     except HTTPException as exc:
         await websocket.close(code=1008, reason=exc.detail)
         return
@@ -144,7 +163,7 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
     # was only ever used to name the session — and gives us the display
     # name the agent needs (below).
     try:
-        tenant_name = get_owned_tenant(tenant_id, owner_uid)["name"]
+        tenant_name = (await asyncio.to_thread(get_owned_tenant, tenant_id, owner_uid))["name"]
     except PermissionError:
         await websocket.close(code=1008, reason="Unknown project")
         return
@@ -211,11 +230,13 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
             final_text = None
 
             try:
-                for event in runner.run(
-                    user_id=owner_uid,
-                    session_id=session_id,
-                    new_message=message,
-                    run_config=RunConfig(max_llm_calls=MAX_LLM_CALLS_PER_TURN),
+                async for event in _iterate_off_loop(
+                    runner.run(
+                        user_id=owner_uid,
+                        session_id=session_id,
+                        new_message=message,
+                        run_config=RunConfig(max_llm_calls=MAX_LLM_CALLS_PER_TURN),
+                    )
                 ):
                     for msg in _event_to_messages(event):
                         await websocket.send_json(jsonable_encoder(msg))

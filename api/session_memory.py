@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from collections.abc import Callable
 
@@ -42,7 +43,8 @@ async def restore_session(
     if await service.get_session(app_name=runner.app_name, user_id=owner_uid, session_id=session_id):
         return False
 
-    turns = load_turns()
+    # Blocking Firestore reads — off the event loop (APPCE-62).
+    turns = await asyncio.to_thread(load_turns)
     if not turns:
         return False
 
