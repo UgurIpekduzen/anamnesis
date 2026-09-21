@@ -30,6 +30,7 @@ function App() {
   const [usageRefreshKey, setUsageRefreshKey] = useState(0);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const isResizing = useRef(false);
+  const [googleReady, setGoogleReady] = useState(false);
 
   useEffect(() => {
     if (!idToken) return;
@@ -49,6 +50,11 @@ function App() {
   useEffect(() => {
     return whenGoogleReady(() => {
       initGoogleAuth(setIdToken);
+      // Auth.tsx waits for this before calling renderButton — GIS
+      // requires initialize() to have already run, and its own polling
+      // for window.google readiness raced this effect's, sometimes
+      // rendering the button before initialize() had been called at all.
+      setGoogleReady(true);
       const refreshInterval = setInterval(() => {
         window.google?.accounts.id.prompt();
       }, SILENT_REFRESH_INTERVAL_MS);
@@ -96,7 +102,7 @@ function App() {
         <div className="signin-gate">
           <h1>Anamnesis</h1>
           <p>Personal Project Context Engine</p>
-          <Auth />
+          <Auth ready={googleReady} />
         </div>
       </div>
     );

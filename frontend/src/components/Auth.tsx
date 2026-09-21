@@ -1,19 +1,19 @@
 import { useEffect, useRef } from "react";
 
-import { whenGoogleReady } from "../googleAuth";
+interface Props {
+  // True once App.tsx has called initGoogleAuth() — GIS requires
+  // initialize() before renderButton() works, and this component has
+  // no way to know that happened on its own.
+  ready: boolean;
+}
 
-// Assumes initGoogleAuth() has already been called at the app level
-// (see App.tsx) — this component only renders the button.
-function Auth() {
+function Auth({ ready }: Props) {
   const buttonRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    return whenGoogleReady(() => {
-      if (buttonRef.current) {
-        window.google!.accounts.id.renderButton(buttonRef.current, { theme: "outline", size: "large" });
-      }
-    });
-  }, []);
+    if (!ready || !buttonRef.current) return;
+    window.google!.accounts.id.renderButton(buttonRef.current, { theme: "outline", size: "large" });
+  }, [ready]);
 
   return <div ref={buttonRef} />;
 }
