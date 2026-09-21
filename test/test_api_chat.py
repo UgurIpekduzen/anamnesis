@@ -151,6 +151,17 @@ def test_reset_deletes_the_server_side_session(chat):
     assert runner.session_service.deleted == [("anamnesis", OWNER, "session_some_tenant")]
 
 
+def test_tool_events_carry_ids_so_results_can_be_paired_with_their_calls():
+    call = SimpleNamespace(id="call-1", name="get_tenant_facts", args={"tenant_id": "t"})
+    result = SimpleNamespace(id="call-1", name="get_tenant_facts", response={"result": []})
+    event = SimpleNamespace(get_function_calls=lambda: [call], get_function_responses=lambda: [result])
+
+    assert api_main._event_to_messages(event) == [
+        {"type": "tool_call", "id": "call-1", "name": "get_tenant_facts", "args": {"tenant_id": "t"}},
+        {"type": "tool_result", "id": "call-1", "name": "get_tenant_facts", "result": {"result": []}},
+    ]
+
+
 def test_the_agent_is_told_which_project_the_ui_has_selected(chat):
     client, runner, _ = chat
     with client.websocket_connect(WS_URL) as ws:

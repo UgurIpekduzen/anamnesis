@@ -114,11 +114,15 @@ def delete_settings(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
 
 
 def _event_to_messages(event) -> list[dict]:
+    # The id pairs a result with its call for the UI's Trace tab — matching
+    # by tool name alone breaks as soon as the model calls one tool twice.
     messages = []
     for call in event.get_function_calls():
-        messages.append({"type": "tool_call", "name": call.name, "args": call.args})
+        messages.append({"type": "tool_call", "id": call.id, "name": call.name, "args": call.args})
     for response in event.get_function_responses():
-        messages.append({"type": "tool_result", "name": response.name, "result": response.response})
+        messages.append(
+            {"type": "tool_result", "id": response.id, "name": response.name, "result": response.response}
+        )
     return messages
 
 
