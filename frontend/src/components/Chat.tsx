@@ -3,6 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { chatSocketUrl } from "../api";
 import "./Chat.css";
 
+// Mirrors the backend's MAX_MESSAGE_CHARS default (api/main.py) purely as
+// a convenience — the server enforces it either way.
+const MAX_MESSAGE_CHARS = 4000;
+
 interface Props {
   idToken: string;
   tenantId: string | null;
@@ -56,6 +60,11 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
         } else if (data.type === "final") {
           setMessages((prev) => [...prev, { role: "assistant", content: data.text }]);
           setIsThinking(false);
+        } else if (data.type === "error") {
+          // The backend rejected the message or the agent failed — the
+          // connection stays open, so just show why and stop "thinking".
+          setMessages((prev) => [...prev, { role: "assistant", content: data.message, isError: true }]);
+          setIsThinking(false);
         }
       };
 
@@ -106,6 +115,11 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
   }
 
   function clearChat() {
+    // Also drop the server-side session — clearing only the UI would
+    // leave the model still seeing (and billing for) the old history.
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: "reset" }));
+    }
     setMessages([]);
     setTrace([]);
   }
@@ -139,6 +153,7 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           placeholder={tenantId ? "Ask or record something" : "Select a project first"}
           disabled={!tenantId}
+          maxLength={MAX_MESSAGE_CHARS}
         />
         <button onClick={sendMessage} disabled={!tenantId} title="Send" className="send-button">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
