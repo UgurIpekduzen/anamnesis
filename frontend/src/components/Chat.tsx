@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 import { chatSocketUrl, getChatHistory } from "../api";
 import type { ChatEvent } from "../trace";
@@ -7,6 +8,15 @@ import "./Chat.css";
 // Mirrors the backend's MAX_MESSAGE_CHARS default (api/main.py) purely as
 // a convenience — the server enforces it either way.
 const MAX_MESSAGE_CHARS = 4000;
+
+// The model's replies are markdown. react-markdown renders raw HTML as
+// text and drops unsafe URL schemes, so model output can't inject markup;
+// links additionally open in a new tab so they don't replace the app.
+const markdownComponents = {
+  a: ({ node: _node, ...props }: React.ComponentProps<"a"> & { node?: unknown }) => (
+    <a {...props} target="_blank" rel="noopener noreferrer" />
+  ),
+};
 
 interface Props {
   idToken: string;
@@ -201,7 +211,11 @@ function Chat({ idToken, tenantId, onEvent }: Props) {
       <div className="chat-messages">
         {messages.map((msg, i) => (
           <div key={i} className={`chat-bubble ${msg.role}${msg.isError ? " error" : ""}`}>
-            {msg.content}
+            {msg.role === "assistant" && !msg.isError ? (
+              <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
+            ) : (
+              msg.content
+            )}
           </div>
         ))}
 
