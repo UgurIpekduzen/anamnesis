@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { chatSocketUrl, getChatHistory } from "../api";
+import type { ChatEvent } from "../trace";
 import "./Chat.css";
 
 // Mirrors the backend's MAX_MESSAGE_CHARS default (api/main.py) purely as
@@ -10,7 +11,9 @@ const MAX_MESSAGE_CHARS = 4000;
 interface Props {
   idToken: string;
   tenantId: string | null;
-  onMessageSent?: () => void;
+  // One channel for everything the parent cares about (usage counter,
+  // facts refresh, Trace tab) instead of a callback per concern.
+  onEvent?: (event: ChatEvent) => void;
 }
 
 interface ChatMessage {
@@ -24,7 +27,7 @@ interface TraceEntry {
   name: string;
 }
 
-function Chat({ idToken, tenantId, onMessageSent }: Props) {
+function Chat({ idToken, tenantId, onEvent }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [trace, setTrace] = useState<TraceEntry[]>([]);
   const [input, setInput] = useState("");
@@ -39,6 +42,10 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
   const isThinkingRef = useRef(false);
   isThinkingRef.current = isThinking;
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // The socket handlers below live as long as a connection does, so they
+  // read the latest callback through a ref instead of capturing one.
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
   // The history load below runs once per project; it shouldn't restart
   // every time the ID token silently refreshes, so it reads the latest
   // token from a ref instead of depending on it.
@@ -105,14 +112,21 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
         const data = JSON.parse(event.data);
         if (data.type === "tool_call" || data.type === "tool_result") {
           setTrace((prev) => [...prev, { type: data.type, name: data.name }]);
+          onEventRef.current?.(
+            data.type === "tool_call"
+              ? { type: "tool_call", id: data.id, name: data.name, args: data.args }
+              : { type: "tool_result", id: data.id, name: data.name, result: data.result },
+          );
         } else if (data.type === "final") {
           setMessages((prev) => [...prev, { role: "assistant", content: data.text }]);
           setIsThinking(false);
+          onEventRef.current?.({ type: "answered" });
         } else if (data.type === "error") {
           // The backend rejected the message or the agent failed — the
           // connection stays open, so just show why and stop "thinking".
           setMessages((prev) => [...prev, { role: "assistant", content: data.message, isError: true }]);
           setIsThinking(false);
+          onEventRef.current?.({ type: "failed" });
         }
       };
 
@@ -139,6 +153,7 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
             },
           ]);
           setIsThinking(false);
+          onEventRef.current?.({ type: "failed" });
         }
         // Back off instead of retrying instantly — with the server down
         // that would be a tight loop of failed connections.
@@ -166,7 +181,7 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
     setIsThinking(true);
     setInput("");
     socketRef.current.send(JSON.stringify({ message: question }));
-    onMessageSent?.();
+    onEvent?.({ type: "sent", question });
   }
 
   function clearChat() {
@@ -178,6 +193,7 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
     clearedRef.current = true;
     setMessages([]);
     setTrace([]);
+    onEvent?.({ type: "cleared" });
   }
 
   return (

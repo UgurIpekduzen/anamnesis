@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 
 import "./App.css";
 import { listTenants, type Tenant } from "./api";
@@ -8,10 +8,12 @@ import Chat from "./components/Chat";
 import Facts from "./components/Facts";
 import SettingsDialog from "./components/SettingsDialog";
 import TenantSelector from "./components/TenantSelector";
+import TracePanel from "./components/TracePanel";
 import UsageCounter from "./components/UsageCounter";
 import { initGoogleAuth, whenGoogleReady } from "./googleAuth";
+import { traceReducer, type ChatEvent } from "./trace";
 
-type Tab = "chat" | "facts";
+type SidebarTab = "facts" | "trace";
 
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 480;
@@ -27,7 +29,9 @@ function App() {
   const [idToken, setIdToken] = useState<string | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("chat");
+  const [factsRefreshKey, setFactsRefreshKey] = useState(0);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("facts");
+  const [traceTurns, dispatchTrace] = useReducer(traceReducer, []);
   const [tenantsError, setTenantsError] = useState(false);
   const [tenantsReloadKey, setTenantsReloadKey] = useState(0);
   const [usageRefreshKey, setUsageRefreshKey] = useState(0);
@@ -96,6 +100,21 @@ function App() {
     };
   }, []);
 
+  // Everything Chat reports funnels through here: the usage counter and
+  // the facts list refresh off it, and the Trace tab is built from it.
+  function handleChatEvent(event: ChatEvent) {
+    dispatchTrace({ ...event, at: Date.now() });
+    if (event.type === "sent") setUsageRefreshKey((k) => k + 1);
+    // A fact the agent just recorded lands asynchronously (Pub/Sub), so
+    // this refetch can beat it — the Facts refresh button covers that.
+    if (event.type === "answered") setFactsRefreshKey((k) => k + 1);
+  }
+
+  // The Trace belongs to one project's conversation, like the chat itself.
+  useEffect(() => {
+    dispatchTrace({ type: "cleared", at: Date.now() });
+  }, [selectedTenantId]);
+
   // disableAutoSelect stops GIS from silently re-selecting this same
   // account next time — without it, "sign out" would just log the user
   // straight back in.
@@ -155,12 +174,45 @@ function App() {
         />
 
         <div className="tabs">
-          <button className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>
-            Chat
-          </button>
-          <button className={tab === "facts" ? "active" : ""} onClick={() => setTab("facts")}>
+          <button
+            className={`tab ${sidebarTab === "facts" ? "active" : ""}`}
+            onClick={() => setSidebarTab("facts")}
+          >
             Facts
           </button>
+          <button
+            className={`tab ${sidebarTab === "trace" ? "active" : ""}`}
+            onClick={() => setSidebarTab("trace")}
+          >
+            Trace
+            {traceTurns.length > 0 && <span className="tab-badge">{traceTurns.length}</span>}
+          </button>
+          {sidebarTab === "facts" && (
+            <button
+              className="icon-button"
+              title="Refresh facts"
+              onClick={() => setFactsRefreshKey((k) => k + 1)}
+              disabled={!selectedTenantId}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        <div className="sidebar-panel">
+          {sidebarTab === "trace" ? (
+            <TracePanel turns={traceTurns} />
+          ) : selectedTenantId ? (
+            // Keyed by tenant so switching projects doesn't flash the
+            // previous project's facts while the new list loads.
+            <Facts key={selectedTenantId} idToken={idToken} tenantId={selectedTenantId} refreshKey={factsRefreshKey} />
+          ) : (
+            <p className="sidebar-empty">Select a project to see its facts.</p>
+          )}
         </div>
       </aside>
 
@@ -176,20 +228,12 @@ function App() {
           <h1>Anamnesis</h1>
           <p>Personal Project Context Engine</p>
 
-          {tab === "chat" && (
-            <Chat
-              key={selectedTenantId ?? "none"}
-              idToken={idToken}
-              tenantId={selectedTenantId}
-              onMessageSent={() => setUsageRefreshKey((k) => k + 1)}
-            />
-          )}
-          {tab === "facts" &&
-            (selectedTenantId ? (
-              <Facts idToken={idToken} tenantId={selectedTenantId} />
-            ) : (
-              <p>Select a project to see its facts.</p>
-            ))}
+          <Chat
+            key={selectedTenantId ?? "none"}
+            idToken={idToken}
+            tenantId={selectedTenantId}
+            onEvent={handleChatEvent}
+          />
         </div>
       </main>
     </div>

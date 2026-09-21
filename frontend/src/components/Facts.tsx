@@ -8,6 +8,9 @@ const CATEGORY_ORDER = ["architecture", "decision", "bug", "status", "todo"];
 interface Props {
   idToken: string;
   tenantId: string;
+  // Bumped by the parent to refetch — facts are written asynchronously
+  // (Pub/Sub), so a new one can land after the chat reply that caused it.
+  refreshKey: number;
 }
 
 function groupByCategory(facts: Fact[]): [string, Fact[]][] {
@@ -23,7 +26,7 @@ function groupByCategory(facts: Fact[]): [string, Fact[]][] {
   return [...known, ...unknown].map((category) => [category, groups.get(category)!]);
 }
 
-function Facts({ idToken, tenantId }: Props) {
+function Facts({ idToken, tenantId, refreshKey }: Props) {
   const [facts, setFacts] = useState<Fact[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +35,7 @@ function Facts({ idToken, tenantId }: Props) {
     getTenantFacts(idToken, tenantId)
       .then(setFacts)
       .catch((err) => setError(String(err)));
-  }, [idToken, tenantId]);
+  }, [idToken, tenantId, refreshKey]);
 
   if (error) return <p>Error loading facts: {error}</p>;
   if (facts.length === 0) return <p>No facts recorded yet.</p>;

@@ -1,0 +1,172 @@
+.trace {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trace-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 4px 0;
+}
+
+.trace-turn {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.trace-turn > summary,
+.trace-call > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.trace-turn > summary::-webkit-details-marker,
+.trace-call > summary::-webkit-details-marker {
+  display: none;
+}
+
+.trace-turn > summary {
+  flex-wrap: wrap;
+  background: var(--bg-elevated);
+}
+
+.trace-question {
+  flex: 1 1 100px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trace-status.done {
+  color: #6fcf97;
+}
+
+.trace-status.failed {
+  color: var(--error-text);
+}
+
+.trace-turn > summary small {
+  flex-basis: 100%;
+  padding-left: 22px;
+}
+
+.trace-call {
+  border-top: 1px solid var(--border);
+}
+
+.trace-call > summary {
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.trace-call > summary small {
+  font-family: var(--font-sans);
+}
+
+.trace-section-label {
+  padding: 4px 10px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.trace-json {
+  margin: 4px 10px 8px;
+  padding: 8px;
+  max-height: 200px;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  /* Narrow sidebar: wrap long lines instead of scrolling sideways. */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.trace-call > .trace-empty,
+.trace-call > .trace-success {
+  padding: 0 10px;
+}
+
+.trace-success {
+  margin: 6px 0;
+  font-size: 13px;
+}
+
+.trace-success small {
+  display: block;
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+.trace-table-wrap {
+  margin: 4px 10px 8px;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.trace-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.trace-table th,
+.trace-table td {
+  padding: 5px 8px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+.trace-table th {
+  position: sticky;
+  top: 0;
+  white-space: nowrap;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.trace-table tr:last-child td {
+  border-bottom: none;
+}
+
+.trace-table td {
+  /* Long values (a fact's text) wrap; ids and timestamps break anywhere
+     rather than forcing the table wider than the sidebar. */
+  word-break: break-word;
+}
+
+.trace-raw {
+  margin: 0 10px 8px;
+}
+
+.trace-raw > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.trace-raw .trace-json {
+  margin: 4px 0 0;
+}

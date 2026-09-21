@@ -11,7 +11,8 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  overflow-y: auto;
+  /* The facts list below scrolls on its own; the sidebar itself stays put. */
+  overflow: hidden;
 }
 
 .sidebar select {
@@ -30,13 +31,21 @@
   background: var(--accent);
 }
 
+.sidebar-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .tabs {
   display: flex;
+  align-items: center;
   gap: 4px;
   border-bottom: 1px solid var(--border);
 }
 
-.tabs button {
+.tabs .tab {
   flex: 1;
   border: none;
   border-radius: 0;
@@ -44,9 +53,22 @@
   background: transparent;
 }
 
-.tabs button.active {
+.tabs .tab.active {
   border-bottom-color: var(--accent);
   color: var(--accent);
+}
+
+.tabs .icon-button {
+  padding: 4px 8px;
+}
+
+.tab-badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .tenant-error {
@@ -59,6 +81,12 @@
   background: var(--error-bg);
   color: var(--error-text);
   font-size: 13px;
+}
+
+.sidebar-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
 }
 
 .main {
