@@ -30,6 +30,11 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
   // isThinking flip — a ref mirrors the latest value for that purpose.
   const isThinkingRef = useRef(false);
   isThinkingRef.current = isThinking;
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
+  }, [messages, trace, isThinking]);
 
   useEffect(() => {
     // No project selected yet (e.g. right after switching accounts,
@@ -124,6 +129,7 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
             ))}
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
       <div className="chat-input-row">

@@ -45,9 +45,6 @@ function AccountMenu({ idToken, onSignOut, onChangeAccount }: Props) {
       {open && (
         <div className="account-dropdown">
           <p className="account-email">{claims.email}</p>
-          <button disabled title="Coming soon">
-            Settings
-          </button>
           <button onClick={onChangeAccount}>Change account</button>
           <button onClick={onSignOut}>Sign out</button>
         </div>
