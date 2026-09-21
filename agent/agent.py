@@ -1,5 +1,6 @@
 from google.adk.agents.llm_agent import Agent
 
+from agent.history import limit_history
 from src.facts import delete_fact, get_tenant_facts, update_fact
 from src.jira_client import get_jira_status
 from src.publisher import publish_fact
@@ -78,6 +79,7 @@ def build_agent(owner_uid: str) -> Agent:
     return Agent(
         model='gemini-2.5-flash',
         name='root_agent',
+        before_model_callback=limit_history,
         description='Answers questions about the user\'s personal projects, records new facts, registers new projects, and checks live Jira status.',
         instruction=(
             'You help the user recall and record information about their '
