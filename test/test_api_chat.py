@@ -43,6 +43,7 @@ class FakeRunner:
     def __init__(self):
         self.calls = []
         self.fail = False
+        self.silent = False  # runs to completion without ever producing an answer
         self.session_service = FakeSessionService()
 
     def run(self, *, user_id, session_id, new_message, run_config):
@@ -55,13 +56,38 @@ class FakeRunner:
         )
         if self.fail:
             raise RuntimeError("boom")
-        yield FakeEvent("hi")
+        if not self.silent:
+            yield FakeEvent("hi")
 
 
 @pytest.fixture
-def chat(monkeypatch):
+def spies():
+    """What the chat handler did with the persistence layer."""
+    return SimpleNamespace(saved=[], restores=[], cleared=[], loads=[])
+
+
+@pytest.fixture
+def chat(monkeypatch, spies):
     runner = FakeRunner()
     recorded = []
+
+    async def fake_restore(runner_, owner_uid, session_id, tenant_name, load_turns):
+        spies.restores.append(
+            {"owner": owner_uid, "session_id": session_id, "tenant_name": tenant_name, "load_turns": load_turns}
+        )
+        return False
+
+    def fake_load(tenant_id, owner_uid, limit):
+        spies.loads.append((tenant_id, owner_uid, limit))
+        return []
+
+    monkeypatch.setattr(api_main, "restore_session", fake_restore)
+    monkeypatch.setattr(api_main, "load_recent_turns", fake_load)
+    monkeypatch.setattr(api_main, "append_turn", lambda t, o, q, a: spies.saved.append((t, o, q, a)))
+    monkeypatch.setattr(api_main, "clear_turns", lambda t, o: spies.cleared.append((t, o)))
+    monkeypatch.setattr(
+        api_main, "get_settings", lambda owner_uid: {"history_turns": 7, "daily_message_warning_threshold": 100}
+    )
     monkeypatch.setattr(api_main, "verify_token", lambda token: OWNER)
     monkeypatch.setattr(api_main, "get_owned_tenant", lambda tenant_id, owner_uid: {"name": "Some Tenant"})
     monkeypatch.setattr(api_main, "get_runner", lambda owner_uid: runner)
@@ -154,3 +180,93 @@ def test_connecting_to_a_project_the_user_does_not_own_is_refused(chat, monkeypa
             pass
     assert excinfo.value.code == 1008
     assert runner.calls == []
+
+
+def test_a_finished_turn_is_saved_as_plain_question_and_answer_text(chat, spies):
+    client, _, _ = chat
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"message": "what do you know?"})
+        assert ws.receive_json()["type"] == "final"
+
+    # The raw question — not the "[Project: ...]" form the model was shown.
+    assert spies.saved == [("some_tenant", OWNER, "what do you know?", "hi")]
+
+
+def test_a_turn_with_no_answer_is_not_saved(chat, spies):
+    client, runner, _ = chat
+    runner.silent = True
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"message": "hello"})
+        assert ws.receive_json() == {"type": "final", "text": "(no response)"}
+
+    assert spies.saved == []
+
+
+def test_a_failing_save_does_not_break_the_conversation(chat, monkeypatch):
+    client, _, _ = chat
+
+    def broken(*args):
+        raise RuntimeError("firestore is down")
+
+    monkeypatch.setattr(api_main, "append_turn", broken)
+
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"message": "one"})
+        assert ws.receive_json()["type"] == "final"
+        ws.send_json({"message": "two"})
+        assert ws.receive_json()["type"] == "final"
+
+
+def test_connecting_restores_the_models_memory_using_the_users_window_setting(chat, spies):
+    client, _, _ = chat
+    with client.websocket_connect(WS_URL):
+        pass
+
+    assert len(spies.restores) == 1
+    restore = spies.restores[0]
+    assert (restore["owner"], restore["session_id"], restore["tenant_name"]) == (
+        OWNER,
+        "session_some_tenant",
+        "Some Tenant",
+    )
+
+    # The loader the handler hands over reads exactly the user's window.
+    restore["load_turns"]()
+    assert spies.loads == [("some_tenant", OWNER, 7)]
+
+
+def test_a_failing_restore_does_not_stop_the_user_from_chatting(chat, monkeypatch):
+    client, _, _ = chat
+
+    async def broken_restore(*args):
+        raise RuntimeError("firestore is down")
+
+    monkeypatch.setattr(api_main, "restore_session", broken_restore)
+
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"message": "hello"})
+        assert ws.receive_json() == {"type": "final", "text": "hi"}
+
+
+def test_clear_chat_also_deletes_the_saved_turns(chat, spies):
+    client, _, _ = chat
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"type": "reset"})
+        ws.send_json({"message": "hello"})
+        assert ws.receive_json()["type"] == "final"
+
+    assert spies.cleared == [("some_tenant", OWNER)]
+
+
+def test_a_failing_clear_does_not_break_the_conversation(chat, monkeypatch):
+    client, _, _ = chat
+
+    def broken(*args):
+        raise RuntimeError("firestore is down")
+
+    monkeypatch.setattr(api_main, "clear_turns", broken)
+
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"type": "reset"})
+        ws.send_json({"message": "hello"})
+        assert ws.receive_json()["type"] == "final"

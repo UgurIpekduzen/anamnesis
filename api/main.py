@@ -9,7 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, verify_token
 from api.runner import get_runner
-from api.session_memory import format_user_message
+from api.session_memory import format_user_message, restore_session
+from src.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts import get_tenant_facts
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.tenants import get_owned_tenant, list_tenants
@@ -21,6 +22,11 @@ from src.usage import get_today_count, record_message
 # turn takes 3-4 model calls; ADK's own default cap is 500.
 MAX_MESSAGE_CHARS = int(os.environ.get("MAX_MESSAGE_CHARS", 4000))
 MAX_LLM_CALLS_PER_TURN = int(os.environ.get("MAX_LLM_CALLS_PER_TURN", 10))
+
+# How many saved turns the UI loads when it opens a conversation. Bounds the
+# Firestore reads of one history load (APPCE-60); the model's own memory is
+# governed separately, by the user's history_turns setting.
+CHAT_HISTORY_DISPLAY_TURNS = int(os.environ.get("CHAT_HISTORY_DISPLAY_TURNS", 50))
 
 app = FastAPI(title="Anamnesis API")
 
@@ -47,6 +53,14 @@ def get_tenants(owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
 @app.get("/tenants/{tenant_id}/facts")
 def get_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
     return get_tenant_facts(tenant_id, owner_uid)
+
+
+@app.get("/tenants/{tenant_id}/history")
+def get_history(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
+    try:
+        return load_recent_turns(tenant_id, owner_uid, CHAT_HISTORY_DISPLAY_TURNS)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
 
 
 @app.get("/usage")
@@ -135,6 +149,20 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
     runner = get_runner(owner_uid)
     session_id = f"session_{tenant_id}"
 
+    # After a restart the model has forgotten a conversation the UI still
+    # shows; rebuild its memory from what was saved. Best effort — chatting
+    # without restored memory beats not chatting because Firestore hiccuped.
+    try:
+        await restore_session(
+            runner,
+            owner_uid,
+            session_id,
+            tenant_name,
+            lambda: load_recent_turns(tenant_id, owner_uid, get_settings(owner_uid)["history_turns"]),
+        )
+    except Exception as exc:
+        print(f"Couldn't restore chat memory: {exc!r}")
+
     try:
         while True:
             data = await websocket.receive_json()
@@ -150,6 +178,12 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
                 await runner.session_service.delete_session(
                     app_name=runner.app_name, user_id=owner_uid, session_id=session_id
                 )
+                # ...and the saved copy, or the next cold start would bring
+                # the conversation back from the dead.
+                try:
+                    clear_turns(tenant_id, owner_uid)
+                except Exception as exc:
+                    print(f"Couldn't clear saved chat history: {exc!r}")
                 continue
 
             question = data.get("message")
@@ -170,7 +204,7 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
             message = types.Content(
                 role="user", parts=[types.Part(text=format_user_message(tenant_name, question))]
             )
-            final_text = "(no response)"
+            final_text = None
 
             try:
                 for event in runner.run(
@@ -198,6 +232,14 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
                 )
                 continue
 
-            await websocket.send_json({"type": "final", "text": final_text})
+            await websocket.send_json({"type": "final", "text": final_text or "(no response)"})
+
+            # Only a real answer is worth saving; a turn that produced none
+            # would restore as a question the model never answered.
+            if final_text is not None:
+                try:
+                    append_turn(tenant_id, owner_uid, question, final_text)
+                except Exception as exc:
+                    print(f"Couldn't save chat turn: {exc!r}")
     except WebSocketDisconnect:
         pass
