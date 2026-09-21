@@ -5,12 +5,14 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from google.adk.agents.run_config import RunConfig
 from google.genai import types
+from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, verify_token
 from api.runner import get_runner
 from src.facts import get_tenant_facts
+from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.tenants import list_tenants
-from src.usage import DAILY_MESSAGE_WARNING_THRESHOLD, get_today_count, record_message
+from src.usage import get_today_count, record_message
 
 # Token-cost guards (see APPCE-59). A message stays in the session history
 # and is resent on every model call of the following turns, so an
@@ -50,8 +52,50 @@ def get_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -
 def get_usage(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
     return {
         "count": get_today_count(owner_uid),
-        "threshold": DAILY_MESSAGE_WARNING_THRESHOLD,
+        "threshold": get_settings(owner_uid)["daily_message_warning_threshold"],
     }
+
+
+class SettingsUpdate(BaseModel):
+    # forbid: an unknown field is a client bug (or an attempt to write
+    # arbitrary keys into the user's Firestore doc) — reject, don't ignore.
+    # strict: "5" or true must not be quietly coerced into a valid int.
+    model_config = ConfigDict(extra="forbid")
+
+    history_turns: int = Field(strict=True, ge=BOUNDS["history_turns"][0], le=BOUNDS["history_turns"][1])
+    daily_message_warning_threshold: int = Field(
+        strict=True,
+        ge=BOUNDS["daily_message_warning_threshold"][0],
+        le=BOUNDS["daily_message_warning_threshold"][1],
+    )
+
+
+def _settings_response(settings: dict) -> dict:
+    # The bounds and defaults ride along so the UI can render min/max and
+    # know what "reset" means from the one source of truth instead of
+    # hardcoding its own copies.
+    return {
+        **settings,
+        "limits": {name: {"min": low, "max": high} for name, (low, high) in BOUNDS.items()},
+        "defaults": dict(DEFAULTS),
+    }
+
+
+@app.get("/settings")
+def read_settings(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    return _settings_response(get_settings(owner_uid))
+
+
+@app.put("/settings")
+def update_settings(body: SettingsUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    # owner_uid comes from the verified token, never the body — a user can
+    # only ever write their own settings.
+    return _settings_response(save_settings(owner_uid, body.model_dump()))
+
+
+@app.delete("/settings")
+def delete_settings(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    return _settings_response(reset_settings(owner_uid))
 
 
 def _event_to_messages(event) -> list[dict]:
