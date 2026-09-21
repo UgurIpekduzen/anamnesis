@@ -106,21 +106,27 @@ function Chat({ idToken, tenantId, onEvent }: Props) {
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     function connect() {
-      const socket = new WebSocket(chatSocketUrl(idToken, currentTenantId));
+      const socket = new WebSocket(chatSocketUrl(currentTenantId));
       socketRef.current = socket;
 
-      // Only the current socket may flip the state: a superseded one (React
-      // dev mode mounts effects twice; a token refresh swaps sockets) can
-      // report its open/close after its replacement is already up.
+      // The token goes in the first frame, not the URL, so it never lands
+      // in an access log. The socket only counts as connected once the
+      // server answers "ready" (i.e. the token and the project checked out).
       socket.onopen = () => {
         if (socketRef.current !== socket) return;
-        attempt = 0;
-        setConnected(true);
+        socket.send(JSON.stringify({ type: "auth", token: idToken }));
       };
 
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === "tool_call" || data.type === "tool_result") {
+        // Only the current socket may flip the state: a superseded one
+        // (React dev mode mounts effects twice; a token refresh swaps
+        // sockets) can report in after its replacement is already up.
+        if (data.type === "ready") {
+          if (socketRef.current !== socket) return;
+          attempt = 0;
+          setConnected(true);
+        } else if (data.type === "tool_call" || data.type === "tool_result") {
           setTrace((prev) => [...prev, { type: data.type, name: data.name }]);
           onEventRef.current?.(
             data.type === "tool_call"
@@ -197,7 +203,9 @@ function Chat({ idToken, tenantId, onEvent }: Props) {
   function clearChat() {
     // Also drop the server-side session — clearing only the UI would
     // leave the model still seeing (and billing for) the old history.
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
+    // Only once authenticated: any frame before "ready" is taken for a
+    // failed login and closes the socket. (The button is disabled until then.)
+    if (connected && socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: "reset" }));
     }
     clearedRef.current = true;
@@ -249,7 +257,7 @@ function Chat({ idToken, tenantId, onEvent }: Props) {
             <polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>
         </button>
-        <button onClick={clearChat} title="Clear chat" className="icon-button">
+        <button onClick={clearChat} disabled={!connected} title="Clear chat" className="icon-button">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="3 6 5 6 21 6" />
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />

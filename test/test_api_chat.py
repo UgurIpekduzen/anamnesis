@@ -1,4 +1,5 @@
 import os
+from contextlib import contextmanager
 import threading
 import time
 from types import SimpleNamespace
@@ -14,7 +15,7 @@ from starlette.websockets import WebSocketDisconnect  # noqa: E402
 import api.main as api_main  # noqa: E402
 
 OWNER = "test@example.com"
-WS_URL = "/ws/chat/some_tenant?token=ignored"
+WS_URL = "/ws/chat/some_tenant"
 
 
 class FakeEvent:
@@ -62,6 +63,15 @@ class FakeRunner:
             yield FakeEvent("hi")
 
 
+@contextmanager
+def open_chat(client, token="a-token"):
+    """Connect the way the UI does: open, authenticate, wait for "ready"."""
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"type": "auth", "token": token})
+        assert ws.receive_json() == {"type": "ready"}
+        yield ws
+
+
 @pytest.fixture
 def spies():
     """What the chat handler did with the persistence layer."""
@@ -99,7 +109,7 @@ def chat(monkeypatch, spies):
 
 def test_a_normal_message_reaches_the_agent_with_a_call_cap(chat):
     client, runner, recorded = chat
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"message": "hello"})
         assert ws.receive_json() == {"type": "final", "text": "hi"}
 
@@ -110,7 +120,7 @@ def test_a_normal_message_reaches_the_agent_with_a_call_cap(chat):
 
 def test_an_oversized_message_is_rejected_before_the_agent_and_the_socket_survives(chat):
     client, runner, recorded = chat
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"message": "x" * (api_main.MAX_MESSAGE_CHARS + 1)})
         assert ws.receive_json()["type"] == "error"
         assert runner.calls == []
@@ -123,7 +133,7 @@ def test_an_oversized_message_is_rejected_before_the_agent_and_the_socket_surviv
 @pytest.mark.parametrize("payload", [["not", "a", "dict"], {"message": "   "}, {"message": 42}, {}])
 def test_malformed_or_empty_messages_get_an_error_frame(chat, payload):
     client, runner, _ = chat
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json(payload)
         assert ws.receive_json()["type"] == "error"
     assert runner.calls == []
@@ -132,7 +142,7 @@ def test_malformed_or_empty_messages_get_an_error_frame(chat, payload):
 def test_an_agent_failure_becomes_an_error_frame_and_keeps_the_socket_open(chat):
     client, runner, _ = chat
     runner.fail = True
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"message": "hello"})
         assert ws.receive_json()["type"] == "error"
 
@@ -143,7 +153,7 @@ def test_an_agent_failure_becomes_an_error_frame_and_keeps_the_socket_open(chat)
 
 def test_reset_deletes_the_server_side_session(chat):
     client, runner, _ = chat
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"type": "reset"})
         # reset has no reply frame — a follow-up round trip makes sure the
         # server has processed it before we look.
@@ -166,7 +176,7 @@ def test_tool_events_carry_ids_so_results_can_be_paired_with_their_calls():
 
 def test_the_agent_is_told_which_project_the_ui_has_selected(chat):
     client, runner, _ = chat
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"message": "what do you know?"})
         assert ws.receive_json()["type"] == "final"
 
@@ -175,7 +185,7 @@ def test_the_agent_is_told_which_project_the_ui_has_selected(chat):
 
 def test_the_length_limit_applies_to_what_the_user_typed_not_the_project_prefix(chat):
     client, runner, _ = chat
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"message": "x" * api_main.MAX_MESSAGE_CHARS})
         assert ws.receive_json()["type"] == "final"
 
@@ -188,16 +198,17 @@ def test_connecting_to_a_project_the_user_does_not_own_is_refused(chat, monkeypa
 
     monkeypatch.setattr(api_main, "get_owned_tenant", not_owned)
 
-    with pytest.raises(WebSocketDisconnect) as excinfo:
-        with client.websocket_connect(WS_URL):
-            pass
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"type": "auth", "token": "tok"})
+        with pytest.raises(WebSocketDisconnect) as excinfo:
+            ws.receive_json()
     assert excinfo.value.code == 1008
     assert runner.calls == []
 
 
 def test_a_finished_turn_is_saved_as_plain_question_and_answer_text(chat, spies):
     client, _, _ = chat
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"message": "what do you know?"})
         assert ws.receive_json()["type"] == "final"
 
@@ -208,7 +219,7 @@ def test_a_finished_turn_is_saved_as_plain_question_and_answer_text(chat, spies)
 def test_a_turn_with_no_answer_is_not_saved(chat, spies):
     client, runner, _ = chat
     runner.silent = True
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"message": "hello"})
         assert ws.receive_json() == {"type": "final", "text": "(no response)"}
 
@@ -223,7 +234,7 @@ def test_a_failing_save_does_not_break_the_conversation(chat, monkeypatch):
 
     monkeypatch.setattr(api_main, "append_turn", broken)
 
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"message": "one"})
         assert ws.receive_json()["type"] == "final"
         ws.send_json({"message": "two"})
@@ -232,7 +243,7 @@ def test_a_failing_save_does_not_break_the_conversation(chat, monkeypatch):
 
 def test_connecting_restores_the_models_memory_using_the_users_window_setting(chat, spies):
     client, _, _ = chat
-    with client.websocket_connect(WS_URL):
+    with open_chat(client):
         pass
 
     assert len(spies.restores) == 1
@@ -256,14 +267,14 @@ def test_a_failing_restore_does_not_stop_the_user_from_chatting(chat, monkeypatc
 
     monkeypatch.setattr(api_main, "restore_session", broken_restore)
 
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"message": "hello"})
         assert ws.receive_json() == {"type": "final", "text": "hi"}
 
 
 def test_clear_chat_also_deletes_the_saved_turns(chat, spies):
     client, _, _ = chat
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"type": "reset"})
         ws.send_json({"message": "hello"})
         assert ws.receive_json()["type"] == "final"
@@ -279,7 +290,7 @@ def test_a_failing_clear_does_not_break_the_conversation(chat, monkeypatch):
 
     monkeypatch.setattr(api_main, "clear_turns", broken)
 
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"type": "reset"})
         ws.send_json({"message": "hello"})
         assert ws.receive_json()["type"] == "final"
@@ -297,7 +308,7 @@ def test_a_running_turn_does_not_block_other_requests(chat, monkeypatch):
     monkeypatch.setattr(runner, "run", slow_run)
 
     with client as running:  # one shared event loop, like the real server
-        with running.websocket_connect(WS_URL) as ws:
+        with open_chat(running) as ws:
             ws.send_json({"message": "hello"})
             time.sleep(0.2)  # the turn is now mid-flight
 
@@ -330,7 +341,7 @@ def test_the_model_call_does_not_wait_for_the_usage_write(chat, monkeypatch):
     monkeypatch.setattr(api_main, "record_message", slow_usage)
     monkeypatch.setattr(runner, "run", run)
 
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"message": "hello"})
         assert ws.receive_json()["type"] == "final"
 
@@ -345,7 +356,7 @@ def test_a_failing_usage_write_does_not_break_the_conversation(chat, monkeypatch
 
     monkeypatch.setattr(api_main, "record_message", broken)
 
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"message": "one"})
         assert ws.receive_json()["type"] == "final"
         ws.send_json({"message": "two"})
@@ -372,7 +383,7 @@ def test_usage_save_and_clear_run_off_the_event_loop_thread(chat, monkeypatch):
     monkeypatch.setattr(api_main, "append_turn", note("save"))
     monkeypatch.setattr(api_main, "clear_turns", note("clear"))
 
-    with client.websocket_connect(WS_URL) as ws:
+    with open_chat(client) as ws:
         ws.send_json({"type": "reset"})
         ws.send_json({"message": "hello"})
         assert ws.receive_json()["type"] == "final"
@@ -386,3 +397,87 @@ def test_usage_save_and_clear_run_off_the_event_loop_thread(chat, monkeypatch):
     assert {"usage", "save", "clear"} <= threads.keys()
     for name in ("usage", "save", "clear"):
         assert threads[name] != threads["loop"], name
+
+
+# --- Authentication happens in the first frame, never in the URL (APPCE-67)
+
+
+def _assert_closed_with_policy_violation(ws):
+    with pytest.raises(WebSocketDisconnect) as excinfo:
+        ws.receive_json()
+    assert excinfo.value.code == 1008
+
+
+def test_the_token_is_read_from_the_auth_frame_not_the_url(chat, monkeypatch):
+    client, _, _ = chat
+    seen = []
+
+    def verify(token):
+        seen.append(token)
+        return OWNER
+
+    monkeypatch.setattr(api_main, "verify_token", verify)
+
+    with open_chat(client, token="the-real-token"):
+        pass
+
+    assert seen == ["the-real-token"]
+    assert "token" not in WS_URL
+
+
+def test_an_invalid_token_is_refused_and_never_reaches_the_agent(chat, monkeypatch):
+    client, runner, _ = chat
+
+    def reject(token):
+        raise api_main.HTTPException(status_code=401, detail="Invalid token")
+
+    monkeypatch.setattr(api_main, "verify_token", reject)
+
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"type": "auth", "token": "bad"})
+        _assert_closed_with_policy_violation(ws)
+    assert runner.calls == []
+
+
+def test_a_chat_message_before_authenticating_is_refused(chat):
+    client, runner, recorded = chat
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"message": "hello"})
+        _assert_closed_with_policy_violation(ws)
+    assert runner.calls == []
+    assert recorded == []
+
+
+@pytest.mark.parametrize("frame", [{"type": "auth"}, {"type": "auth", "token": ""}, {"type": "auth", "token": 5}, ["x"]])
+def test_a_malformed_auth_frame_is_refused(chat, frame):
+    client, runner, _ = chat
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json(frame)
+        _assert_closed_with_policy_violation(ws)
+    assert runner.calls == []
+
+
+def test_a_first_frame_that_is_not_json_is_refused(chat):
+    client, _, _ = chat
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_text("not json at all")
+        _assert_closed_with_policy_violation(ws)
+
+
+def test_an_oversized_first_frame_is_refused_without_verifying_it(chat, monkeypatch):
+    client, _, _ = chat
+    verified = []
+    monkeypatch.setattr(api_main, "verify_token", lambda token: verified.append(token) or OWNER)
+
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"type": "auth", "token": "x" * api_main.MAX_AUTH_FRAME_CHARS})
+        _assert_closed_with_policy_violation(ws)
+    assert verified == []
+
+
+def test_a_connection_that_never_authenticates_is_dropped(chat, monkeypatch):
+    client, _, _ = chat
+    monkeypatch.setattr(api_main, "AUTH_TIMEOUT_SECONDS", 0.2)
+
+    with client.websocket_connect(WS_URL) as ws:
+        _assert_closed_with_policy_violation(ws)

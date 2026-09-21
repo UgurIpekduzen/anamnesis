@@ -32,9 +32,11 @@ export async function getTenantFacts(idToken: string, tenantId: string): Promise
   return res.json();
 }
 
-export function chatSocketUrl(idToken: string, tenantId: string): string {
+// No token in the URL: URLs end up in access logs. The socket authenticates
+// with its first frame instead (see Chat.tsx and APPCE-67).
+export function chatSocketUrl(tenantId: string): string {
   const base = API_BASE.replace("http", "ws");
-  return `${base}/ws/chat/${tenantId}?token=${encodeURIComponent(idToken)}`;
+  return `${base}/ws/chat/${tenantId}`;
 }
 
 export interface Usage {

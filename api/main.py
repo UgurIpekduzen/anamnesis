@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -28,6 +29,13 @@ MAX_LLM_CALLS_PER_TURN = int(os.environ.get("MAX_LLM_CALLS_PER_TURN", 10))
 # Firestore reads of one history load (APPCE-60); the model's own memory is
 # governed separately, by the user's history_turns setting.
 CHAT_HISTORY_DISPLAY_TURNS = int(os.environ.get("CHAT_HISTORY_DISPLAY_TURNS", 50))
+
+# The chat socket authenticates with its first frame (APPCE-67), so an
+# unauthenticated connection is a resource an anonymous caller can hold:
+# give it seconds, and a frame size no real token comes close to (a Google
+# ID token is 1-2 KB).
+AUTH_TIMEOUT_SECONDS = float(os.environ.get("WS_AUTH_TIMEOUT_SECONDS", 10))
+MAX_AUTH_FRAME_CHARS = 8192
 
 app = FastAPI(title="Anamnesis API")
 
@@ -159,18 +167,52 @@ def _event_to_messages(event) -> list[dict]:
     return messages
 
 
-@app.websocket("/ws/chat/{tenant_id}")
-async def chat(websocket: WebSocket, tenant_id: str, token: str):
-    # Native browser WebSockets can't send custom headers, so the ID
-    # token travels as a query param instead of Authorization — verified
-    # the same way as the REST endpoints (see api/deps.py). Checked once
-    # at connect time; a token that expires mid-conversation closes the
-    # socket on its next send, and the frontend reconnects with its
-    # background-refreshed token (see APPCE-54).
+async def _authenticate(websocket: WebSocket) -> str | None:
+    """Read the first frame, {"type": "auth", "token": ...}, and verify it.
+
+    Native browser WebSockets can't send custom headers, and a token in the
+    URL ends up in every access log (uvicorn's, and Cloud Logging's on Cloud
+    Run, where the app can't filter it), so the ID token travels in the first
+    message instead — APPCE-67. It is verified the same way as on the REST
+    endpoints (see api/deps.py), once, at connect time; a token that expires
+    mid-conversation is only noticed when the socket reconnects, which the
+    frontend does with its background-refreshed token (see APPCE-54).
+
+    Returns the owner, or None after closing the socket with 1008.
+    """
     try:
-        owner_uid = await asyncio.to_thread(verify_token, token)
+        raw = await asyncio.wait_for(websocket.receive_text(), AUTH_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        await websocket.close(code=1008, reason="Authentication timed out")
+        return None
+    except WebSocketDisconnect:
+        return None
+
+    frame = None
+    if len(raw) <= MAX_AUTH_FRAME_CHARS:
+        try:
+            frame = json.loads(raw)
+        except ValueError:
+            pass
+    token = frame.get("token") if isinstance(frame, dict) and frame.get("type") == "auth" else None
+    if not isinstance(token, str) or not token:
+        await websocket.close(code=1008, reason="Authentication required")
+        return None
+
+    try:
+        return await asyncio.to_thread(verify_token, token)
     except HTTPException as exc:
         await websocket.close(code=1008, reason=exc.detail)
+        return None
+
+
+@app.websocket("/ws/chat/{tenant_id}")
+async def chat(websocket: WebSocket, tenant_id: str):
+    # The socket has to be accepted before it can be read from; nothing but
+    # the auth frame is handled until _authenticate succeeds.
+    await websocket.accept()
+    owner_uid = await _authenticate(websocket)
+    if owner_uid is None:
         return
 
     # Also confirms tenant_id is a project this user owns — until now it
@@ -182,7 +224,9 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
         await websocket.close(code=1008, reason="Unknown project")
         return
 
-    await websocket.accept()
+    # Tells the UI it may start sending; messages sent while the session is
+    # still being restored below simply wait their turn.
+    await websocket.send_json({"type": "ready"})
     runner = get_runner(owner_uid)
     session_id = f"session_{tenant_id}"
 
