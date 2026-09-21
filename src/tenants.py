@@ -6,6 +6,11 @@ from google.cloud import firestore
 from src.firestore_client import get_client
 
 
+# Named here (not in src/chat_history.py) so delete_tenant can cascade into
+# it without a circular import — chat_history depends on this module.
+CHAT_TURNS_COLLECTION = "chat_turns"
+
+
 def _slugify(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
     if not slug:
@@ -65,19 +70,20 @@ def rename_tenant(tenant_id: str, new_name: str, owner_uid: str) -> None:
 
 
 def delete_tenant(tenant_id: str, owner_uid: str) -> None:
-    """Delete a tenant and all of its facts.
+    """Delete a tenant and everything stored under it.
 
-    Cascade-deletes the "facts" subcollection first — leaving orphaned
-    facts behind a deleted tenant would work against this project's data
-    minimization principle (see APPCE-29) for no benefit, since nothing
-    can reference them once the tenant document is gone.
+    Cascade-deletes the "facts" and saved chat-turn subcollections first —
+    leaving orphans behind a deleted tenant would work against this
+    project's data minimization principle (see APPCE-29) for no benefit,
+    since nothing can reference them once the tenant document is gone.
     """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     tenant_ref = client.collection("tenants").document(tenant_id)
 
-    for fact_doc in tenant_ref.collection("facts").stream():
-        fact_doc.reference.delete()
+    for subcollection in ("facts", CHAT_TURNS_COLLECTION):
+        for doc in tenant_ref.collection(subcollection).stream():
+            doc.reference.delete()
 
     tenant_ref.delete()
 
