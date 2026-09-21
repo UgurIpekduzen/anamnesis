@@ -4,9 +4,22 @@ interface Props {
   tenants: Tenant[];
   selectedId: string | null;
   onSelect: (tenantId: string) => void;
+  // A failed load must not look like an empty account — "No projects
+  // found" would tell the user their data is gone when it just didn't load.
+  error?: boolean;
+  onRetry?: () => void;
 }
 
-function TenantSelector({ tenants, selectedId, onSelect }: Props) {
+function TenantSelector({ tenants, selectedId, onSelect, error, onRetry }: Props) {
+  if (error) {
+    return (
+      <div className="tenant-error">
+        <span>Couldn't load your projects.</span>
+        <button onClick={onRetry}>Retry</button>
+      </div>
+    );
+  }
+
   if (tenants.length === 0) {
     return <p>No projects found.</p>;
   }

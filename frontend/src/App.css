@@ -49,6 +49,18 @@
   color: var(--accent);
 }
 
+.tenant-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--error-bg);
+  color: var(--error-text);
+  font-size: 13px;
+}
+
 .main {
   flex: 1;
   display: flex;

@@ -29,6 +29,10 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
   const [trace, setTrace] = useState<TraceEntry[]>([]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  // Whether the socket is open right now. A browser silently drops a send()
+  // on a socket that isn't, so sending is gated on this — otherwise a
+  // message typed during a reconnect vanishes and the UI thinks forever.
+  const [connected, setConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   // Read inside onclose without re-subscribing the effect on every
   // isThinking flip — a ref mirrors the latest value for that purpose.
@@ -48,10 +52,21 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
     const currentTenantId = tenantId;
 
     let cancelled = false;
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     function connect() {
       const socket = new WebSocket(chatSocketUrl(idToken, currentTenantId));
       socketRef.current = socket;
+
+      // Only the current socket may flip the state: a superseded one (React
+      // dev mode mounts effects twice; a token refresh swaps sockets) can
+      // report its open/close after its replacement is already up.
+      socket.onopen = () => {
+        if (socketRef.current !== socket) return;
+        attempt = 0;
+        setConnected(true);
+      };
 
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -80,6 +95,7 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
       // true) is surfaced as a friendly error instead of silently
       // vanishing — mirrors app/chat.py's try/except in the Streamlit UI.
       socket.onclose = (event) => {
+        if (socketRef.current === socket) setConnected(false);
         if (isThinkingRef.current) {
           setMessages((prev) => [
             ...prev,
@@ -91,20 +107,26 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
           ]);
           setIsThinking(false);
         }
-        if (!cancelled && event.code !== 1008) connect();
+        // Back off instead of retrying instantly — with the server down
+        // that would be a tight loop of failed connections.
+        if (!cancelled && event.code !== 1008) {
+          retryTimer = setTimeout(connect, Math.min(1000 * 2 ** attempt, 10_000));
+          attempt += 1;
+        }
       };
     }
 
     connect();
     return () => {
       cancelled = true;
+      clearTimeout(retryTimer);
       socketRef.current?.close();
     };
   }, [idToken, tenantId]);
 
   function sendMessage() {
     const question = input.trim();
-    if (!question || !socketRef.current || !tenantId) return;
+    if (!question || !tenantId || socketRef.current?.readyState !== WebSocket.OPEN) return;
 
     setMessages((prev) => [...prev, { role: "user", content: question }]);
     setTrace([]);
@@ -151,11 +173,13 @@ function Chat({ idToken, tenantId, onMessageSent }: Props) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-          placeholder={tenantId ? "Ask or record something" : "Select a project first"}
-          disabled={!tenantId}
+          placeholder={
+            !tenantId ? "Select a project first" : connected ? "Ask or record something" : "Connecting…"
+          }
+          disabled={!tenantId || !connected}
           maxLength={MAX_MESSAGE_CHARS}
         />
-        <button onClick={sendMessage} disabled={!tenantId} title="Send" className="send-button">
+        <button onClick={sendMessage} disabled={!tenantId || !connected} title="Send" className="send-button">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="22" y1="2" x2="11" y2="13" />
             <polygon points="22 2 15 22 11 13 2 9 22 2" />

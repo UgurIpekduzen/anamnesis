@@ -28,6 +28,8 @@ function App() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("chat");
+  const [tenantsError, setTenantsError] = useState(false);
+  const [tenantsReloadKey, setTenantsReloadKey] = useState(0);
   const [usageRefreshKey, setUsageRefreshKey] = useState(0);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const isResizing = useRef(false);
@@ -43,11 +45,24 @@ function App() {
     // "Change account", which swaps idToken without a full page reset).
     setTenants([]);
     setSelectedTenantId(null);
-    listTenants(idToken).then((fetched) => {
-      setTenants(fetched);
-      setSelectedTenantId(fetched[0]?.tenant_id ?? null);
-    });
-  }, [idToken]);
+    setTenantsError(false);
+
+    // Ignore a response that lands after the token changed (or after a
+    // retry) — it belongs to a request nobody is waiting on anymore.
+    let cancelled = false;
+    listTenants(idToken)
+      .then((fetched) => {
+        if (cancelled) return;
+        setTenants(fetched);
+        setSelectedTenantId(fetched[0]?.tenant_id ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setTenantsError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [idToken, tenantsReloadKey]);
 
   useEffect(() => {
     return whenGoogleReady(() => {
@@ -131,7 +146,13 @@ function App() {
 
       <aside className="sidebar" style={{ width: sidebarWidth }}>
         <UsageCounter idToken={idToken} refreshKey={usageRefreshKey} />
-        <TenantSelector tenants={tenants} selectedId={selectedTenantId} onSelect={setSelectedTenantId} />
+        <TenantSelector
+          tenants={tenants}
+          selectedId={selectedTenantId}
+          onSelect={setSelectedTenantId}
+          error={tenantsError}
+          onRetry={() => setTenantsReloadKey((k) => k + 1)}
+        />
 
         <div className="tabs">
           <button className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>
