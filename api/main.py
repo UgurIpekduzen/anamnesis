@@ -132,6 +132,20 @@ async def _iterate_off_loop(generator):
         yield item
 
 
+async def _best_effort(func, *args, what: str) -> None:
+    """Run a blocking, non-essential call off the event loop.
+
+    Usage counting, saving and clearing history all touch Firestore
+    (~0.3-1 s each, sequentially). None of them is worth breaking a
+    conversation over, and none may stall the loop (APPCE-64), so they run
+    in a worker thread and a failure is logged, not raised.
+    """
+    try:
+        await asyncio.to_thread(func, *args)
+    except Exception as exc:
+        print(f"Couldn't {what}: {exc!r}")
+
+
 def _event_to_messages(event) -> list[dict]:
     # The id pairs a result with its call for the UI's Trace tab — matching
     # by tool name alone breaks as soon as the model calls one tool twice.
@@ -203,10 +217,7 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
                 )
                 # ...and the saved copy, or the next cold start would bring
                 # the conversation back from the dead.
-                try:
-                    clear_turns(tenant_id, owner_uid)
-                except Exception as exc:
-                    print(f"Couldn't clear saved chat history: {exc!r}")
+                await _best_effort(clear_turns, tenant_id, owner_uid, what="clear saved chat history")
                 continue
 
             question = data.get("message")
@@ -222,7 +233,12 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
                 )
                 continue
 
-            record_message(owner_uid)
+            # The usage counter is a soft UI warning, so the model call
+            # doesn't wait for it: it runs alongside the turn and is
+            # awaited once the turn is done.
+            usage_task = asyncio.create_task(
+                _best_effort(record_message, owner_uid, what="record message usage")
+            )
 
             message = types.Content(
                 role="user", parts=[types.Part(text=format_user_message(tenant_name, question))]
@@ -255,16 +271,15 @@ async def chat(websocket: WebSocket, tenant_id: str, token: str):
                         "message": "Something went wrong while talking to the agent. Please try again.",
                     }
                 )
+                await usage_task
                 continue
 
             await websocket.send_json({"type": "final", "text": final_text or "(no response)"})
+            await usage_task
 
             # Only a real answer is worth saving; a turn that produced none
             # would restore as a question the model never answered.
             if final_text is not None:
-                try:
-                    append_turn(tenant_id, owner_uid, question, final_text)
-                except Exception as exc:
-                    print(f"Couldn't save chat turn: {exc!r}")
+                await _best_effort(append_turn, tenant_id, owner_uid, question, final_text, what="save chat turn")
     except WebSocketDisconnect:
         pass

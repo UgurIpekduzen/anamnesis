@@ -1,4 +1,5 @@
 import os
+import threading
 import time
 from types import SimpleNamespace
 
@@ -308,3 +309,80 @@ def test_a_running_turn_does_not_block_other_requests(chat, monkeypatch):
 
     # Blocked, this waits out the remaining ~0.8 s of the turn.
     assert elapsed < 0.4
+
+
+def test_the_model_call_does_not_wait_for_the_usage_write(chat, monkeypatch):
+    client, runner, _ = chat
+    agent_started = threading.Event()
+    waited_for_agent = []
+
+    def slow_usage(owner_uid):
+        # Only returns True if the agent started while this was still
+        # running — i.e. the two ran side by side, not one after the other.
+        waited_for_agent.append(agent_started.wait(2))
+
+    original_run = runner.run
+
+    def run(**kwargs):
+        agent_started.set()
+        yield from original_run(**kwargs)
+
+    monkeypatch.setattr(api_main, "record_message", slow_usage)
+    monkeypatch.setattr(runner, "run", run)
+
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"message": "hello"})
+        assert ws.receive_json()["type"] == "final"
+
+    assert waited_for_agent == [True]
+
+
+def test_a_failing_usage_write_does_not_break_the_conversation(chat, monkeypatch):
+    client, _, _ = chat
+
+    def broken(owner_uid):
+        raise RuntimeError("firestore is down")
+
+    monkeypatch.setattr(api_main, "record_message", broken)
+
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"message": "one"})
+        assert ws.receive_json()["type"] == "final"
+        ws.send_json({"message": "two"})
+        assert ws.receive_json()["type"] == "final"
+
+
+def test_usage_save_and_clear_run_off_the_event_loop_thread(chat, monkeypatch):
+    client, _, _ = chat
+    threads = {}
+
+    async def fake_restore(*args):
+        # Runs on the event loop, so this is the loop's thread.
+        threads["loop"] = threading.get_ident()
+        return False
+
+    def note(name):
+        def fake(*args):
+            threads[name] = threading.get_ident()
+
+        return fake
+
+    monkeypatch.setattr(api_main, "restore_session", fake_restore)
+    monkeypatch.setattr(api_main, "record_message", note("usage"))
+    monkeypatch.setattr(api_main, "append_turn", note("save"))
+    monkeypatch.setattr(api_main, "clear_turns", note("clear"))
+
+    with client.websocket_connect(WS_URL) as ws:
+        ws.send_json({"type": "reset"})
+        ws.send_json({"message": "hello"})
+        assert ws.receive_json()["type"] == "final"
+        # The save runs after the final frame; one more round trip makes
+        # sure the handler has got past it.
+        ws.send_json({"message": "again"})
+        assert ws.receive_json()["type"] == "final"
+
+    # A blocking call made straight from the handler would report the
+    # loop's own thread; asyncio.to_thread reports a worker's.
+    assert {"usage", "save", "clear"} <= threads.keys()
+    for name in ("usage", "save", "clear"):
+        assert threads[name] != threads["loop"], name
