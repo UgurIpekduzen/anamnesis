@@ -18,6 +18,10 @@
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg-card);
+  /* An overflow:hidden flex item may shrink below its content; without this
+     the turns are squeezed and clipped inside .trace instead of making it
+     scroll (APPCE-74). */
+  flex-shrink: 0;
 }
 
 .trace-turn > summary,
