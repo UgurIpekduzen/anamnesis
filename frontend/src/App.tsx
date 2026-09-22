@@ -113,7 +113,12 @@ function App() {
   // the facts list refresh off it, and the Trace tab is built from it.
   function handleChatEvent(event: ChatEvent) {
     dispatchTrace({ ...event, at: Date.now() });
-    if (event.type === "sent") setUsageRefreshKey((k) => k + 1);
+    // On send, and again when the turn ends: the server counts the message
+    // alongside the model call, so the count read right after sending can
+    // still be the old one (APPCE-72).
+    if (event.type === "sent" || event.type === "answered" || event.type === "failed") {
+      setUsageRefreshKey((k) => k + 1);
+    }
     // A fact the agent just recorded lands asynchronously (Pub/Sub), so
     // this refetch can beat it — the Facts refresh button covers that.
     if (event.type === "answered") setFactsRefreshKey((k) => k + 1);
