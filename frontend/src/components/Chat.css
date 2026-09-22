@@ -43,7 +43,7 @@
   border: 1px solid var(--error-text);
 }
 
-.chat-trace {
+.chat-thinking {
   align-self: flex-start;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -51,13 +51,6 @@
   padding: 10px 14px;
   font-size: 13px;
   color: var(--text-muted);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.chat-trace-entry {
-  font-family: var(--font-mono);
 }
 
 .chat-input-row {

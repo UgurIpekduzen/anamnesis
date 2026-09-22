@@ -33,14 +33,8 @@ interface ChatMessage {
   isError?: boolean;
 }
 
-interface TraceEntry {
-  type: "tool_call" | "tool_result";
-  name: string;
-}
-
 function Chat({ idToken, tenantId, onEvent }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [trace, setTrace] = useState<TraceEntry[]>([]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   // Clear chat asks first: it deletes the saved conversation for good.
@@ -95,7 +89,7 @@ function Chat({ idToken, tenantId, onEvent }: Props) {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, [messages, trace, isThinking]);
+  }, [messages, isThinking]);
 
   useEffect(() => {
     // No project selected yet (e.g. right after switching accounts,
@@ -130,7 +124,6 @@ function Chat({ idToken, tenantId, onEvent }: Props) {
           attempt = 0;
           setConnected(true);
         } else if (data.type === "tool_call" || data.type === "tool_result") {
-          setTrace((prev) => [...prev, { type: data.type, name: data.name }]);
           onEventRef.current?.(
             data.type === "tool_call"
               ? { type: "tool_call", id: data.id, name: data.name, args: data.args }
@@ -196,7 +189,6 @@ function Chat({ idToken, tenantId, onEvent }: Props) {
     if (!question || !tenantId || socketRef.current?.readyState !== WebSocket.OPEN) return;
 
     setMessages((prev) => [...prev, { role: "user", content: question }]);
-    setTrace([]);
     setIsThinking(true);
     setInput("");
     socketRef.current.send(JSON.stringify({ message: question }));
@@ -213,7 +205,6 @@ function Chat({ idToken, tenantId, onEvent }: Props) {
     }
     clearedRef.current = true;
     setMessages([]);
-    setTrace([]);
     onEvent?.({ type: "cleared" });
   }
 
@@ -231,14 +222,7 @@ function Chat({ idToken, tenantId, onEvent }: Props) {
         ))}
 
         {isThinking && (
-          <div className="chat-trace">
-            <span>Thinking…</span>
-            {trace.map((entry, i) => (
-              <span key={i} className="chat-trace-entry">
-                {entry.type === "tool_call" ? "🔧" : "✅"} {entry.name}
-              </span>
-            ))}
-          </div>
+          <div className="chat-thinking">Thinking…</div>
         )}
         <div ref={messagesEndRef} />
       </div>
