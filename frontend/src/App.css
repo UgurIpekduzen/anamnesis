@@ -6,6 +6,10 @@
 
 .sidebar {
   flex-shrink: 0;
+  /* Same limits as the drag logic in App.tsx (MIN_SIDEBAR_WIDTH, and room
+     left for the chat), so shrinking the window can't push the chat away. */
+  min-width: 200px;
+  max-width: calc(100vw - 324px); /* 320px for the chat + the 4px handle */
   background: var(--bg-elevated);
   padding: 20px 16px;
   display: flex;

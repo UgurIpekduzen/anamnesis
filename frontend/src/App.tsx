@@ -17,7 +17,11 @@ import { traceReducer, type ChatEvent } from "./trace";
 type SidebarTab = "facts" | "trace";
 
 const MIN_SIDEBAR_WIDTH = 200;
-const MAX_SIDEBAR_WIDTH = 480;
+// The sidebar can be dragged as wide as the window allows, but the chat
+// keeps at least this much room — otherwise the drag handle could leave the
+// screen and the sidebar couldn't be dragged back (APPCE-73). App.css caps
+// it the same way if the window is made smaller afterwards.
+const MIN_MAIN_WIDTH = 320;
 
 // Re-prompts in the background well before a token's ~1 hour lifetime
 // runs out, so the user is (usually) never asked to sign in again
@@ -95,7 +99,8 @@ function App() {
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {
       if (!isResizing.current) return;
-      const clamped = Math.min(Math.max(e.clientX, MIN_SIDEBAR_WIDTH), MAX_SIDEBAR_WIDTH);
+      const maxWidth = window.innerWidth - MIN_MAIN_WIDTH;
+      const clamped = Math.max(MIN_SIDEBAR_WIDTH, Math.min(e.clientX, maxWidth));
       setSidebarWidth(clamped);
     }
     function onMouseUp() {
