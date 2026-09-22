@@ -147,3 +147,11 @@
   color: var(--text-muted);
   margin: 0;
 }
+
+.session-expired {
+  color: var(--error-text) !important;
+  background: var(--error-bg);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+}

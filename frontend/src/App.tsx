@@ -10,7 +10,7 @@ import SettingsDialog from "./components/SettingsDialog";
 import TenantSelector from "./components/TenantSelector";
 import TracePanel from "./components/TracePanel";
 import UsageCounter from "./components/UsageCounter";
-import { initGoogleAuth, whenGoogleReady } from "./googleAuth";
+import { describePromptMoment, initGoogleAuth, whenGoogleReady } from "./googleAuth";
 import { tokenSubject } from "./tokenIdentity";
 import { traceReducer, type ChatEvent } from "./trace";
 
@@ -44,6 +44,9 @@ function App() {
   const isResizing = useRef(false);
   const [googleReady, setGoogleReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Set when the chat socket is rejected outright (APPCE-69) — shown on
+  // the sign-in screen so the user knows why they landed back there.
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   // The token is refreshed silently about every 50 minutes; the account it
   // belongs to is what decides whether the project list is stale.
@@ -83,14 +86,23 @@ function App() {
 
   useEffect(() => {
     return whenGoogleReady(() => {
-      initGoogleAuth(setIdToken);
+      initGoogleAuth((token) => {
+        setSessionExpired(false);
+        setIdToken(token);
+      });
       // Auth.tsx waits for this before calling renderButton — GIS
       // requires initialize() to have already run, and its own polling
       // for window.google readiness raced this effect's, sometimes
       // rendering the button before initialize() had been called at all.
       setGoogleReady(true);
       const refreshInterval = setInterval(() => {
-        window.google?.accounts.id.prompt();
+        // The notification carries no user data, just why nothing was
+        // shown — logged so a silently-failing refresh (see APPCE-69) is
+        // diagnosable from the console instead of invisible.
+        window.google?.accounts.id.prompt((notification) => {
+          const outcome = describePromptMoment(notification);
+          if (outcome !== "displayed") console.info(`Background token refresh: ${outcome}`);
+        });
       }, SILENT_REFRESH_INTERVAL_MS);
       return () => clearInterval(refreshInterval);
     });
@@ -142,6 +154,15 @@ function App() {
     setIdToken(null);
   }
 
+  // The chat socket's cue that its token no longer checks out. Unlike
+  // signOut, this doesn't call disableAutoSelect: if the background
+  // refresh (App-level effect above) can silently sign the user back in,
+  // it should be allowed to.
+  function handleAuthFailed() {
+    setSessionExpired(true);
+    setIdToken(null);
+  }
+
   // Opens Google's account picker directly over the current screen —
   // no need to sign out first. If they cancel, initGoogleAuth's
   // callback never fires and idToken (and the current screen) just
@@ -157,6 +178,7 @@ function App() {
         <div className="signin-gate">
           <h1>Anamnesis</h1>
           <p>Personal Project Context Engine</p>
+          {sessionExpired && <p className="session-expired">Your session ended. Please sign in again.</p>}
           <Auth ready={googleReady} />
         </div>
       </div>
@@ -252,6 +274,7 @@ function App() {
             idToken={idToken}
             tenantId={selectedTenantId}
             onEvent={handleChatEvent}
+            onAuthFailed={handleAuthFailed}
           />
         </div>
       </main>

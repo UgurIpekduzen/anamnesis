@@ -3,14 +3,31 @@ import { GOOGLE_CLIENT_ID } from "./config";
 // Minimal shape of the Google Identity Services global — GIS doesn't
 // ship first-party types, and pulling in a whole @types package for
 // this one object felt heavier than it's worth.
+// A moment's outcome, as GIS reports it to prompt()'s optional callback:
+// whether the One Tap UI was shown at all, and if not (or if the user
+// closed it), why — see APPCE-69.
+interface PromptMomentNotification {
+  isDisplayMoment: () => boolean;
+  isNotDisplayed: () => boolean;
+  getNotDisplayedReason: () => string;
+  isSkippedMoment: () => boolean;
+  getSkippedReason: () => string;
+  isDismissedMoment: () => boolean;
+  getDismissedReason: () => string;
+}
+
 declare global {
   interface Window {
     google?: {
       accounts: {
         id: {
-          initialize: (config: { client_id: string; callback: (resp: { credential: string }) => void }) => void;
+          initialize: (config: {
+            client_id: string;
+            callback: (resp: { credential: string }) => void;
+            auto_select?: boolean;
+          }) => void;
           renderButton: (parent: HTMLElement, options: { theme: string; size: string }) => void;
-          prompt: () => void;
+          prompt: (momentListener?: (notification: PromptMomentNotification) => void) => void;
           disableAutoSelect: () => void;
         };
       };
@@ -38,9 +55,26 @@ export function whenGoogleReady(fn: () => (() => void) | void): () => void {
 // Called once at the app's top level (see App.tsx) so the callback stays
 // wired even after the sign-in screen unmounts — needed for both the
 // background silent-refresh prompt and "Change account".
+//
+// auto_select lets prompt() return a fresh token with no UI shown at all
+// when there is exactly one Google session that already approved this
+// app — without it, prompt() always shows the One Tap UI and waits for a
+// click, so the ~50-minute background refresh timer (App.tsx) was never
+// actually silent (APPCE-69).
 export function initGoogleAuth(onCredential: (idToken: string) => void): void {
   window.google!.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
     callback: (response) => onCredential(response.credential),
+    auto_select: true,
   });
+}
+
+// What happened to a prompt() call, boiled down to one word, for the
+// background refresh to log — never the credential or anything from it.
+export function describePromptMoment(notification: PromptMomentNotification): string {
+  if (notification.isDisplayMoment()) return "displayed";
+  if (notification.isNotDisplayed()) return `not_displayed:${notification.getNotDisplayedReason()}`;
+  if (notification.isSkippedMoment()) return `skipped:${notification.getSkippedReason()}`;
+  if (notification.isDismissedMoment()) return `dismissed:${notification.getDismissedReason()}`;
+  return "unknown";
 }

@@ -25,6 +25,12 @@ interface Props {
   // One channel for everything the parent cares about (usage counter,
   // facts refresh, Trace tab) instead of a callback per concern.
   onEvent?: (event: ChatEvent) => void;
+  // The server closes with 1008 when the token it was handed doesn't check
+  // out (expired, not on the allowlist, ...) or the project doesn't belong
+  // to this user, and a fresh connect keeps failing the same way, so this
+  // is the app's cue to stop reconnecting quietly and ask the user to sign
+  // in again instead (APPCE-69).
+  onAuthFailed?: () => void;
 }
 
 interface ChatMessage {
@@ -33,7 +39,7 @@ interface ChatMessage {
   isError?: boolean;
 }
 
-function Chat({ idToken, tenantId, onEvent }: Props) {
+function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
@@ -53,6 +59,8 @@ function Chat({ idToken, tenantId, onEvent }: Props) {
   // read the latest callback through a ref instead of capturing one.
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
+  const onAuthFailedRef = useRef(onAuthFailed);
+  onAuthFailedRef.current = onAuthFailed;
   // The history load below runs once per project; it shouldn't restart
   // every time the ID token silently refreshes, so it reads the latest
   // token from a ref instead of depending on it.
@@ -172,6 +180,8 @@ function Chat({ idToken, tenantId, onEvent }: Props) {
         if (!cancelled && event.code !== 1008) {
           retryTimer = setTimeout(connect, Math.min(1000 * 2 ** attempt, 10_000));
           attempt += 1;
+        } else if (event.code === 1008) {
+          onAuthFailedRef.current?.();
         }
       };
     }
