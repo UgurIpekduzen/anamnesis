@@ -16,7 +16,6 @@ const STATUS_GLYPH = { running: "⏳", done: "✓", failed: "✕" } as const;
 function ArgsView({ args }: { args: unknown }) {
   const view = describeArgs(args);
   if (view.kind === "none") return <p className="trace-empty">No arguments</p>;
-  if (view.kind === "json") return <pre className="trace-json">{view.text}</pre>;
   return (
     <div className="trace-table-wrap">
       <table className="trace-table">
@@ -42,13 +41,36 @@ function ArgsView({ args }: { args: unknown }) {
 function ResultView({ result }: { result: unknown }) {
   const view = describeResult(result);
   if (view.kind === "empty") return <p className="trace-empty">Empty result</p>;
-  if (view.kind === "json") return <pre className="trace-json">{view.text}</pre>;
   if (view.kind === "success") {
     return (
       <p className="trace-success">
         ✅ Success
         {view.detail !== undefined && <small>{view.detail}</small>}
       </p>
+    );
+  }
+  if (view.kind === "error") {
+    return (
+      <p className="trace-error">
+        ❌ Error
+        <small>{view.message}</small>
+      </p>
+    );
+  }
+  if (view.kind === "fields") {
+    return (
+      <div className="trace-table-wrap">
+        <table className="trace-table">
+          <tbody>
+            {view.rows.map(([name, value]) => (
+              <tr key={name}>
+                <td>{name}</td>
+                <td>{value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   }
   return (

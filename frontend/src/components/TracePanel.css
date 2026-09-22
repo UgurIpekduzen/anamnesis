@@ -104,16 +104,23 @@
 }
 
 .trace-call > .trace-empty,
-.trace-call > .trace-success {
+.trace-call > .trace-success,
+.trace-call > .trace-error {
   padding: 0 10px;
 }
 
-.trace-success {
+.trace-success,
+.trace-error {
   margin: 6px 0;
   font-size: 13px;
 }
 
-.trace-success small {
+.trace-error {
+  color: var(--error-text);
+}
+
+.trace-success small,
+.trace-error small {
   display: block;
   margin-top: 2px;
   word-break: break-all;
