@@ -26,7 +26,7 @@ tasks:
     desc: Apply Terraform, defaulting image_tag to whatever is currently deployed (unless TF_VAR_image_tag is already set)
     cmds:
       - |
-        CURRENT_TAG=$(docker compose run --rm gcloud run services describe anamnesis-ui --region=us-central1 --format="value(spec.template.spec.containers[0].image)" 2>/dev/null | sed 's/.*://')
+        CURRENT_TAG=$(docker compose run --rm gcloud run services describe anamnesis-app --region=us-central1 --format="value(spec.template.spec.containers[0].image)" 2>/dev/null | sed 's/.*://')
         # docker compose run does NOT forward the invoking shell's env
         # vars into the container by default — -e <NAME> (no value) is
         # what actually pulls it from the host, this was silently
@@ -44,30 +44,6 @@ tasks:
       - task: tf:fmt:fix
       - task: tf:validate
       - task: tf:plan
-
-  app:build:
-    cmds:
-      - docker compose build streamlit
-
-  app:up:
-    desc: Run the Streamlit container locally in the background for a pre-deploy smoke test
-    cmds:
-      - docker compose up -d streamlit
-
-  app:logs:
-    desc: Tail logs from the running Streamlit container
-    cmds:
-      - docker compose logs -f streamlit
-
-  app:down:
-    desc: Stop and remove the local Streamlit container
-    cmds:
-      - docker compose down streamlit
-
-  app:push:
-    desc: Push the built image to Artifact Registry
-    cmds:
-      - docker compose push streamlit
 
   emulators:up:
     desc: Start the Firestore and Pub/Sub emulators in the background
@@ -94,6 +70,39 @@ tasks:
     cmds:
       - docker compose down subscriber
 
+  api:up:
+    desc: Run the FastAPI backend in the background (APPCE-53)
+    cmds:
+      # The API's code is baked into its image (no bind mount), so without
+      # --build a restart quietly keeps running the previous code. Docker's
+      # layer cache makes this fast when nothing changed.
+      - docker compose up -d --build api
+
+  api:logs:
+    desc: Tail logs from the FastAPI backend
+    cmds:
+      - docker compose logs -f api
+
+  api:down:
+    desc: Stop the FastAPI backend
+    cmds:
+      - docker compose down api
+
+  frontend:up:
+    desc: Run the React dev server in the background (APPCE-52)
+    cmds:
+      - docker compose up -d frontend
+
+  frontend:logs:
+    desc: Tail logs from the React dev server
+    cmds:
+      - docker compose logs -f frontend
+
+  frontend:down:
+    desc: Stop the React dev server
+    cmds:
+      - docker compose down frontend
+
   adk:up:
     desc: Run adk web (against the dockerized emulators) in the background
     cmds:
@@ -108,11 +117,6 @@ tasks:
     desc: Stop adk web
     cmds:
       - docker compose down adk-web
-
-  ui:proxy:
-    desc: Open an authenticated local proxy to anamnesis-ui (owner-only access, no public URL)
-    cmds:
-      - docker compose run --rm gcloud run services proxy anamnesis-ui --region=us-central1 --port=8080
 
   gcloud:
     desc: Run an arbitrary gcloud command via the dockerized CLI (task gcloud -- <args>)
@@ -141,3 +145,18 @@ tasks:
     desc: Pull messages from a subscription without acking (task gcloud:pubsub:pull -- fact-events-dlq-sub)
     cmds:
       - docker compose run --rm gcloud pubsub subscriptions pull {{.CLI_ARGS}} --limit=10
+
+  secrets:github-key:pull:
+    desc: Print the current GitHub token encryption key, for pasting into your local .env (see .env.example)
+    cmds:
+      - docker compose run --rm gcloud secrets versions access latest --secret=github-token-encryption-key
+
+  secrets:github-key:init:
+    desc: One-time setup — generate a Fernet key and store it as the GitHub token encryption secret. Safe to re-run; skips if a version already exists (overwriting it would break already-encrypted tokens).
+    cmds:
+      - |
+        if docker compose run --rm gcloud secrets versions list github-token-encryption-key --format="value(name)" 2>/dev/null | grep -q .; then
+          echo "A key already exists for github-token-encryption-key — leaving it as is."
+        else
+          python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" | docker compose run --rm -T gcloud secrets versions add github-token-encryption-key --data-file=-
+        fi

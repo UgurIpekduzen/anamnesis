@@ -1,0 +1,8 @@
+.usage-warning {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  margin-top: 6px;
+}

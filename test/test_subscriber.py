@@ -29,13 +29,27 @@ def test_returns_200_and_writes_fact_on_valid_payload(monkeypatch):
     created = {}
     monkeypatch.setattr(
         "src.subscriber.create_fact",
-        lambda tenant_id, content, category: created.update(
-            tenant_id=tenant_id, content=content, category=category
+        lambda tenant_id, content, category, source: created.update(
+            tenant_id=tenant_id, content=content, category=category, source=source
         ),
+    )
+    body = _push_envelope({"tenant_id": "x", "content": "y", "category": "bug", "source": "github"})
+
+    status = _process_push_message(body)
+
+    assert status == 200
+    assert created == {"tenant_id": "x", "content": "y", "category": "bug", "source": "github"}
+
+
+def test_a_message_published_before_source_existed_defaults_to_chat(monkeypatch):
+    created = {}
+    monkeypatch.setattr(
+        "src.subscriber.create_fact",
+        lambda tenant_id, content, category, source: created.update(source=source),
     )
     body = _push_envelope({"tenant_id": "x", "content": "y", "category": "bug"})
 
     status = _process_push_message(body)
 
     assert status == 200
-    assert created == {"tenant_id": "x", "content": "y", "category": "bug"}
+    assert created == {"source": "chat"}

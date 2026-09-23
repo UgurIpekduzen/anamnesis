@@ -6,6 +6,16 @@ from google.cloud import firestore
 from src.firestore_client import get_client
 
 
+# Named here (not in src/chat_history.py) so delete_tenant can cascade into
+# it without a circular import — chat_history depends on this module.
+CHAT_TURNS_COLLECTION = "chat_turns"
+
+# Same reasoning as CHAT_TURNS_COLLECTION above — named here so
+# delete_tenant can cascade into it without src/pending_facts.py and
+# src/tenants.py importing each other.
+PENDING_FACTS_COLLECTION = "pending_facts"
+
+
 def _slugify(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
     if not slug:
@@ -65,19 +75,20 @@ def rename_tenant(tenant_id: str, new_name: str, owner_uid: str) -> None:
 
 
 def delete_tenant(tenant_id: str, owner_uid: str) -> None:
-    """Delete a tenant and all of its facts.
+    """Delete a tenant and everything stored under it.
 
-    Cascade-deletes the "facts" subcollection first — leaving orphaned
-    facts behind a deleted tenant would work against this project's data
-    minimization principle (see APPCE-29) for no benefit, since nothing
-    can reference them once the tenant document is gone.
+    Cascade-deletes the "facts" and saved chat-turn subcollections first —
+    leaving orphans behind a deleted tenant would work against this
+    project's data minimization principle (see APPCE-29) for no benefit,
+    since nothing can reference them once the tenant document is gone.
     """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     tenant_ref = client.collection("tenants").document(tenant_id)
 
-    for fact_doc in tenant_ref.collection("facts").stream():
-        fact_doc.reference.delete()
+    for subcollection in ("facts", CHAT_TURNS_COLLECTION, PENDING_FACTS_COLLECTION):
+        for doc in tenant_ref.collection(subcollection).stream():
+            doc.reference.delete()
 
     tenant_ref.delete()
 
@@ -88,6 +99,42 @@ def set_jira_project_key(tenant_id: str, jira_project_key: str, owner_uid: str) 
     client = get_client()
     client.collection("tenants").document(tenant_id).update(
         {"jira_project_key": jira_project_key}
+    )
+
+
+# owner/name only — GitHub usernames/orgs are alphanumeric-or-hyphen (not
+# leading/trailing), repo names add underscore and dot. Rejecting anything
+# else keeps this from ever being treated as an arbitrary URL downstream
+# (SSRF risk, see APPCE-51 comment #2).
+_GITHUB_REPO_PATTERN = re.compile(r"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})/[a-zA-Z0-9_.-]{1,100}$")
+
+
+def set_github_repo(tenant_id: str, github_repo: str, owner_uid: str) -> None:
+    """Attach a GitHub repo (owner/name) to an existing tenant, used to poll
+    its PRs/issues for facts (see APPCE-80).
+
+    Raises:
+        ValueError: github_repo isn't a plain "owner/name" string.
+    """
+    if not _GITHUB_REPO_PATTERN.match(github_repo):
+        raise ValueError(f"'{github_repo}' doesn't look like a GitHub 'owner/name' repo.")
+    get_owned_tenant(tenant_id, owner_uid)
+    client = get_client()
+    client.collection("tenants").document(tenant_id).update({"github_repo": github_repo})
+
+
+def mark_github_polled(tenant_id: str, owner_uid: str) -> None:
+    """Record that this tenant's GitHub repo was just polled (see APPCE-81).
+
+    Read back via get_owned_tenant (not list_tenants — this is internal
+    bookkeeping, not something worth surfacing to the chat agent or UI).
+    Lets a repeated poll skip PRs/issues it already processed, instead of
+    re-extracting and re-staging the same pending facts every run.
+    """
+    get_owned_tenant(tenant_id, owner_uid)
+    client = get_client()
+    client.collection("tenants").document(tenant_id).update(
+        {"github_polled_at": datetime.now(timezone.utc)}
     )
 
 
@@ -115,8 +162,9 @@ def list_tenants(owner_uid: str) -> list[dict]:
     Returns:
         A list of dicts with "tenant_id" (use this exact value when calling
         get_tenant_facts), "name" (human-readable project name),
-        "jira_project_key" (None if not set), and "git_repo_path" (None if
-        not set — not every tenant necessarily has either).
+        "jira_project_key" (None if not set), "git_repo_path" (None if
+        not set), and "github_repo" (None if not set — not every tenant
+        necessarily has any of these).
     """
     client = get_client()
     query = client.collection("tenants").where(
@@ -128,6 +176,7 @@ def list_tenants(owner_uid: str) -> list[dict]:
             "name": data.get("name"),
             "jira_project_key": data.get("jira_project_key"),
             "git_repo_path": data.get("git_repo_path"),
+            "github_repo": data.get("github_repo"),
         }
         for doc in query.stream()
         for data in [doc.to_dict()]

@@ -1,0 +1,169 @@
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.settings-dialog {
+  width: min(440px, calc(100vw - 32px));
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.settings-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-label {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.settings-info-wrapper {
+  position: relative;
+  display: inline-block;
+  margin-left: 6px;
+}
+
+.settings-info {
+  color: var(--text-muted);
+  text-decoration: none;
+  cursor: help;
+}
+
+.settings-info:hover {
+  color: var(--accent);
+}
+
+.settings-tooltip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 6px;
+  width: 240px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 1.4;
+  z-index: 10;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.settings-tooltip ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+
+.settings-tooltip li {
+  margin-bottom: 2px;
+}
+
+.settings-tooltip li:last-child {
+  margin-bottom: 0;
+}
+
+.settings-info-wrapper:hover .settings-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.settings-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.settings-hint.invalid,
+.settings-error {
+  color: var(--error-text);
+}
+
+.settings-field input[aria-invalid="true"] {
+  border-color: var(--error-text);
+}
+
+.settings-error {
+  margin: 0;
+  font-size: 13px;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-actions-right {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-reset {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+  padding-left: 0;
+}
+
+.settings-reset:hover:not(:disabled) {
+  color: var(--text);
+  background: transparent;
+}
+
+.settings-reset:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.settings-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0e1117;
+}
+
+.settings-save:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.settings-save:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The browser's built-in number stepper is light-colored and clashes with
+   the dark theme. Typing and the ↑/↓ keys still work without it. */
+.settings-field input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.settings-field input[type="number"]::-webkit-inner-spin-button,
+.settings-field input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

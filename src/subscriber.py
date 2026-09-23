@@ -21,6 +21,9 @@ def _process_push_message(body: bytes) -> int:
             tenant_id=payload["tenant_id"],
             content=payload["content"],
             category=payload["category"],
+            # .get, not [] — messages published before APPCE-81 added this
+            # field have none, and should still default to "chat".
+            source=payload.get("source", "chat"),
         )
     except (KeyError, ValueError, json.JSONDecodeError):
         # A malformed payload will never succeed on retry, but we

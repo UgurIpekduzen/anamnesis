@@ -9,3 +9,12 @@ resource "google_firestore_database" "default" {
 
   depends_on = [google_project_service.firestore]
 }
+
+resource "google_firestore_field" "chat_turns_ttl" {
+  collection = "chat_turns"
+  field      = "expire_at"
+
+  ttl_config {}
+
+  depends_on = [google_firestore_database.default]
+}

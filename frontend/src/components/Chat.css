@@ -1,0 +1,139 @@
+.chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.chat-bubble {
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  line-height: 1.45;
+}
+
+.chat-bubble.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #0e1117;
+  border-bottom-right-radius: 2px;
+}
+
+.chat-bubble.assistant {
+  align-self: flex-start;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 2px;
+}
+
+.chat-bubble.error {
+  background: var(--error-bg);
+  color: var(--error-text);
+  border: 1px solid var(--error-text);
+}
+
+.chat-thinking {
+  align-self: flex-start;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.chat-input-row input {
+  flex: 1;
+}
+
+.send-button,
+.icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.send-button {
+  background: var(--accent);
+  color: #0e1117;
+  border-color: var(--accent);
+}
+
+.send-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.send-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Markdown inside assistant replies. */
+.chat-bubble.assistant > :first-child {
+  margin-top: 0;
+}
+
+.chat-bubble.assistant > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-bubble.assistant p,
+.chat-bubble.assistant ul,
+.chat-bubble.assistant ol {
+  margin: 0 0 8px;
+}
+
+.chat-bubble.assistant ul,
+.chat-bubble.assistant ol {
+  padding-left: 22px;
+}
+
+.chat-bubble.assistant a {
+  color: var(--accent);
+}
+
+.chat-bubble.assistant code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--bg-elevated);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.chat-bubble.assistant pre {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 0 0 8px;
+}
+
+.chat-bubble.assistant pre code {
+  background: none;
+  padding: 0;
+}
+
+.chat-bubble.assistant h1,
+.chat-bubble.assistant h2,
+.chat-bubble.assistant h3 {
+  font-size: 1.05em;
+  margin: 12px 0 6px;
+}

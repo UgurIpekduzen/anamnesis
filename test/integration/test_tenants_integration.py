@@ -8,6 +8,7 @@ from src.tenants import (
     list_tenants,
     rename_tenant,
     set_git_repo_path,
+    set_github_repo,
     set_jira_project_key,
 )
 
@@ -58,6 +59,38 @@ def test_set_jira_project_key_and_git_repo_path(tenant_name):
         tenant = next(t for t in tenants if t["tenant_id"] == tenant_id)
         assert tenant["jira_project_key"] == "APPCE"
         assert tenant["git_repo_path"] == "/home/user/repos/anamnesis"
+    finally:
+        delete_tenant(tenant_id, OWNER_UID)
+
+
+def test_set_github_repo(tenant_name):
+    tenant_id = add_tenant(tenant_name, OWNER_UID)
+    try:
+        set_github_repo(tenant_id, "UgurIpekduzen/anamnesis", OWNER_UID)
+
+        tenants = list_tenants(OWNER_UID)
+        tenant = next(t for t in tenants if t["tenant_id"] == tenant_id)
+        assert tenant["github_repo"] == "UgurIpekduzen/anamnesis"
+    finally:
+        delete_tenant(tenant_id, OWNER_UID)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "not-a-repo",
+        "https://github.com/owner/name",
+        "owner/name/extra",
+        "-owner/name",
+        "owner/",
+        "/name",
+    ],
+)
+def test_set_github_repo_rejects_anything_that_is_not_owner_slash_name(tenant_name, bad):
+    tenant_id = add_tenant(tenant_name, OWNER_UID)
+    try:
+        with pytest.raises(ValueError):
+            set_github_repo(tenant_id, bad, OWNER_UID)
     finally:
         delete_tenant(tenant_id, OWNER_UID)
 

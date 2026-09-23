@@ -23,12 +23,45 @@ def tenant_id():
 
 
 def test_create_fact_is_retrievable_via_get_tenant_facts(tenant_id):
-    create_fact(tenant_id, content="Uses Streamlit for the UI", category="architecture")
+    create_fact(tenant_id, content="Uses React for the UI", category="architecture")
 
     facts = get_tenant_facts(tenant_id, OWNER_UID)
     assert len(facts) == 1
-    assert facts[0]["content"] == "Uses Streamlit for the UI"
+    assert facts[0]["content"] == "Uses React for the UI"
     assert facts[0]["category"] == "architecture"
+    assert facts[0]["source"] == "chat"  # the default when not given (APPCE-81)
+
+
+def test_create_fact_records_a_non_default_source(tenant_id):
+    create_fact(tenant_id, content="From a GitHub PR", category="bug", source="github")
+
+    assert get_tenant_facts(tenant_id, OWNER_UID)[0]["source"] == "github"
+
+
+def test_a_fact_with_no_source_field_at_all_does_not_crash(tenant_id):
+    # Simulates a fact written before APPCE-81 added the field (or by an
+    # older deployed writer) — Firestore's doc.get() raises KeyError for a
+    # field that's entirely absent, unlike dict.get, so this is worth
+    # pinning down explicitly.
+    get_client().collection("tenants").document(tenant_id).collection("facts").add(
+        {"content": "Legacy fact", "category": "status", "created_at": None, "updated_at": None}
+    )
+
+    facts = get_tenant_facts(tenant_id, OWNER_UID)
+    assert facts[0]["content"] == "Legacy fact"
+    assert facts[0]["source"] is None
+
+
+def test_get_tenant_facts_limit_keeps_the_newest_facts(tenant_id):
+    create_fact(tenant_id, content="oldest", category="todo")
+    create_fact(tenant_id, content="middle", category="todo")
+    create_fact(tenant_id, content="newest", category="todo")
+
+    limited = get_tenant_facts(tenant_id, OWNER_UID, limit=2)
+    assert [f["content"] for f in limited] == ["newest", "middle"]
+
+    # No limit still returns everything — the UI's Facts tab relies on it.
+    assert len(get_tenant_facts(tenant_id, OWNER_UID)) == 3
 
 
 def test_update_fact_changes_content_and_category(tenant_id):

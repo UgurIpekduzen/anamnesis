@@ -1,0 +1,157 @@
+.app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  flex-shrink: 0;
+  /* Same limits as the drag logic in App.tsx (MIN_SIDEBAR_WIDTH, and room
+     left for the chat), so shrinking the window can't push the chat away. */
+  min-width: 200px;
+  max-width: calc(100vw - 324px); /* 320px for the chat + the 4px handle */
+  background: var(--bg-elevated);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* The facts list below scrolls on its own; the sidebar itself stays put. */
+  overflow: hidden;
+}
+
+.sidebar select {
+  width: 100%;
+}
+
+.resize-handle {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: var(--border);
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--accent);
+}
+
+.sidebar-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs .tab {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+}
+
+.tabs .tab.active {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.tabs .icon-button {
+  padding: 4px 8px;
+}
+
+.tab-badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.tenant-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--error-bg);
+  color: var(--error-text);
+  font-size: 13px;
+}
+
+.sidebar-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  padding: 32px 40px;
+}
+
+.main-inner {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.main-inner h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.main-inner > p:first-of-type {
+  color: var(--text-muted);
+  margin: 0 0 20px;
+  text-align: center;
+}
+
+.signin-screen {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.signin-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.signin-gate h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.signin-gate > p {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.session-expired {
+  color: var(--error-text) !important;
+  background: var(--error-bg);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+}

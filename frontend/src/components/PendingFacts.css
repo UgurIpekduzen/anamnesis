@@ -1,0 +1,32 @@
+.pending-fact-card {
+  border-top: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.pending-fact-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pending-fact-category {
+  text-transform: capitalize;
+}
+
+.pending-fact-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pending-fact-approve {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0e1117;
+}
+
+.pending-fact-approve:hover:not(:disabled) {
+  background: var(--accent-hover);
+}

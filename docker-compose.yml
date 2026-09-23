@@ -19,26 +19,32 @@ services:
       - ~/.config/gcloud:/root/.config/gcloud:ro
     entrypoint: ["terraform"]
 
-  streamlit:
+  api:
     build:
       context: .
-    image: us-central1-docker.pkg.dev/gen-lang-client-0424267124/anamnesis/streamlit-app:latest
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    # WSL2 restarts (sleep, idle shutdown) stop every container; with this the
+    # service comes back once Docker does. `docker compose stop/down` still
+    # keeps it stopped.
+    restart: unless-stopped
     ports:
-      - "8080:8080"
-    # No env_file here on purpose: .env carries the emulator-oriented
-    # FIRESTORE_EMULATOR_HOST/PUBSUB_EMULATOR_HOST, and even an empty
-    # override doesn't fully unset them for the Google client libraries.
-    # This container should hit real GCP, like it will on Cloud Run.
+      - "8010:8000"
+    # No emulator env vars on purpose — this container hits real GCP,
+    # like it will on Cloud Run.
     environment:
-      PORT: 8080
       GCP_PROJECT_ID: gen-lang-client-0424267124
       GOOGLE_GENAI_USE_ENTERPRISE: "1"
       GOOGLE_CLOUD_PROJECT: gen-lang-client-0424267124
       GOOGLE_CLOUD_LOCATION: us-central1
+      # Not a secret — a Google OAuth client ID is meant to be public,
+      # it's embedded in the frontend's JS bundle too (see APPCE-54).
+      GOOGLE_OAUTH_CLIENT_ID: 430288501339-aiifao42l0fp6qirm2kiluh8fv4qfb3k.apps.googleusercontent.com
+      ALLOWED_EMAILS: u.ipkdzn@gmail.com
+      # Compose reads this from the repo-root .env for variable substitution
+      # (not via env_file — see the "no env_file" note above), so it stays
+      # out of this file. See .env.example for how to fetch the real value.
+      GITHUB_TOKEN_ENCRYPTION_KEY: ${GITHUB_TOKEN_ENCRYPTION_KEY}
     volumes:
-      # Local-only: lets the container authenticate as the developer's
-      # own gcloud identity for this smoke test. Cloud Run doesn't need
-      # this — it authenticates as agent_sa automatically.
       - ~/.config/gcloud:/root/.config/gcloud:ro
 
   firestore-emulator:
@@ -68,6 +74,21 @@ services:
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       GCP_PROJECT_ID: anamnesis-local
 
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      # Live code reload: edit frontend/src on the host and see it without
+      # rebuilding the image (same pattern as adk-web below).
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      # Anonymous volume so the container's own npm-installed
+      # node_modules isn't shadowed by the host bind mounts above.
+      - /app/node_modules
+
   adk-web:
     build:
       context: .
@@ -77,12 +98,13 @@ services:
     depends_on:
       - firestore-emulator
       - pubsub-emulator
-    # Brings in JIRA_EMAIL/JIRA_API_TOKEN/JIRA_BASE_URL for get_jira_status.
+    # Brings in GITHUB_TOKEN_ENCRYPTION_KEY (Jira/GitHub credentials are
+    # per-user now, connected from Settings — see APPCE-79, APPCE-87).
     # Safe to combine with the environment overrides below: Compose always
     # lets `environment:` win over `env_file:` for the same key, so the
     # emulator hostnames here still take priority over .env's localhost
-    # values — unlike streamlit's case, this container is meant to keep
-    # using the emulators, not switch to real GCP.
+    # values — this container is meant to keep using the emulators, not
+    # switch to real GCP.
     env_file: .env
     environment:
       FIRESTORE_EMULATOR_HOST: firestore-emulator:8080

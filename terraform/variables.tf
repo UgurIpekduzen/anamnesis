@@ -6,16 +6,6 @@ variable "region" {
   type = string
 }
 
-variable "jira_base_url" {
-  type        = string
-  description = "Jira Cloud site URL, e.g. https://yourorg.atlassian.net"
-}
-
-variable "jira_email" {
-  type        = string
-  description = "Email associated with the Jira API token"
-}
-
 variable "image_tag" {
   description = "Container image tag to deploy. Defaults to latest for local/manual use; CI passes the git commit SHA."
   type        = string
@@ -39,7 +29,7 @@ variable "owner_email" {
   type        = string
 }
 
-variable "owner_group_email" {
-  description = "Google Group granted access to anamnesis-ui, e.g. anamnesis-users@googlegroups.com"
+variable "google_oauth_client_id" {
+  description = "Google OAuth 2.0 Client ID used for Sign In With Google — not a secret, embedded in the frontend bundle too"
   type        = string
 }
