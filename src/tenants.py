@@ -156,6 +156,28 @@ def set_git_repo_path(tenant_id: str, git_repo_path: str, owner_uid: str) -> Non
     )
 
 
+def list_tenants_with_github_repo() -> list[dict]:
+    """Every tenant (across all owners) with a linked GitHub repo.
+
+    Used only by the GitHub polling job (src.github_polling), which needs
+    to poll every linked repo system-wide, not one owner's tenants — the
+    only caller that legitimately needs to see across owner_uid at all,
+    since it runs as a trusted, non-user-triggered job (see APPCE-80).
+
+    Returns:
+        A list of dicts with "owner_uid" and "tenant_id" only, enough to
+        call poll_tenant_github_activity for each.
+    """
+    client = get_client()
+    query = client.collection("tenants").where(
+        filter=firestore.FieldFilter("github_repo", "!=", None)
+    )
+    return [
+        {"owner_uid": doc.get("owner_uid"), "tenant_id": doc.id}
+        for doc in query.stream()
+    ]
+
+
 def list_tenants(owner_uid: str) -> list[dict]:
     """List all projects (tenants) owned by owner_uid.
 
