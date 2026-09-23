@@ -11,7 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.deps import get_current_owner_uid, verify_token
+from api.deps import get_current_owner_uid, require_owner, verify_token
+from src.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
 from src.categories import ensure_categories_seeded
 from src.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts import get_tenant_facts
@@ -209,6 +210,37 @@ def get_usage(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
         "count": get_today_count(owner_uid),
         "threshold": get_settings(owner_uid)["daily_message_warning_threshold"],
     }
+
+
+# Who can sign in at all beyond the Terraform-configured owner(s) — only an
+# owner can view/change this (require_owner), since anyone else granting
+# access would defeat the allowlist (APPCE-94). A non-owner never even sees
+# this section exists: the frontend just doesn't render it without a
+# successful GET.
+@app.get("/admin/allowed_emails")
+def get_allowed_emails(owner_uid: str = Depends(require_owner)) -> dict:
+    return {"owner_emails": sorted(OWNER_EMAILS), "extra_emails": sorted(get_extra_allowed_emails())}
+
+
+class AllowedEmailCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(strict=True, min_length=1, max_length=320)
+
+
+@app.post("/admin/allowed_emails")
+def add_allowed_email_endpoint(body: AllowedEmailCreate, owner_uid: str = Depends(require_owner)) -> dict:
+    try:
+        add_allowed_email(body.email)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"extra_emails": sorted(get_extra_allowed_emails())}
+
+
+@app.delete("/admin/allowed_emails/{email}")
+def remove_allowed_email_endpoint(email: str, owner_uid: str = Depends(require_owner)) -> dict:
+    remove_allowed_email(email)
+    return {"extra_emails": sorted(get_extra_allowed_emails())}
 
 
 class SettingsUpdate(BaseModel):
