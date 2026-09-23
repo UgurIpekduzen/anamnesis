@@ -7,13 +7,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/
 COPY agent/ agent/
-COPY app/ app/
 COPY api/ api/
 
 ENV PYTHONUNBUFFERED=1
-# Streamlit adds its entry script's own directory to sys.path, not the
-# project root — without this, `from src...`/`from agent...` inside
-# app/ would fail to resolve.
+# uvicorn (and the other entry points local dev overrides this CMD with —
+# see docker-compose.yml) is invoked directly, not via `python -m`, so the
+# working directory isn't added to sys.path on its own — without this,
+# `from src...`/`from agent...` would fail to resolve.
 ENV PYTHONPATH=/app
 
-CMD ["sh", "-c", "streamlit run app/main.py --server.port=${PORT:-8080} --server.address=0.0.0.0"]
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

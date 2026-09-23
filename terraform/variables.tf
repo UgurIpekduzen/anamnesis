@@ -29,7 +29,7 @@ variable "owner_email" {
   type        = string
 }
 
-variable "owner_group_email" {
-  description = "Google Group granted access to anamnesis-ui, e.g. anamnesis-users@googlegroups.com"
+variable "google_oauth_client_id" {
+  description = "Google OAuth 2.0 Client ID used for Sign In With Google — not a secret, embedded in the frontend bundle too"
   type        = string
 }

@@ -3,11 +3,11 @@ resource "google_project_service" "run" {
 }
 
 locals {
-  image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app_images.repository_id}/streamlit-app:${var.image_tag}"
+  image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app_images.repository_id}/app:${var.image_tag}"
 }
 
 resource "google_cloud_run_v2_service" "ui" {
-  name       = "anamnesis-ui"
+  name       = "anamnesis-app"
   location   = var.region
   depends_on = [google_project_service.run]
 
@@ -37,15 +37,32 @@ resource "google_cloud_run_v2_service" "ui" {
         name  = "GOOGLE_CLOUD_LOCATION"
         value = var.region
       }
+            env {
+        name  = "GOOGLE_OAUTH_CLIENT_ID"
+        value = var.google_oauth_client_id
+      }
+      env {
+        name  = "ALLOWED_EMAILS"
+        value = var.owner_email
+      }
+      env {
+        name = "GITHUB_TOKEN_ENCRYPTION_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.github_token_encryption_key.secret_id
+            version = "latest"
+          }
+        }
+      }
     }
   }
 }
 
-resource "google_cloud_run_v2_service_iam_member" "ui_owner" {
+resource "google_cloud_run_v2_service_iam_member" "app_public" {
   name     = google_cloud_run_v2_service.ui.name
   location = var.region
   role     = "roles/run.invoker"
-  member   = "group:${var.owner_group_email}"
+  member   = "allUsers"
 }
 
 resource "google_cloud_run_v2_service" "subscriber" {

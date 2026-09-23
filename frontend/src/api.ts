@@ -1,6 +1,9 @@
-// Points at the FastAPI backend's host-mapped port (see docker-compose.yml).
-// Revisited in APPCE-56 once there's a real deployed backend origin.
-const API_BASE = "http://localhost:8010";
+// In dev, the Vite dev server (this file) and the FastAPI backend run as
+// separate processes on different ports (see docker-compose.yml), so calls
+// need an absolute URL. In production the backend serves this same built
+// frontend from one origin (APPCE-56), so relative paths (same origin,
+// no CORS) are both simpler and correct.
+const API_BASE = import.meta.env.DEV ? "http://localhost:8010" : "";
 
 export interface Tenant {
   tenant_id: string;
@@ -95,8 +98,12 @@ export async function rejectPendingFact(idToken: string, tenantId: string, pendi
 // No token in the URL: URLs end up in access logs. The socket authenticates
 // with its first frame instead (see Chat.tsx and APPCE-67).
 export function chatSocketUrl(tenantId: string): string {
-  const base = API_BASE.replace("http", "ws");
-  return `${base}/ws/chat/${tenantId}`;
+  // API_BASE is relative in production (see above), so there's no origin
+  // to turn into a ws(s):// URL — build one from the page's own instead.
+  const wsBase = API_BASE
+    ? API_BASE.replace(/^http/, "ws")
+    : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
+  return `${wsBase}/ws/chat/${tenantId}`;
 }
 
 export interface Usage {

@@ -26,7 +26,7 @@ tasks:
     desc: Apply Terraform, defaulting image_tag to whatever is currently deployed (unless TF_VAR_image_tag is already set)
     cmds:
       - |
-        CURRENT_TAG=$(docker compose run --rm gcloud run services describe anamnesis-ui --region=us-central1 --format="value(spec.template.spec.containers[0].image)" 2>/dev/null | sed 's/.*://')
+        CURRENT_TAG=$(docker compose run --rm gcloud run services describe anamnesis-app --region=us-central1 --format="value(spec.template.spec.containers[0].image)" 2>/dev/null | sed 's/.*://')
         # docker compose run does NOT forward the invoking shell's env
         # vars into the container by default — -e <NAME> (no value) is
         # what actually pulls it from the host, this was silently
@@ -44,30 +44,6 @@ tasks:
       - task: tf:fmt:fix
       - task: tf:validate
       - task: tf:plan
-
-  app:build:
-    cmds:
-      - docker compose build streamlit
-
-  app:up:
-    desc: Run the Streamlit container locally in the background for a pre-deploy smoke test
-    cmds:
-      - docker compose up -d streamlit
-
-  app:logs:
-    desc: Tail logs from the running Streamlit container
-    cmds:
-      - docker compose logs -f streamlit
-
-  app:down:
-    desc: Stop and remove the local Streamlit container
-    cmds:
-      - docker compose down streamlit
-
-  app:push:
-    desc: Push the built image to Artifact Registry
-    cmds:
-      - docker compose push streamlit
 
   emulators:up:
     desc: Start the Firestore and Pub/Sub emulators in the background
@@ -141,11 +117,6 @@ tasks:
     desc: Stop adk web
     cmds:
       - docker compose down adk-web
-
-  ui:proxy:
-    desc: Open an authenticated local proxy to anamnesis-ui (owner-only access, no public URL)
-    cmds:
-      - docker compose run --rm gcloud run services proxy anamnesis-ui --region=us-central1 --port=8080
 
   gcloud:
     desc: Run an arbitrary gcloud command via the dockerized CLI (task gcloud -- <args>)

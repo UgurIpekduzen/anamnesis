@@ -2,10 +2,12 @@ import asyncio
 import json
 import os
 import time
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from google.adk.agents.run_config import RunConfig
 from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field
@@ -45,8 +47,11 @@ MAX_AUTH_FRAME_CHARS = 8192
 
 app = FastAPI(title="Anamnesis API")
 
-# Local dev only — the Vite dev server's origin. APPCE-56 (Terraform/
-# deploy) revisits this once the frontend has a real deployed origin.
+# Local dev only — the Vite dev server's own origin. Harmless in
+# production (APPCE-56): the built frontend is served from this same
+# origin there (see the StaticFiles mount at the bottom of this file), so
+# the browser never even sends a cross-origin request for the CORS
+# headers below to matter.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -480,3 +485,13 @@ async def chat(websocket: WebSocket, tenant_id: str):
                 await _best_effort(append_turn, tenant_id, owner_uid, question, final_text, what="save chat turn")
     except WebSocketDisconnect:
         pass
+
+
+# Registered last on purpose: Starlette only falls through to a mount once
+# no route above it has already matched the path, so this can never shadow
+# an API route above. Only present in the production image (APPCE-56) —
+# the Dockerfile bakes the React build in here; local dev keeps using the
+# separate Vite dev server instead, so this directory won't exist there.
+_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend_dist"
+if _FRONTEND_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=_FRONTEND_DIST, html=True), name="frontend")

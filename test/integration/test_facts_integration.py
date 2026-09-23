@@ -23,11 +23,11 @@ def tenant_id():
 
 
 def test_create_fact_is_retrievable_via_get_tenant_facts(tenant_id):
-    create_fact(tenant_id, content="Uses Streamlit for the UI", category="architecture")
+    create_fact(tenant_id, content="Uses React for the UI", category="architecture")
 
     facts = get_tenant_facts(tenant_id, OWNER_UID)
     assert len(facts) == 1
-    assert facts[0]["content"] == "Uses Streamlit for the UI"
+    assert facts[0]["content"] == "Uses React for the UI"
     assert facts[0]["category"] == "architecture"
     assert facts[0]["source"] == "chat"  # the default when not given (APPCE-81)
 
