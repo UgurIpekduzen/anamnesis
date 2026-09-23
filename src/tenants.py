@@ -97,6 +97,27 @@ def set_jira_project_key(tenant_id: str, jira_project_key: str, owner_uid: str) 
     )
 
 
+# owner/name only — GitHub usernames/orgs are alphanumeric-or-hyphen (not
+# leading/trailing), repo names add underscore and dot. Rejecting anything
+# else keeps this from ever being treated as an arbitrary URL downstream
+# (SSRF risk, see APPCE-51 comment #2).
+_GITHUB_REPO_PATTERN = re.compile(r"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})/[a-zA-Z0-9_.-]{1,100}$")
+
+
+def set_github_repo(tenant_id: str, github_repo: str, owner_uid: str) -> None:
+    """Attach a GitHub repo (owner/name) to an existing tenant, used to poll
+    its PRs/issues for facts (see APPCE-80).
+
+    Raises:
+        ValueError: github_repo isn't a plain "owner/name" string.
+    """
+    if not _GITHUB_REPO_PATTERN.match(github_repo):
+        raise ValueError(f"'{github_repo}' doesn't look like a GitHub 'owner/name' repo.")
+    get_owned_tenant(tenant_id, owner_uid)
+    client = get_client()
+    client.collection("tenants").document(tenant_id).update({"github_repo": github_repo})
+
+
 def set_git_repo_path(tenant_id: str, git_repo_path: str, owner_uid: str) -> None:
     """Attach a local git repo path to an existing tenant, used by
     git_activity_sync.py to summarize recent commit activity (see
@@ -121,8 +142,9 @@ def list_tenants(owner_uid: str) -> list[dict]:
     Returns:
         A list of dicts with "tenant_id" (use this exact value when calling
         get_tenant_facts), "name" (human-readable project name),
-        "jira_project_key" (None if not set), and "git_repo_path" (None if
-        not set — not every tenant necessarily has either).
+        "jira_project_key" (None if not set), "git_repo_path" (None if
+        not set), and "github_repo" (None if not set — not every tenant
+        necessarily has any of these).
     """
     client = get_client()
     query = client.collection("tenants").where(
@@ -134,6 +156,7 @@ def list_tenants(owner_uid: str) -> list[dict]:
             "name": data.get("name"),
             "jira_project_key": data.get("jira_project_key"),
             "git_repo_path": data.get("git_repo_path"),
+            "github_repo": data.get("github_repo"),
         }
         for doc in query.stream()
         for data in [doc.to_dict()]

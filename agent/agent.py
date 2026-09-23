@@ -12,6 +12,7 @@ from src.tenants import (
     list_tenants,
     rename_tenant,
     set_git_repo_path,
+    set_github_repo,
     set_jira_project_key,
 )
 
@@ -66,6 +67,9 @@ def build_agent(owner_uid: str) -> Agent:
     def _set_jira_project_key(tenant_id: str, jira_project_key: str) -> None:
         set_jira_project_key(tenant_id, jira_project_key, owner_uid)
 
+    def _set_github_repo(tenant_id: str, github_repo: str) -> None:
+        set_github_repo(tenant_id, github_repo, owner_uid)
+
     # Reuse each src.* function's own docstring so ADK's tool schema
     # (built from name + docstring) stays accurate without duplicating
     # the description here.
@@ -80,6 +84,7 @@ def build_agent(owner_uid: str) -> Agent:
         (_delete_tenant, delete_tenant),
         (_set_git_repo_path, set_git_repo_path),
         (_set_jira_project_key, set_jira_project_key),
+        (_set_github_repo, set_github_repo),
     ]:
         wrapper.__name__ = original.__name__
         wrapper.__doc__ = original.__doc__
@@ -129,6 +134,11 @@ def build_agent(owner_uid: str) -> Agent:
             'Jira key for TMDB is ADVBK"), resolve the tenant_id via '
             'list_tenants first, then call set_jira_project_key with that '
             'tenant_id and the key.\n'
+            'When the user tells you a project\'s GitHub repo (e.g. "the '
+            'GitHub repo for anamnesis is UgurIpekduzen/anamnesis"), resolve '
+            'the tenant_id via list_tenants first, then call set_github_repo '
+            'with that tenant_id and the repo in exact "owner/name" form — '
+            'never a full URL.\n'
             'When the user asks you to rename a project, resolve the tenant_id '
             'via list_tenants first, then call rename_tenant with that '
             'tenant_id and the new name.\n'
@@ -158,6 +168,7 @@ def build_agent(owner_uid: str) -> Agent:
             _delete_tenant,
             _set_git_repo_path,
             _set_jira_project_key,
+            _set_github_repo,
             get_jira_status,
         ],
     )
