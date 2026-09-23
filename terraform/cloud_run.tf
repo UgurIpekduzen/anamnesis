@@ -37,7 +37,7 @@ resource "google_cloud_run_v2_service" "ui" {
         name  = "GOOGLE_CLOUD_LOCATION"
         value = var.region
       }
-            env {
+      env {
         name  = "GOOGLE_OAUTH_CLIENT_ID"
         value = var.google_oauth_client_id
       }
