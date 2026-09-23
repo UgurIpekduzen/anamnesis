@@ -8,20 +8,15 @@ from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSock
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from google.adk.agents.run_config import RunConfig
-from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, verify_token
-from api.runner import get_runner
-from api.session_memory import restore_session
 from src.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts import get_tenant_facts
 from src.github_client import validate_github_token
 from src.github_connections import delete_github_connection, has_github_connection, save_github_token
 from src.jira_client import validate_jira_credentials
 from src.jira_connections import delete_jira_connection, has_jira_connection, save_jira_credentials
-from src.pending_facts import approve_pending_fact, list_pending_facts, reject_pending_fact
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.tenants import add_tenant, delete_tenant, get_owned_tenant, list_tenants, rename_tenant
 from src.usage import get_today_count, record_message
@@ -129,6 +124,31 @@ def remove_tenant(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid
 @app.get("/tenants/{tenant_id}/facts")
 def get_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
     return get_tenant_facts(tenant_id, owner_uid)
+
+
+# Lazily-importing wrappers (APPCE-50, same pattern as get_runner/
+# restore_session below): src.pending_facts pulls in google-cloud-pubsub
+# (via src.publisher, for the approve path), which only these three
+# endpoints need — deferring it keeps it off every other request's
+# startup cost. Real module-level names so
+# test/test_api_pending_facts.py's monkeypatch.setattr(api_main, ...)
+# still works.
+def list_pending_facts(tenant_id: str, owner_uid: str) -> list[dict]:
+    from src.pending_facts import list_pending_facts as _list_pending_facts
+
+    return _list_pending_facts(tenant_id, owner_uid)
+
+
+def approve_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
+    from src.pending_facts import approve_pending_fact as _approve_pending_fact
+
+    return _approve_pending_fact(tenant_id, pending_fact_id, owner_uid)
+
+
+def reject_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
+    from src.pending_facts import reject_pending_fact as _reject_pending_fact
+
+    return _reject_pending_fact(tenant_id, pending_fact_id, owner_uid)
 
 
 @app.get("/tenants/{tenant_id}/pending_facts")
@@ -367,8 +387,34 @@ async def _authenticate(websocket: WebSocket) -> str | None:
         return None
 
 
+# Thin, lazily-importing wrappers around api.runner.get_runner and
+# api.session_memory.restore_session (APPCE-50): both modules pull in
+# ADK's import chain, heavy enough to noticeably slow server startup if
+# imported at module level, and only the chat socket below needs them —
+# every other endpoint (e.g. /tenants, /usage, which the UI calls first)
+# never touches them. Defined as real module-level names (not local
+# imports inside chat()) so test/test_api_chat.py's
+# `monkeypatch.setattr(api_main, "get_runner", ...)` keeps working — a
+# local import would shadow the patched attribute instead of using it.
+def get_runner(owner_uid: str, tenant_id: str):
+    from api.runner import get_runner as _get_runner
+
+    return _get_runner(owner_uid, tenant_id)
+
+
+async def restore_session(*args, **kwargs):
+    from api.session_memory import restore_session as _restore_session
+
+    return await _restore_session(*args, **kwargs)
+
+
 @app.websocket("/ws/chat/{tenant_id}")
 async def chat(websocket: WebSocket, tenant_id: str):
+    # Also deferred for startup speed (APPCE-50) — not part of the
+    # monkeypatch surface above, so a plain local import is enough.
+    from google.adk.agents.run_config import RunConfig
+    from google.genai import types
+
     # The socket has to be accepted before it can be read from; nothing but
     # the auth frame is handled until _authenticate succeeds.
     await websocket.accept()
