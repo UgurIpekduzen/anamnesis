@@ -103,3 +103,39 @@ def test_fetching_without_a_github_connection_is_an_error(monkeypatch):
 
     with pytest.raises(ValueError):
         github_activity.fetch_recent_pull_requests("owner-uid", "tenant-1")
+
+
+def test_get_github_status_only_requests_open_items(monkeypatch):
+    seen_states = []
+
+    def fake_get(url, params, headers, timeout):
+        seen_states.append(params["state"])
+        return FakeResponse([])
+
+    monkeypatch.setattr(github_activity.requests, "get", fake_get)
+
+    github_activity.get_github_status("owner-uid", "tenant-1")
+
+    assert seen_states == ["open", "open"]
+
+
+def test_get_github_status_strips_the_body_from_every_item(monkeypatch):
+    def fake_get(url, params, headers, timeout):
+        if url.endswith("/pulls"):
+            return FakeResponse(
+                [{"number": 1, "title": "A PR", "body": "secret instructions", "state": "open", "updated_at": "t", "html_url": "u1"}]
+            )
+        return FakeResponse(
+            [{"number": 2, "title": "An issue", "body": "more text", "state": "open", "updated_at": "t", "html_url": "u2"}]
+        )
+
+    monkeypatch.setattr(github_activity.requests, "get", fake_get)
+
+    result = github_activity.get_github_status("owner-uid", "tenant-1")
+
+    assert result == {
+        "pull_requests": [{"number": 1, "title": "A PR", "state": "open", "updated_at": "t", "url": "u1"}],
+        "issues": [{"number": 2, "title": "An issue", "state": "open", "updated_at": "t", "url": "u2"}],
+    }
+    assert "body" not in result["pull_requests"][0]
+    assert "body" not in result["issues"][0]

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from google.adk.errors.already_exists_error import AlreadyExistsError
 from google.adk.sessions import InMemorySessionService
 
-from api.session_memory import format_user_message, restore_session
+from api.session_memory import restore_session
 
 OWNER = "test@example.com"
 SESSION = "session_some_tenant"
@@ -30,11 +30,7 @@ def _events(runner):
 
 
 def _restore(runner, load_turns):
-    return asyncio.run(restore_session(runner, OWNER, SESSION, "Some Tenant", load_turns))
-
-
-def test_the_project_prefix_is_what_the_model_sees():
-    assert format_user_message("BD2026", "hi") == "[Project: BD2026] hi"
+    return asyncio.run(restore_session(runner, OWNER, SESSION, load_turns))
 
 
 def test_saved_turns_become_alternating_user_and_agent_events_in_order():
@@ -50,9 +46,9 @@ def test_saved_turns_become_alternating_user_and_agent_events_in_order():
         ("root_agent", "model"),
     ]
     assert [e.content.parts[0].text for e in events] == [
-        "[Project: Some Tenant] first question",
+        "first question",
         "first answer",
-        "[Project: Some Tenant] second question",
+        "second question",
         "second answer",
     ]
 

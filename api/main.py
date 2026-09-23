@@ -12,14 +12,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, verify_token
 from api.runner import get_runner
-from api.session_memory import format_user_message, restore_session
+from api.session_memory import restore_session
 from src.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts import get_tenant_facts
 from src.github_client import validate_github_token
 from src.github_connections import delete_github_connection, has_github_connection, save_github_token
 from src.pending_facts import approve_pending_fact, list_pending_facts, reject_pending_fact
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
-from src.tenants import get_owned_tenant, list_tenants
+from src.tenants import add_tenant, delete_tenant, get_owned_tenant, list_tenants, rename_tenant
 from src.usage import get_today_count, record_message
 
 # Token-cost guards (see APPCE-59). A message stays in the session history
@@ -77,6 +77,46 @@ def health() -> dict:
 @app.get("/tenants")
 def get_tenants(owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
     return list_tenants(owner_uid)
+
+
+class TenantCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(strict=True, min_length=1, max_length=200)
+
+
+@app.post("/tenants")
+def create_tenant(body: TenantCreate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    # Project lifecycle (create/rename/delete) is deliberately UI-only, not
+    # a chat tool — see agent/agent.py's build_agent docstring for why.
+    tenant_id = add_tenant(body.name, owner_uid)
+    return {"tenant_id": tenant_id}
+
+
+class TenantRename(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(strict=True, min_length=1, max_length=200)
+
+
+@app.patch("/tenants/{tenant_id}")
+def update_tenant(
+    tenant_id: str, body: TenantRename, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    try:
+        rename_tenant(tenant_id, body.name, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"status": "renamed"}
+
+
+@app.delete("/tenants/{tenant_id}")
+def remove_tenant(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    try:
+        delete_tenant(tenant_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"status": "deleted"}
 
 
 @app.get("/tenants/{tenant_id}/facts")
@@ -298,11 +338,9 @@ async def chat(websocket: WebSocket, tenant_id: str):
     if owner_uid is None:
         return
 
-    # Also confirms tenant_id is a project this user owns — until now it
-    # was only ever used to name the session — and gives us the display
-    # name the agent needs (below).
+    # Also confirms tenant_id is a project this user owns.
     try:
-        tenant_name = (await asyncio.to_thread(get_owned_tenant, tenant_id, owner_uid))["name"]
+        await asyncio.to_thread(get_owned_tenant, tenant_id, owner_uid)
     except PermissionError:
         await websocket.close(code=1008, reason="Unknown project")
         return
@@ -310,7 +348,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
     # Tells the UI it may start sending; messages sent while the session is
     # still being restored below simply wait their turn.
     await websocket.send_json({"type": "ready"})
-    runner = get_runner(owner_uid)
+    runner = get_runner(owner_uid, tenant_id)
     session_id = f"session_{tenant_id}"
 
     # After a restart the model has forgotten a conversation the UI still
@@ -321,7 +359,6 @@ async def chat(websocket: WebSocket, tenant_id: str):
             runner,
             owner_uid,
             session_id,
-            tenant_name,
             lambda: load_recent_turns(tenant_id, owner_uid, get_settings(owner_uid)["history_turns"]),
         )
     except Exception as exc:
@@ -367,9 +404,9 @@ async def chat(websocket: WebSocket, tenant_id: str):
                 _best_effort(record_message, owner_uid, what="record message usage")
             )
 
-            message = types.Content(
-                role="user", parts=[types.Part(text=format_user_message(tenant_name, question))]
-            )
+            # No "[Project: X]" prefix needed — the runner's Agent is
+            # already scoped to this one tenant (see api/runner.py).
+            message = types.Content(role="user", parts=[types.Part(text=question)])
             final_text = None
 
             try:

@@ -21,8 +21,8 @@ owner_uid = user_email or "local-dev@anamnesis.local"
 if user_email is not None:
     st.caption(f"Signed in as {user_email}")
 
-runner = get_runner(owner_uid)
 tenant = select_tenant(owner_uid)
+runner = get_runner(owner_uid, tenant["tenant_id"])
 
 with st.sidebar:
     today_count = get_today_count(owner_uid)

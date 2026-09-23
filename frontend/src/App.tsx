@@ -40,6 +40,11 @@ function App() {
   const [traceTurns, dispatchTrace] = useReducer(traceReducer, []);
   const [tenantsError, setTenantsError] = useState(false);
   const [tenantsReloadKey, setTenantsReloadKey] = useState(0);
+  // Set by TenantSelector right before a reload it triggered itself (e.g.
+  // just created a project) — picked up once the fresh list lands, since
+  // the list fetch below is async and would otherwise overwrite a
+  // synchronous selection with its own fetched[0] fallback.
+  const pendingTenantSelectRef = useRef<string | null>(null);
   const [usageRefreshKey, setUsageRefreshKey] = useState(0);
   const [pendingFactsRefreshKey, setPendingFactsRefreshKey] = useState(0);
   const [pendingFactsCount, setPendingFactsCount] = useState(0);
@@ -77,7 +82,10 @@ function App() {
       .then((fetched) => {
         if (cancelled) return;
         setTenants(fetched);
-        setSelectedTenantId(fetched[0]?.tenant_id ?? null);
+        const pending = pendingTenantSelectRef.current;
+        pendingTenantSelectRef.current = null;
+        const preferred = pending && fetched.some((t) => t.tenant_id === pending) ? pending : fetched[0]?.tenant_id;
+        setSelectedTenantId(preferred ?? null);
       })
       .catch(() => {
         if (!cancelled) setTenantsError(true);
@@ -210,11 +218,16 @@ function App() {
       <aside className="sidebar" style={{ width: sidebarWidth }}>
         <UsageCounter idToken={idToken} refreshKey={usageRefreshKey} />
         <TenantSelector
+          idToken={idToken}
           tenants={tenants}
           selectedId={selectedTenantId}
           onSelect={setSelectedTenantId}
           error={tenantsError}
           onRetry={() => setTenantsReloadKey((k) => k + 1)}
+          onChanged={(newlySelectedId) => {
+            pendingTenantSelectRef.current = newlySelectedId ?? null;
+            setTenantsReloadKey((k) => k + 1);
+          }}
         />
 
         <div className="tabs">

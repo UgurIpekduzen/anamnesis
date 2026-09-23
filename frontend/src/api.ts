@@ -24,6 +24,33 @@ export async function listTenants(idToken: string): Promise<Tenant[]> {
   return res.json();
 }
 
+export async function createTenant(idToken: string, name: string): Promise<{ tenant_id: string }> {
+  const res = await fetch(`${API_BASE}/tenants`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error(`createTenant failed: ${res.status}`);
+  return res.json();
+}
+
+export async function renameTenant(idToken: string, tenantId: string, name: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/tenants/${tenantId}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error(`renameTenant failed: ${res.status}`);
+}
+
+export async function deleteTenant(idToken: string, tenantId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/tenants/${tenantId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`deleteTenant failed: ${res.status}`);
+}
+
 export async function getTenantFacts(idToken: string, tenantId: string): Promise<Fact[]> {
   const res = await fetch(`${API_BASE}/tenants/${tenantId}/facts`, {
     headers: { Authorization: `Bearer ${idToken}` },

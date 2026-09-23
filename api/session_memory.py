@@ -7,19 +7,8 @@ from google.adk.events.event import Event
 from google.genai import types
 
 
-def format_user_message(tenant_name: str, question: str) -> str:
-    """What the model actually sees for a user turn.
-
-    The agent has no other way to know which project the UI has selected —
-    without this prefix it just asks "which project?" (the convention the
-    Streamlit UI used in app/chat.py). Shared by the live path and by
-    restore_session so a restored history reads exactly like a live one.
-    """
-    return f"[Project: {tenant_name}] {question}"
-
-
 async def restore_session(
-    runner, owner_uid: str, session_id: str, tenant_name: str, load_turns: Callable[[], list[dict]]
+    runner, owner_uid: str, session_id: str, load_turns: Callable[[], list[dict]]
 ) -> bool:
     """Rebuild the model's memory of a conversation from saved turns.
 
@@ -68,7 +57,7 @@ async def restore_session(
                 author="user",
                 content=types.Content(
                     role="user",
-                    parts=[types.Part(text=format_user_message(tenant_name, turn["question"]))],
+                    parts=[types.Part(text=turn["question"])],
                 ),
             ),
         )

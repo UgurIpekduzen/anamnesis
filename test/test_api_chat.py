@@ -84,10 +84,8 @@ def chat(monkeypatch, spies):
     runner = FakeRunner()
     recorded = []
 
-    async def fake_restore(runner_, owner_uid, session_id, tenant_name, load_turns):
-        spies.restores.append(
-            {"owner": owner_uid, "session_id": session_id, "tenant_name": tenant_name, "load_turns": load_turns}
-        )
+    async def fake_restore(runner_, owner_uid, session_id, load_turns):
+        spies.restores.append({"owner": owner_uid, "session_id": session_id, "load_turns": load_turns})
         return False
 
     def fake_load(tenant_id, owner_uid, limit):
@@ -103,7 +101,7 @@ def chat(monkeypatch, spies):
     )
     monkeypatch.setattr(api_main, "verify_token", lambda token: OWNER)
     monkeypatch.setattr(api_main, "get_owned_tenant", lambda tenant_id, owner_uid: {"name": "Some Tenant"})
-    monkeypatch.setattr(api_main, "get_runner", lambda owner_uid: runner)
+    monkeypatch.setattr(api_main, "get_runner", lambda owner_uid, tenant_id: runner)
     monkeypatch.setattr(api_main, "record_message", lambda owner_uid: recorded.append(owner_uid))
     return TestClient(api_main.app), runner, recorded
 
@@ -175,16 +173,18 @@ def test_tool_events_carry_ids_so_results_can_be_paired_with_their_calls():
     ]
 
 
-def test_the_agent_is_told_which_project_the_ui_has_selected(chat):
+def test_the_model_sees_the_users_message_verbatim(chat):
+    # No "[Project: X]" prefix — the runner's Agent is already scoped to
+    # this one tenant (see api/runner.py), so nothing needs disambiguating.
     client, runner, _ = chat
     with open_chat(client) as ws:
         ws.send_json({"message": "what do you know?"})
         assert ws.receive_json()["type"] == "final"
 
-    assert runner.calls[0]["text"] == "[Project: Some Tenant] what do you know?"
+    assert runner.calls[0]["text"] == "what do you know?"
 
 
-def test_the_length_limit_applies_to_what_the_user_typed_not_the_project_prefix(chat):
+def test_the_length_limit_applies_to_the_full_message(chat):
     client, runner, _ = chat
     with open_chat(client) as ws:
         ws.send_json({"message": "x" * api_main.MAX_MESSAGE_CHARS})
@@ -213,7 +213,6 @@ def test_a_finished_turn_is_saved_as_plain_question_and_answer_text(chat, spies)
         ws.send_json({"message": "what do you know?"})
         assert ws.receive_json()["type"] == "final"
 
-    # The raw question — not the "[Project: ...]" form the model was shown.
     assert spies.saved == [("some_tenant", OWNER, "what do you know?", "hi")]
 
 
@@ -249,11 +248,7 @@ def test_connecting_restores_the_models_memory_using_the_users_window_setting(ch
 
     assert len(spies.restores) == 1
     restore = spies.restores[0]
-    assert (restore["owner"], restore["session_id"], restore["tenant_name"]) == (
-        OWNER,
-        "session_some_tenant",
-        "Some Tenant",
-    )
+    assert (restore["owner"], restore["session_id"]) == (OWNER, "session_some_tenant")
 
     # The loader the handler hands over reads exactly the user's window.
     restore["load_turns"]()

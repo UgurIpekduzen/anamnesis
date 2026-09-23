@@ -127,10 +127,9 @@ def ask(runner: Runner, tenant: dict, trace_container, owner_uid: str) -> None:
     _render_message("user", question)
     record_message(owner_uid)
 
-    message = types.Content(
-        role="user",
-        parts=[types.Part(text=f"[Project: {tenant['name']}] {question}")],
-    )
+    # No "[Project: X]" prefix needed — the runner's Agent is already
+    # scoped to this one tenant (see app/runner.py, agent/agent.py).
+    message = types.Content(role="user", parts=[types.Part(text=question)])
 
     live_trace = trace_container.empty()
     events = []

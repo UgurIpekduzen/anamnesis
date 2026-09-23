@@ -33,7 +33,9 @@ def _truncate(text: str | None) -> str:
     return text if len(text) <= MAX_BODY_CHARS else text[:MAX_BODY_CHARS] + "…"
 
 
-def fetch_recent_pull_requests(owner_uid: str, tenant_id: str, limit: int = DEFAULT_LIMIT) -> list[dict]:
+def fetch_recent_pull_requests(
+    owner_uid: str, tenant_id: str, limit: int = DEFAULT_LIMIT, state: str = "all"
+) -> list[dict]:
     """Recently updated pull requests for a tenant's linked GitHub repo.
 
     Data minimization: no comments, no reviewer/assignee identities — those
@@ -43,7 +45,7 @@ def fetch_recent_pull_requests(owner_uid: str, tenant_id: str, limit: int = DEFA
     repo = _repo_for(tenant_id, owner_uid)
     response = requests.get(
         f"https://api.github.com/repos/{repo}/pulls",
-        params={"state": "all", "sort": "updated", "direction": "desc", "per_page": limit},
+        params={"state": state, "sort": "updated", "direction": "desc", "per_page": limit},
         headers=_headers(owner_uid),
         timeout=10,
     )
@@ -61,7 +63,9 @@ def fetch_recent_pull_requests(owner_uid: str, tenant_id: str, limit: int = DEFA
     ]
 
 
-def fetch_recent_issues(owner_uid: str, tenant_id: str, limit: int = DEFAULT_LIMIT) -> list[dict]:
+def fetch_recent_issues(
+    owner_uid: str, tenant_id: str, limit: int = DEFAULT_LIMIT, state: str = "all"
+) -> list[dict]:
     """Recently updated issues for a tenant's linked GitHub repo.
 
     GitHub's /issues endpoint also returns pull requests (they share the
@@ -71,7 +75,7 @@ def fetch_recent_issues(owner_uid: str, tenant_id: str, limit: int = DEFAULT_LIM
     repo = _repo_for(tenant_id, owner_uid)
     response = requests.get(
         f"https://api.github.com/repos/{repo}/issues",
-        params={"state": "all", "sort": "updated", "direction": "desc", "per_page": limit},
+        params={"state": state, "sort": "updated", "direction": "desc", "per_page": limit},
         headers=_headers(owner_uid),
         timeout=10,
     )
@@ -88,3 +92,23 @@ def fetch_recent_issues(owner_uid: str, tenant_id: str, limit: int = DEFAULT_LIM
         for issue in response.json()
         if "pull_request" not in issue
     ]
+
+
+def get_github_status(owner_uid: str, tenant_id: str) -> dict:
+    """Currently open pull requests and issues for a tenant's linked repo —
+    live data, not stored facts (mirrors src.jira_client.get_jira_status).
+
+    Bodies are dropped entirely (not just truncated): this feeds straight
+    into an ongoing chat turn where the agent also holds write tools
+    (publish_fact, delete_tenant, ...), unlike the isolated, tool-less
+    call in src.github_fact_extraction — so untrusted PR/issue text is
+    kept out of that context as much as possible (see APPCE-83 comment).
+    Titles alone can't be fully avoided (the point is knowing what's
+    open) — the agent's instruction frames them as data, not instructions.
+    """
+    pull_requests = fetch_recent_pull_requests(owner_uid, tenant_id, state="open")
+    issues = fetch_recent_issues(owner_uid, tenant_id, state="open")
+    return {
+        "pull_requests": [{k: v for k, v in pr.items() if k != "body"} for pr in pull_requests],
+        "issues": [{k: v for k, v in issue.items() if k != "body"} for issue in issues],
+    }

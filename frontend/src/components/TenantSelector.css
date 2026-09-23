@@ -1,0 +1,32 @@
+.tenant-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tenant-row {
+  display: flex;
+  gap: 6px;
+}
+
+.tenant-row select,
+.tenant-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.tenant-add {
+  background: transparent;
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.tenant-add:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.tenant-action-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--error-text);
+}
