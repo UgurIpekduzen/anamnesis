@@ -126,6 +126,19 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         name='root_agent',
         before_model_callback=make_history_limiter(owner_uid),
         description="Answers questions about one of the user's personal projects, records new facts about it, and checks its live Jira/GitHub status.",
+        # Prompting strategy (APPCE-84): a flat list of condition -> action
+        # rules, one per user intent, each naming the exact tool and how to
+        # fill its arguments. Deliberately not few-shot or explicit
+        # chain-of-thought — every task here is single-step tool dispatch
+        # (pick the one tool this intent maps to, fill its arguments from
+        # the message or by asking), not multi-step planning, and
+        # gemini-2.5-flash's function-calling handles that reliably from
+        # rules alone (verified via APPCE-81's 12 live prompt-injection
+        # scenarios and the tenant-isolation testing in APPCE-83). Fact
+        # extraction from GitHub activity already has its own separate
+        # LLM call and prompt (src/github_fact_extraction.py) rather than
+        # going through this agent, so it isn't a gap this instruction
+        # needs to cover.
         instruction=(
             'You help the user recall and record information about the '
             'current project. Every tool here already operates on that '
@@ -153,7 +166,9 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
             '"the Jira key is ADVBK"), call set_jira_project_key with it.\n'
             'When the user tells you this project\'s GitHub repo (e.g. "the '
             'GitHub repo is UgurIpekduzen/anamnesis"), call set_github_repo '
-            'with it in exact "owner/name" form — never a full URL.\n'
+            'with it in exact "owner/name" form — never a full URL. If it '
+            'returns an error, relay it instead of assuming the repo was '
+            'linked.\n'
             'When the user tells you this project\'s local git repo path '
             '(e.g. "the repo is at /home/user/repos/recruiter_ai"), call '
             'set_git_repo_path with it. Mention that this path is specific '
