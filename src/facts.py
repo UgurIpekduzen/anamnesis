@@ -61,12 +61,16 @@ def get_tenant_facts(tenant_id: str, owner_uid: str, limit: int | None = None) -
     if limit is not None:
         query = facts_ref.order_by("created_at", direction=firestore.Query.DESCENDING).limit(limit)
 
+    # doc.get(field) (Firestore's DocumentSnapshot accessor) raises KeyError
+    # for a field that's absent entirely, unlike dict.get — and "source"
+    # is absent on any fact written before APPCE-81 added it. Read each
+    # doc's dict once and use plain dict.get for that field instead.
     return [
         {
             "fact_id": doc.id,
             "content": doc.get("content"),
             "category": doc.get("category"),
-            "source": doc.get("source"),
+            "source": doc.to_dict().get("source"),
             "created_at": doc.get("created_at"),
         }
         for doc in query.stream()

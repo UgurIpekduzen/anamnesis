@@ -6,6 +6,7 @@ import AccountMenu from "./components/AccountMenu";
 import Auth from "./components/Auth";
 import Chat from "./components/Chat";
 import Facts from "./components/Facts";
+import PendingFacts from "./components/PendingFacts";
 import SettingsDialog from "./components/SettingsDialog";
 import TenantSelector from "./components/TenantSelector";
 import TracePanel from "./components/TracePanel";
@@ -14,7 +15,7 @@ import { describePromptMoment, initGoogleAuth, whenGoogleReady } from "./googleA
 import { tokenSubject } from "./tokenIdentity";
 import { traceReducer, type ChatEvent } from "./trace";
 
-type SidebarTab = "facts" | "trace";
+type SidebarTab = "facts" | "pending" | "trace";
 
 const MIN_SIDEBAR_WIDTH = 200;
 // The sidebar can be dragged as wide as the window allows, but the chat
@@ -40,6 +41,8 @@ function App() {
   const [tenantsError, setTenantsError] = useState(false);
   const [tenantsReloadKey, setTenantsReloadKey] = useState(0);
   const [usageRefreshKey, setUsageRefreshKey] = useState(0);
+  const [pendingFactsRefreshKey, setPendingFactsRefreshKey] = useState(0);
+  const [pendingFactsCount, setPendingFactsCount] = useState(0);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const isResizing = useRef(false);
   const [googleReady, setGoogleReady] = useState(false);
@@ -222,17 +225,28 @@ function App() {
             Facts
           </button>
           <button
+            className={`tab ${sidebarTab === "pending" ? "active" : ""}`}
+            onClick={() => setSidebarTab("pending")}
+          >
+            Pending
+            {pendingFactsCount > 0 && <span className="tab-badge">{pendingFactsCount}</span>}
+          </button>
+          <button
             className={`tab ${sidebarTab === "trace" ? "active" : ""}`}
             onClick={() => setSidebarTab("trace")}
           >
             Trace
             {traceTurns.length > 0 && <span className="tab-badge">{traceTurns.length}</span>}
           </button>
-          {sidebarTab === "facts" && (
+          {(sidebarTab === "facts" || sidebarTab === "pending") && (
             <button
               className="icon-button"
-              title="Refresh facts"
-              onClick={() => setFactsRefreshKey((k) => k + 1)}
+              title={sidebarTab === "facts" ? "Refresh facts" : "Refresh pending facts"}
+              onClick={() =>
+                sidebarTab === "facts"
+                  ? setFactsRefreshKey((k) => k + 1)
+                  : setPendingFactsRefreshKey((k) => k + 1)
+              }
               disabled={!selectedTenantId}
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -247,6 +261,19 @@ function App() {
         <div className="sidebar-panel">
           {sidebarTab === "trace" ? (
             <TracePanel turns={traceTurns} />
+          ) : sidebarTab === "pending" ? (
+            selectedTenantId ? (
+              <PendingFacts
+                key={selectedTenantId}
+                idToken={idToken}
+                tenantId={selectedTenantId}
+                refreshKey={pendingFactsRefreshKey}
+                onCountChange={setPendingFactsCount}
+                onApproved={() => setFactsRefreshKey((k) => k + 1)}
+              />
+            ) : (
+              <p className="sidebar-empty">Select a project to see facts awaiting review.</p>
+            )
           ) : selectedTenantId ? (
             // Keyed by tenant so switching projects doesn't flash the
             // previous project's facts while the new list loads.

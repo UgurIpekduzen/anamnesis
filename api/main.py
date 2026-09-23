@@ -17,6 +17,7 @@ from src.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts import get_tenant_facts
 from src.github_client import validate_github_token
 from src.github_connections import delete_github_connection, has_github_connection, save_github_token
+from src.pending_facts import approve_pending_fact, list_pending_facts, reject_pending_fact
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.tenants import get_owned_tenant, list_tenants
 from src.usage import get_today_count, record_message
@@ -81,6 +82,38 @@ def get_tenants(owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
 @app.get("/tenants/{tenant_id}/facts")
 def get_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
     return get_tenant_facts(tenant_id, owner_uid)
+
+
+@app.get("/tenants/{tenant_id}/pending_facts")
+def get_pending_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
+    try:
+        return list_pending_facts(tenant_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+
+@app.post("/tenants/{tenant_id}/pending_facts/{pending_fact_id}/approve")
+def approve_pending_fact_endpoint(
+    tenant_id: str, pending_fact_id: str, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    try:
+        approve_pending_fact(tenant_id, pending_fact_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Pending fact not found")
+    return {"status": "approved"}
+
+
+@app.delete("/tenants/{tenant_id}/pending_facts/{pending_fact_id}")
+def reject_pending_fact_endpoint(
+    tenant_id: str, pending_fact_id: str, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    try:
+        reject_pending_fact(tenant_id, pending_fact_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"status": "rejected"}
 
 
 @app.get("/tenants/{tenant_id}/history")

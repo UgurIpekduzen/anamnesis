@@ -32,6 +32,39 @@ export async function getTenantFacts(idToken: string, tenantId: string): Promise
   return res.json();
 }
 
+export interface PendingFact {
+  pending_fact_id: string;
+  content: string;
+  category: string;
+  source: string;
+  source_url: string;
+  created_at: string;
+}
+
+export async function getPendingFacts(idToken: string, tenantId: string): Promise<PendingFact[]> {
+  const res = await fetch(`${API_BASE}/tenants/${tenantId}/pending_facts`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`getPendingFacts failed: ${res.status}`);
+  return res.json();
+}
+
+export async function approvePendingFact(idToken: string, tenantId: string, pendingFactId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/tenants/${tenantId}/pending_facts/${pendingFactId}/approve`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`approvePendingFact failed: ${res.status}`);
+}
+
+export async function rejectPendingFact(idToken: string, tenantId: string, pendingFactId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/tenants/${tenantId}/pending_facts/${pendingFactId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`rejectPendingFact failed: ${res.status}`);
+}
+
 // No token in the URL: URLs end up in access logs. The socket authenticates
 // with its first frame instead (see Chat.tsx and APPCE-67).
 export function chatSocketUrl(tenantId: string): string {
