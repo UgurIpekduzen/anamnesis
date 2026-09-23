@@ -10,6 +10,11 @@ from src.firestore_client import get_client
 # it without a circular import — chat_history depends on this module.
 CHAT_TURNS_COLLECTION = "chat_turns"
 
+# Same reasoning as CHAT_TURNS_COLLECTION above — named here so
+# delete_tenant can cascade into it without src/pending_facts.py and
+# src/tenants.py importing each other.
+PENDING_FACTS_COLLECTION = "pending_facts"
+
 
 def _slugify(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
@@ -81,7 +86,7 @@ def delete_tenant(tenant_id: str, owner_uid: str) -> None:
     client = get_client()
     tenant_ref = client.collection("tenants").document(tenant_id)
 
-    for subcollection in ("facts", CHAT_TURNS_COLLECTION):
+    for subcollection in ("facts", CHAT_TURNS_COLLECTION, PENDING_FACTS_COLLECTION):
         for doc in tenant_ref.collection(subcollection).stream():
             doc.reference.delete()
 
@@ -116,6 +121,21 @@ def set_github_repo(tenant_id: str, github_repo: str, owner_uid: str) -> None:
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     client.collection("tenants").document(tenant_id).update({"github_repo": github_repo})
+
+
+def mark_github_polled(tenant_id: str, owner_uid: str) -> None:
+    """Record that this tenant's GitHub repo was just polled (see APPCE-81).
+
+    Read back via get_owned_tenant (not list_tenants — this is internal
+    bookkeeping, not something worth surfacing to the chat agent or UI).
+    Lets a repeated poll skip PRs/issues it already processed, instead of
+    re-extracting and re-staging the same pending facts every run.
+    """
+    get_owned_tenant(tenant_id, owner_uid)
+    client = get_client()
+    client.collection("tenants").document(tenant_id).update(
+        {"github_polled_at": datetime.now(timezone.utc)}
+    )
 
 
 def set_git_repo_path(tenant_id: str, git_repo_path: str, owner_uid: str) -> None:

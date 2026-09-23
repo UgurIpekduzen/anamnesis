@@ -7,7 +7,7 @@ from src.tenants import get_owned_tenant
 TOPIC_ID = "fact-events"
 
 
-def publish_fact(tenant_id: str, content: str, category: str, owner_uid: str) -> str:
+def publish_fact(tenant_id: str, content: str, category: str, owner_uid: str, source: str = "chat") -> str:
     """Publish a fact-creation event instead of writing to Firestore directly.
 
     A subscriber (src/subscriber.py) picks up the message and performs the
@@ -21,6 +21,8 @@ def publish_fact(tenant_id: str, content: str, category: str, owner_uid: str) ->
         content: The fact text.
         category: One of the allowed categories (architecture, decision,
             bug, status, todo).
+        source: Where this fact came from — "chat" or "github" (see
+            src.facts.create_fact).
 
     Returns:
         The published message ID.
@@ -28,7 +30,7 @@ def publish_fact(tenant_id: str, content: str, category: str, owner_uid: str) ->
     get_owned_tenant(tenant_id, owner_uid)
     validate_category(category)
 
-    payload = {"tenant_id": tenant_id, "content": content, "category": category}
+    payload = {"tenant_id": tenant_id, "content": content, "category": category, "source": source}
     data = json.dumps(payload).encode("utf-8")
 
     publisher = get_publisher_client()

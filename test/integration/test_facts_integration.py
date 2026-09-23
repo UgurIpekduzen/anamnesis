@@ -29,6 +29,13 @@ def test_create_fact_is_retrievable_via_get_tenant_facts(tenant_id):
     assert len(facts) == 1
     assert facts[0]["content"] == "Uses Streamlit for the UI"
     assert facts[0]["category"] == "architecture"
+    assert facts[0]["source"] == "chat"  # the default when not given (APPCE-81)
+
+
+def test_create_fact_records_a_non_default_source(tenant_id):
+    create_fact(tenant_id, content="From a GitHub PR", category="bug", source="github")
+
+    assert get_tenant_facts(tenant_id, OWNER_UID)[0]["source"] == "github"
 
 
 def test_get_tenant_facts_limit_keeps_the_newest_facts(tenant_id):
