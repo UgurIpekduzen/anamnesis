@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 
-import { getSettings, resetSettings, updateSettings, type SettingsResponse, type SettingsValues } from "../api";
+import {
+  connectGithub,
+  disconnectGithub,
+  getGithubConnection,
+  getSettings,
+  resetSettings,
+  updateSettings,
+  type GithubConnection,
+  type SettingsResponse,
+  type SettingsValues,
+} from "../api";
 import "./SettingsDialog.css";
 
 interface Props {
@@ -35,6 +45,11 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [github, setGithub] = useState<GithubConnection | null>(null);
+  const [githubToken, setGithubToken] = useState("");
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [githubBusy, setGithubBusy] = useState(false);
+
   function show(settings: SettingsResponse) {
     setLoaded(settings);
     setForm({
@@ -48,6 +63,35 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
       .then(show)
       .catch(() => setError("Couldn't load your settings."));
   }, [idToken]);
+
+  useEffect(() => {
+    getGithubConnection(idToken)
+      .then(setGithub)
+      .catch(() => setGithubError("Couldn't load your GitHub connection."));
+  }, [idToken]);
+
+  async function connect() {
+    setGithubBusy(true);
+    setGithubError(null);
+    try {
+      setGithub(await connectGithub(idToken, githubToken.trim()));
+      setGithubToken("");
+    } catch (e) {
+      setGithubError(e instanceof Error ? e.message : "Couldn't connect GitHub.");
+    }
+    setGithubBusy(false);
+  }
+
+  async function disconnect() {
+    setGithubBusy(true);
+    setGithubError(null);
+    try {
+      setGithub(await disconnectGithub(idToken));
+    } catch {
+      setGithubError("Couldn't disconnect GitHub. Please try again.");
+    }
+    setGithubBusy(false);
+  }
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -141,6 +185,35 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
         )}
 
         {error && <p className="settings-error">{error}</p>}
+
+        <div className="settings-field">
+          <span className="settings-label">GitHub</span>
+          {github?.connected ? (
+            <>
+              <p className="settings-hint">Connected.</p>
+              <button onClick={disconnect} disabled={githubBusy}>
+                {githubBusy ? "Disconnecting…" : "Disconnect"}
+              </button>
+            </>
+          ) : (
+            <>
+              <input
+                type="password"
+                placeholder="github_pat_..."
+                value={githubToken}
+                onChange={(e) => setGithubToken(e.target.value)}
+                aria-invalid={!!githubError}
+              />
+              <small className={githubError ? "settings-hint invalid" : "settings-hint"}>
+                {githubError ||
+                  "Only fine-grained personal access tokens (github_pat_...) are accepted. Create one with read-only access to just the repos you want — never a classic token."}
+              </small>
+              <button onClick={connect} disabled={!githubToken.trim() || githubBusy}>
+                {githubBusy ? "Connecting…" : "Connect"}
+              </button>
+            </>
+          )}
+        </div>
 
         <div className="settings-actions">
           <button className="settings-reset" onClick={reset} disabled={!loaded || atDefaults || saving}>

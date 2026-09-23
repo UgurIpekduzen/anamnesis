@@ -61,6 +61,10 @@ services:
       # it's embedded in the frontend's JS bundle too (see APPCE-54).
       GOOGLE_OAUTH_CLIENT_ID: 430288501339-aiifao42l0fp6qirm2kiluh8fv4qfb3k.apps.googleusercontent.com
       ALLOWED_EMAILS: u.ipkdzn@gmail.com
+      # Compose reads this from the repo-root .env for variable substitution
+      # (not via env_file — see the "no env_file" note above), so it stays
+      # out of this file. See .env.example for how to fetch the real value.
+      GITHUB_TOKEN_ENCRYPTION_KEY: ${GITHUB_TOKEN_ENCRYPTION_KEY}
     volumes:
       - ~/.config/gcloud:/root/.config/gcloud:ro
 

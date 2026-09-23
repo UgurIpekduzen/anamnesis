@@ -15,6 +15,8 @@ from api.runner import get_runner
 from api.session_memory import format_user_message, restore_session
 from src.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts import get_tenant_facts
+from src.github_client import validate_github_token
+from src.github_connections import delete_github_connection, has_github_connection, save_github_token
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.tenants import get_owned_tenant, list_tenants
 from src.usage import get_today_count, record_message
@@ -137,6 +139,37 @@ def update_settings(body: SettingsUpdate, owner_uid: str = Depends(get_current_o
 @app.delete("/settings")
 def delete_settings(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
     return _settings_response(reset_settings(owner_uid))
+
+
+class GithubConnectionUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(strict=True, min_length=1, max_length=255)
+
+
+@app.get("/github/connection")
+def read_github_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    return {"connected": has_github_connection(owner_uid)}
+
+
+@app.put("/github/connection")
+def update_github_connection(
+    body: GithubConnectionUpdate, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    # Validated before it ever reaches Firestore — an invalid/wrong-kind
+    # token must not get encrypted and stored, only to fail on first use.
+    try:
+        validate_github_token(body.token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    save_github_token(owner_uid, body.token)
+    return {"connected": True}
+
+
+@app.delete("/github/connection")
+def remove_github_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    delete_github_connection(owner_uid)
+    return {"connected": False}
 
 
 _DONE = object()

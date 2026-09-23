@@ -92,6 +92,42 @@ export async function resetSettings(idToken: string): Promise<SettingsResponse> 
   return res.json();
 }
 
+export interface GithubConnection {
+  connected: boolean;
+}
+
+export async function getGithubConnection(idToken: string): Promise<GithubConnection> {
+  const res = await fetch(`${API_BASE}/github/connection`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`getGithubConnection failed: ${res.status}`);
+  return res.json();
+}
+
+export async function connectGithub(idToken: string, token: string): Promise<GithubConnection> {
+  const res = await fetch(`${API_BASE}/github/connection`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    // A 400 carries a reason the user can act on (wrong token kind,
+    // expired, ...) — surface it instead of a generic failure message.
+    const detail = res.status === 400 ? (await res.json().catch(() => null))?.detail : null;
+    throw new Error(detail || `connectGithub failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function disconnectGithub(idToken: string): Promise<GithubConnection> {
+  const res = await fetch(`${API_BASE}/github/connection`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`disconnectGithub failed: ${res.status}`);
+  return res.json();
+}
+
 export interface SavedTurn {
   question: string;
   answer: string;

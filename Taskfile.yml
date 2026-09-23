@@ -174,3 +174,18 @@ tasks:
     desc: Pull messages from a subscription without acking (task gcloud:pubsub:pull -- fact-events-dlq-sub)
     cmds:
       - docker compose run --rm gcloud pubsub subscriptions pull {{.CLI_ARGS}} --limit=10
+
+  secrets:github-key:pull:
+    desc: Print the current GitHub token encryption key, for pasting into your local .env (see .env.example)
+    cmds:
+      - docker compose run --rm gcloud secrets versions access latest --secret=github-token-encryption-key
+
+  secrets:github-key:init:
+    desc: One-time setup — generate a Fernet key and store it as the GitHub token encryption secret. Safe to re-run; skips if a version already exists (overwriting it would break already-encrypted tokens).
+    cmds:
+      - |
+        if docker compose run --rm gcloud secrets versions list github-token-encryption-key --format="value(name)" 2>/dev/null | grep -q .; then
+          echo "A key already exists for github-token-encryption-key — leaving it as is."
+        else
+          python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" | docker compose run --rm -T gcloud secrets versions add github-token-encryption-key --data-file=-
+        fi
