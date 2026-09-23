@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -11,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, verify_token
+from src.categories import ensure_categories_seeded
 from src.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts import get_tenant_facts
 from src.github_client import validate_github_token
@@ -40,7 +42,17 @@ CHAT_HISTORY_DISPLAY_TURNS = int(os.environ.get("CHAT_HISTORY_DISPLAY_TURNS", 50
 AUTH_TIMEOUT_SECONDS = float(os.environ.get("WS_AUTH_TIMEOUT_SECONDS", 10))
 MAX_AUTH_FRAME_CHARS = 8192
 
-app = FastAPI(title="Anamnesis API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Without this, a fresh deployment's Firestore has no config/categories
+    # document until someone manually runs seed_data.py, and every
+    # publish_fact call fails loudly until then (APPCE-93). No-op once the
+    # document exists — never overwrites customized categories.
+    ensure_categories_seeded()
+    yield
+
+
+app = FastAPI(title="Anamnesis API", lifespan=lifespan)
 
 # Local dev only — the Vite dev server's own origin. Harmless in
 # production (APPCE-56): the built frontend is served from this same
