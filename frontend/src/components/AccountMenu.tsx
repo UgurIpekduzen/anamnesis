@@ -20,6 +20,7 @@ function decodeClaims(idToken: string): TokenClaims {
 
 function AccountMenu({ idToken, onOpenSettings, onSignOut, onChangeAccount }: Props) {
   const [open, setOpen] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const claims = decodeClaims(idToken);
 
@@ -36,8 +37,10 @@ function AccountMenu({ idToken, onOpenSettings, onSignOut, onChangeAccount }: Pr
   return (
     <div className="account-menu" ref={menuRef}>
       <button className="account-avatar" onClick={() => setOpen((o) => !o)} title={claims.email}>
-        {claims.picture ? (
-          <img src={claims.picture} alt={claims.email} />
+        {claims.picture && !imgFailed ? (
+          // Google's photo URLs occasionally 404/CORS-fail — fall back to
+          // the initial-letter avatar instead of showing a broken image icon.
+          <img src={claims.picture} alt={claims.email} onError={() => setImgFailed(true)} />
         ) : (
           <span>{claims.email[0]?.toUpperCase()}</span>
         )}
