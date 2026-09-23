@@ -11,7 +11,7 @@ from src.github_connections import (
     has_github_connection,
     save_github_token,
 )
-from src.github_secrets import _get_fernet
+from src.token_encryption import _get_fernet
 
 
 @pytest.fixture(autouse=True)

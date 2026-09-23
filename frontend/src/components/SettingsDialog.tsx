@@ -2,12 +2,16 @@ import { useEffect, useState } from "react";
 
 import {
   connectGithub,
+  connectJira,
   disconnectGithub,
+  disconnectJira,
   getGithubConnection,
+  getJiraConnection,
   getSettings,
   resetSettings,
   updateSettings,
   type GithubConnection,
+  type JiraConnection,
   type SettingsResponse,
   type SettingsValues,
 } from "../api";
@@ -50,6 +54,13 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
   const [githubError, setGithubError] = useState<string | null>(null);
   const [githubBusy, setGithubBusy] = useState(false);
 
+  const [jira, setJira] = useState<JiraConnection | null>(null);
+  const [jiraEmail, setJiraEmail] = useState("");
+  const [jiraToken, setJiraToken] = useState("");
+  const [jiraBaseUrl, setJiraBaseUrl] = useState("");
+  const [jiraError, setJiraError] = useState<string | null>(null);
+  const [jiraBusy, setJiraBusy] = useState(false);
+
   function show(settings: SettingsResponse) {
     setLoaded(settings);
     setForm({
@@ -91,6 +102,37 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
       setGithubError("Couldn't disconnect GitHub. Please try again.");
     }
     setGithubBusy(false);
+  }
+
+  useEffect(() => {
+    getJiraConnection(idToken)
+      .then(setJira)
+      .catch(() => setJiraError("Couldn't load your Jira connection."));
+  }, [idToken]);
+
+  async function connectJiraAccount() {
+    setJiraBusy(true);
+    setJiraError(null);
+    try {
+      setJira(await connectJira(idToken, jiraEmail.trim(), jiraToken.trim(), jiraBaseUrl.trim()));
+      setJiraEmail("");
+      setJiraToken("");
+      setJiraBaseUrl("");
+    } catch (e) {
+      setJiraError(e instanceof Error ? e.message : "Couldn't connect Jira.");
+    }
+    setJiraBusy(false);
+  }
+
+  async function disconnectJiraAccount() {
+    setJiraBusy(true);
+    setJiraError(null);
+    try {
+      setJira(await disconnectJira(idToken));
+    } catch {
+      setJiraError("Couldn't disconnect Jira. Please try again.");
+    }
+    setJiraBusy(false);
   }
 
   useEffect(() => {
@@ -187,7 +229,26 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
         {error && <p className="settings-error">{error}</p>}
 
         <div className="settings-field">
-          <span className="settings-label">GitHub</span>
+          <div className="settings-label">
+            GitHub
+            <span className="settings-info-wrapper">
+              <a
+                className="settings-info"
+                href="https://github.com/settings/tokens?type=beta"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ⓘ
+              </a>
+              <div className="settings-tooltip">
+                <strong>Create a fine-grained token:</strong>
+                <ul>
+                  <li>Select only the repos you want</li>
+                  <li>Grant read-only access: Contents, Metadata, Pull requests, Issues</li>
+                </ul>
+              </div>
+            </span>
+          </div>
           {github?.connected ? (
             <>
               <p className="settings-hint">Connected.</p>
@@ -199,7 +260,7 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
             <>
               <input
                 type="password"
-                placeholder="github_pat_..."
+                placeholder="Fine-grained token (e.g. github_pat_11AB...)"
                 value={githubToken}
                 onChange={(e) => setGithubToken(e.target.value)}
                 aria-invalid={!!githubError}
@@ -210,6 +271,70 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
               </small>
               <button onClick={connect} disabled={!githubToken.trim() || githubBusy}>
                 {githubBusy ? "Connecting…" : "Connect"}
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="settings-field">
+          <div className="settings-label">
+            Jira
+            <span className="settings-info-wrapper">
+              <a
+                className="settings-info"
+                href="https://id.atlassian.com/manage-profile/security/api-tokens"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ⓘ
+              </a>
+              <div className="settings-tooltip">
+                <strong>Connect your Atlassian account:</strong>
+                <ul>
+                  <li>Create an API token</li>
+                  <li>Use the email address you sign in with</li>
+                  <li>Enter your workspace's URL</li>
+                </ul>
+              </div>
+            </span>
+          </div>
+          {jira?.connected ? (
+            <>
+              <p className="settings-hint">Connected.</p>
+              <button onClick={disconnectJiraAccount} disabled={jiraBusy}>
+                {jiraBusy ? "Disconnecting…" : "Disconnect"}
+              </button>
+            </>
+          ) : (
+            <>
+              <input
+                placeholder="Account email (e.g. you@example.com)"
+                value={jiraEmail}
+                onChange={(e) => setJiraEmail(e.target.value)}
+                aria-invalid={!!jiraError}
+              />
+              <input
+                type="password"
+                placeholder="API token (e.g. ATATT3xFfGF0...)"
+                value={jiraToken}
+                onChange={(e) => setJiraToken(e.target.value)}
+                aria-invalid={!!jiraError}
+              />
+              <input
+                placeholder="Workspace URL (e.g. https://your-workspace.atlassian.net)"
+                value={jiraBaseUrl}
+                onChange={(e) => setJiraBaseUrl(e.target.value)}
+                aria-invalid={!!jiraError}
+              />
+              <small className={jiraError ? "settings-hint invalid" : "settings-hint"}>
+                {jiraError ||
+                  "Create a token at id.atlassian.com/manage-profile/security/api-tokens."}
+              </small>
+              <button
+                onClick={connectJiraAccount}
+                disabled={!jiraEmail.trim() || !jiraToken.trim() || !jiraBaseUrl.trim() || jiraBusy}
+              >
+                {jiraBusy ? "Connecting…" : "Connect"}
               </button>
             </>
           )}

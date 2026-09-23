@@ -17,6 +17,8 @@ from src.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts import get_tenant_facts
 from src.github_client import validate_github_token
 from src.github_connections import delete_github_connection, has_github_connection, save_github_token
+from src.jira_client import validate_jira_credentials
+from src.jira_connections import delete_jira_connection, has_jira_connection, save_jira_credentials
 from src.pending_facts import approve_pending_fact, list_pending_facts, reject_pending_fact
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.tenants import add_tenant, delete_tenant, get_owned_tenant, list_tenants, rename_tenant
@@ -242,6 +244,37 @@ def update_github_connection(
 @app.delete("/github/connection")
 def remove_github_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
     delete_github_connection(owner_uid)
+    return {"connected": False}
+
+
+class JiraConnectionUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(strict=True, min_length=1, max_length=255)
+    token: str = Field(strict=True, min_length=1, max_length=255)
+    base_url: str = Field(strict=True, min_length=1, max_length=255)
+
+
+@app.get("/jira/connection")
+def read_jira_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    return {"connected": has_jira_connection(owner_uid)}
+
+
+@app.put("/jira/connection")
+def update_jira_connection(body: JiraConnectionUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    # Validated before it ever reaches Firestore — bad credentials must
+    # not get encrypted and stored, only to fail on first use.
+    try:
+        validate_jira_credentials(body.email, body.token, body.base_url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    save_jira_credentials(owner_uid, body.email, body.token, body.base_url)
+    return {"connected": True}
+
+
+@app.delete("/jira/connection")
+def remove_jira_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    delete_jira_connection(owner_uid)
     return {"connected": False}
 
 

@@ -7,15 +7,11 @@ still need to be added manually — Terraform only creates the empty secret
 container, never the value itself (so it never ends up in state or version
 control).
 
-- **`jira-api-token`**: add your Jira API token's value
-  ```
-  echo -n "<your Jira API token>" | task gcloud -- secrets versions add jira-api-token --data-file=-
-  ```
 - **`github-token-encryption-key`**: run once, generates and stores a Fernet
-  key used to encrypt per-user GitHub tokens before they're saved to
-  Firestore (see APPCE-79). Safe to re-run — it skips if a version already
-  exists, since overwriting it would break any tokens already encrypted with
-  the old key.
+  key used to encrypt per-user GitHub and Jira credentials before they're
+  saved to Firestore (see APPCE-79, APPCE-87). Safe to re-run — it skips if
+  a version already exists, since overwriting it would break any secrets
+  already encrypted with the old key.
   ```
   task secrets:github-key:init
   ```

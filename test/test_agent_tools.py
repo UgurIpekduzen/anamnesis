@@ -68,23 +68,32 @@ def test_get_github_status_has_owner_uid_and_tenant_id_bound():
     assert seen == {"owner_uid": "test@example.com", "tenant_id": "some_tenant"}
 
 
-def test_get_jira_status_resolves_the_project_key_from_the_tenant():
+def test_get_jira_status_resolves_the_project_key_and_the_users_own_credentials():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
     tool = next(t for t in tool_agent.tools if t.__name__ == "get_jira_status")
 
     calls = []
 
     original_owned = agent_module.get_owned_tenant
+    original_creds = agent_module.get_jira_credentials
     original_status = agent_module.get_jira_status
     agent_module.get_owned_tenant = lambda tenant_id, owner_uid: {"jira_project_key": "APPCE"}
-    agent_module.get_jira_status = lambda project_key: calls.append(project_key) or [{"key": "APPCE-1"}]
+    agent_module.get_jira_credentials = lambda owner_uid: {
+        "email": "user@example.com",
+        "token": "secret-token",
+        "base_url": "https://example.atlassian.net",
+    }
+    agent_module.get_jira_status = lambda project_key, email, token, base_url: calls.append(
+        (project_key, email, token, base_url)
+    ) or [{"key": "APPCE-1"}]
     try:
         result = tool()
     finally:
         agent_module.get_owned_tenant = original_owned
+        agent_module.get_jira_credentials = original_creds
         agent_module.get_jira_status = original_status
 
-    assert calls == ["APPCE"]
+    assert calls == [("APPCE", "user@example.com", "secret-token", "https://example.atlassian.net")]
     assert result == [{"key": "APPCE-1"}]
 
 
@@ -103,6 +112,23 @@ def test_get_jira_status_returns_an_error_result_when_the_tenant_has_no_linked_p
         agent_module.get_owned_tenant = original_owned
 
     assert result == {"error": "This project has no linked Jira project key."}
+
+
+def test_get_jira_status_returns_an_error_result_when_the_user_has_no_jira_connection():
+    tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
+    tool = next(t for t in tool_agent.tools if t.__name__ == "get_jira_status")
+
+    original_owned = agent_module.get_owned_tenant
+    original_creds = agent_module.get_jira_credentials
+    agent_module.get_owned_tenant = lambda tenant_id, owner_uid: {"jira_project_key": "APPCE"}
+    agent_module.get_jira_credentials = lambda owner_uid: None
+    try:
+        result = tool()
+    finally:
+        agent_module.get_owned_tenant = original_owned
+        agent_module.get_jira_credentials = original_creds
+
+    assert result == {"error": "No Jira account connected. Connect one in Settings."}
 
 
 def test_get_github_status_returns_an_error_result_instead_of_raising():

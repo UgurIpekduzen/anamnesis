@@ -6,6 +6,7 @@ from agent.history import make_history_limiter
 from src.facts import delete_fact, get_tenant_facts, update_fact
 from src.github_activity import get_github_status
 from src.jira_client import get_jira_status
+from src.jira_connections import get_jira_credentials
 from src.publisher import publish_fact
 from src.tenants import get_owned_tenant, set_git_repo_path, set_github_repo, set_jira_project_key
 
@@ -66,23 +67,31 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         return None
 
     def _get_github_status() -> dict:
-        # Same reasoning as _set_github_repo above: no linked repo, or no
-        # GitHub connection, are both ValueErrors from get_github_status
-        # that must become a result, not a crash.
+        # Same reasoning as _set_github_repo above: no linked repo, no
+        # GitHub connection, and a real GitHub API failure (e.g. an expired
+        # token, surfaced as an HTTP error) must all become a result, not
+        # a crash — catching broadly on purpose, not just ValueError.
         try:
             return get_github_status(owner_uid, tenant_id)
-        except ValueError as e:
+        except Exception as e:
             return {"error": str(e)}
 
     def _get_jira_status() -> list[dict] | dict:
         """Query this project's open Jira issues — live data, not stored
         facts. Returns {"error": "..."} if the project has no linked Jira
-        project key, instead of guessing one.
+        project key, or if this user hasn't connected a Jira account,
+        instead of guessing either one.
         """
         jira_project_key = get_owned_tenant(tenant_id, owner_uid).get("jira_project_key")
         if not jira_project_key:
             return {"error": "This project has no linked Jira project key."}
-        return get_jira_status(jira_project_key)
+        credentials = get_jira_credentials(owner_uid)
+        if credentials is None:
+            return {"error": "No Jira account connected. Connect one in Settings."}
+        try:
+            return get_jira_status(jira_project_key, **credentials)
+        except Exception as e:
+            return {"error": str(e)}
 
     # Reuse each src.* function's own docstring so ADK's tool schema
     # (built from name + docstring) stays accurate without duplicating
@@ -151,8 +160,9 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
             'to the machine it was set on.\n'
             'When the user asks about open tickets, tasks, or issues, call '
             'get_jira_status — this is live Jira data, not stored facts. If '
-            'it raises because there is no linked Jira project, tell the '
-            'user instead of guessing one.\n'
+            'it returns an error because there is no linked Jira project or '
+            'no connected Jira account, relay that to the user instead of '
+            'guessing.\n'
             'When the user asks about open pull requests or issues on '
             'GitHub, call get_github_status — this is live GitHub data, not '
             'stored facts. If the project has no github_repo, tell the user '

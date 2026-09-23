@@ -119,7 +119,8 @@ services:
     depends_on:
       - firestore-emulator
       - pubsub-emulator
-    # Brings in JIRA_EMAIL/JIRA_API_TOKEN/JIRA_BASE_URL for get_jira_status.
+    # Brings in GITHUB_TOKEN_ENCRYPTION_KEY (Jira/GitHub credentials are
+    # per-user now, connected from Settings — see APPCE-79, APPCE-87).
     # Safe to combine with the environment overrides below: Compose always
     # lets `environment:` win over `env_file:` for the same key, so the
     # emulator hostnames here still take priority over .env's localhost

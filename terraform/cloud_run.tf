@@ -37,23 +37,6 @@ resource "google_cloud_run_v2_service" "ui" {
         name  = "GOOGLE_CLOUD_LOCATION"
         value = var.region
       }
-      env {
-        name  = "JIRA_BASE_URL"
-        value = var.jira_base_url
-      }
-      env {
-        name  = "JIRA_EMAIL"
-        value = var.jira_email
-      }
-      env {
-        name = "JIRA_API_TOKEN"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.jira_api_token.secret_id
-            version = "latest"
-          }
-        }
-      }
     }
   }
 }

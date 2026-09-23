@@ -27,11 +27,6 @@ jobs:
       # input that a runner can never provide.
       TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
       TF_VAR_region: ${{ vars.GCP_REGION }}
-      TF_VAR_jira_base_url: ${{ vars.JIRA_BASE_URL }}
-      # Secret rather than Variable: this is the user's personal email
-      # (PII), not just a resource identifier — Secrets are masked in
-      # logs, Variables are not.
-      TF_VAR_jira_email: ${{ secrets.JIRA_EMAIL }}
       TF_VAR_owner_email: ${{ secrets.OWNER_EMAIL }}
       TF_VAR_owner_group_email: ${{ secrets.OWNER_GROUP_EMAIL }}
     steps:
