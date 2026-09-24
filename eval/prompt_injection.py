@@ -144,7 +144,8 @@ def _install_fakes(scenario: dict, recorder: Recorder) -> None:
         return body
 
     payload = {"issues": [{"number": 1, "title": scenario["text"], "url": "https://example.test/1"}], "pull_requests": []}
-    jira_rows = [{"key": "EVAL-1", "summary": scenario["text"], "status": "To Do", "issue_type": "Task"}]
+    # The shape get_jira_status returns now (APPCE-104): compact lines.
+    jira_rows = {"issues": [f'EVAL-1 · Task · To Do · {scenario["text"]}'], "truncated": False}
 
     m = agent_module
     m.get_tenant_facts = fake(m.get_tenant_facts, lambda *a, **k: EXISTING_FACTS)

@@ -1,7 +1,7 @@
 import pytest
 import requests
 
-from src.jira_client import get_jira_status, validate_jira_credentials
+from src.jira_client import DEFAULT_LIMIT, MAX_SUMMARY_CHARS, get_jira_status, validate_jira_credentials
 
 
 class FakeResponse:
@@ -37,7 +37,81 @@ def test_get_jira_status_maps_the_expected_fields(monkeypatch):
 
     result = get_jira_status("APPCE", "user@example.com", "secret-token", "https://example.atlassian.net")
 
-    assert result == [{"key": "APPCE-1", "summary": "Fix bug", "status": "In Progress", "issue_type": "Bug"}]
+    assert result == {"issues": ["APPCE-1 · Bug · In Progress · Fix bug"], "truncated": False}
+
+
+def _issue(number, summary="Fix bug"):
+    return {
+        "key": f"APPCE-{number}",
+        "fields": {"summary": summary, "status": {"name": "To Do"}, "issuetype": {"name": "Task"}},
+    }
+
+
+def _serving(monkeypatch, issues):
+    seen = {}
+
+    def fake_get(url, auth, params, timeout):
+        seen["params"] = params
+        # Like Jira: never more than was asked for.
+        return FakeResponse({"issues": issues[: params["maxResults"]]})
+
+    monkeypatch.setattr("src.jira_client.requests.get", fake_get)
+    return seen
+
+
+def test_only_the_most_recent_issues_up_to_the_limit_are_returned(monkeypatch):
+    _serving(monkeypatch, [_issue(n) for n in range(1, 41)])
+
+    result = get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net")
+
+    assert len(result["issues"]) == DEFAULT_LIMIT
+    assert result["issues"][0].startswith("APPCE-1 ")
+    assert result["truncated"] is True
+
+
+def test_it_asks_jira_for_one_more_than_the_limit_only_to_detect_more(monkeypatch):
+    seen = _serving(monkeypatch, [_issue(n) for n in range(1, 41)])
+
+    get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net", limit=5)
+
+    assert seen["params"]["maxResults"] == 6
+
+
+def test_exactly_the_limit_is_not_reported_as_truncated(monkeypatch):
+    _serving(monkeypatch, [_issue(n) for n in range(1, DEFAULT_LIMIT + 1)])
+
+    result = get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net")
+
+    assert len(result["issues"]) == DEFAULT_LIMIT
+    assert result["truncated"] is False
+
+
+def test_a_project_with_no_open_issues_returns_an_empty_list(monkeypatch):
+    _serving(monkeypatch, [])
+
+    assert get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net") == {
+        "issues": [],
+        "truncated": False,
+    }
+
+
+def test_a_long_summary_is_cut_off_with_an_ellipsis(monkeypatch):
+    _serving(monkeypatch, [_issue(1, summary="x" * 500)])
+
+    line = get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net")["issues"][0]
+
+    summary = line.split(" · ", 3)[3]
+    assert len(summary) == MAX_SUMMARY_CHARS
+    assert summary.endswith("…")
+
+
+def test_a_summary_at_the_limit_is_left_alone(monkeypatch):
+    _serving(monkeypatch, [_issue(1, summary="y" * MAX_SUMMARY_CHARS)])
+
+    line = get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net")["issues"][0]
+
+    assert line.endswith("y" * MAX_SUMMARY_CHARS)
+    assert "…" not in line
 
 
 def test_get_jira_status_strips_a_trailing_slash_from_the_base_url(monkeypatch):
