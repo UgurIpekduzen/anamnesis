@@ -5,15 +5,19 @@ on:
     branches:
       - main
 
+# Read-only by default; only the deploy job below is granted id-token, the
+# right to mint a Google credential (APPCE-100).
 permissions:
   contents: read
-  id-token: write
 
 env:
   IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/anamnesis/app:${{ github.sha }}
 
 jobs:
-  deploy:
+  # Runs third-party code (every locked dependency) and holds no cloud
+  # credentials: without id-token permission it cannot ask GitHub for an
+  # OIDC token, so a compromised package can't reach GCP from here.
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +48,17 @@ jobs:
           PUBSUB_EMULATOR_HOST: localhost:8085
           GCP_PROJECT_ID: anamnesis-local
         run: uv run --frozen pytest test/ -v
+
+  # Only reached once every test passed, and the only job that can
+  # authenticate to GCP.
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
 
       - id: auth
         uses: google-github-actions/auth@v2
