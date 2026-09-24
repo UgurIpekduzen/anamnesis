@@ -118,6 +118,13 @@ tasks:
     cmds:
       - docker compose down adk-web
 
+  eval:injection:
+    desc: Prompt-injection eval against the real model (costs tokens; not part of pytest) — task eval:injection -- --runs 3
+    cmds:
+      # eval/ isn't baked into the api image, so it's mounted; the api
+      # service already carries the real-GCP (Vertex AI) credentials.
+      - docker compose run --rm -v "$PWD/eval:/app/eval" api python -m eval.prompt_injection {{.CLI_ARGS}}
+
   gcloud:
     desc: Run an arbitrary gcloud command via the dockerized CLI (task gcloud -- <args>)
     cmds:
