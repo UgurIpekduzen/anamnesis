@@ -101,6 +101,19 @@ def open_chat(client, token="a-token"):
         yield ws
 
 
+def wait_for_the_save(ws):
+    """Make sure the previous turn has been saved before the test looks.
+
+    The handler sends the final frame first and saves the turn afterwards,
+    in a worker thread, so reading the saved turns right after the final
+    frame is a race. It can't start on the next message before it has
+    finished with the previous turn, so one more round trip settles it.
+    Note that this turn gets saved too, but not necessarily yet.
+    """
+    ws.send_json({"message": "settle"})
+    assert ws.receive_json()["type"] == "final"
+
+
 @pytest.fixture
 def spies():
     """What the chat handler did with the persistence layer."""
@@ -202,6 +215,7 @@ def test_confirming_resumes_the_turn_and_saves_the_original_question(chat, spies
     runner.script = [
         [FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})],
         [FakeEvent("Deleted it.")],
+        [FakeEvent("hi")],  # the turn wait_for_the_save() starts
     ]
 
     with open_chat(client) as ws:
@@ -210,11 +224,12 @@ def test_confirming_resumes_the_turn_and_saves_the_original_question(chat, spies
 
         ws.send_json({"type": "confirm_response", "confirmed": True})
         assert ws.receive_json() == {"type": "final", "text": "Deleted it."}
+        wait_for_the_save(ws)
 
     # The resume call carried a FunctionResponse answering req-1, not text.
     assert runner.calls[1]["text"] is None
     # The saved turn uses the ORIGINAL question, not "confirm_response".
-    assert spies.saved == [("some_tenant", OWNER, "delete that fact", "Deleted it.")]
+    assert spies.saved[0] == ("some_tenant", OWNER, "delete that fact", "Deleted it.")
 
 
 def test_rejecting_resumes_the_turn_too(chat):
@@ -318,8 +333,9 @@ def test_a_finished_turn_is_saved_as_plain_question_and_answer_text(chat, spies)
     with open_chat(client) as ws:
         ws.send_json({"message": "what do you know?"})
         assert ws.receive_json()["type"] == "final"
+        wait_for_the_save(ws)
 
-    assert spies.saved == [("some_tenant", OWNER, "what do you know?", "hi")]
+    assert spies.saved[0] == ("some_tenant", OWNER, "what do you know?", "hi")
 
 
 def test_a_turn_with_no_answer_is_not_saved(chat, spies):
