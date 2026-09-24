@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from google.cloud import firestore
+
 from src.categories import validate_category
 from src.firestore_client import get_client
 from src.publisher import publish_fact
@@ -41,6 +43,20 @@ def create_pending_fact(
         }
     )
     return doc_ref.id
+
+
+def has_pending_fact_for_source(tenant_id: str, source_url: str) -> bool:
+    """Whether a fact from this origin (e.g. a PR/issue URL) is already
+    waiting for review.
+
+    Lets the GitHub poller stay idempotent (APPCE-101): Cloud Scheduler is
+    at-least-once, so a retried or overlapping run must not stage the same
+    item twice — and checking before the LLM extraction also skips its cost.
+    No ownership check: callers are trusted server-side code that already
+    resolved the tenant.
+    """
+    query = _collection(tenant_id).where(filter=firestore.FieldFilter("source_url", "==", source_url)).limit(1)
+    return any(True for _ in query.stream())
 
 
 def list_pending_facts(tenant_id: str, owner_uid: str) -> list[dict]:

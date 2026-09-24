@@ -18,6 +18,11 @@ resource "google_cloud_run_v2_service" "ui" {
 
   template {
     service_account = google_service_account.agent_sa.email
+
+    scaling {
+      max_instance_count = 1
+    }
+
     containers {
       image = local.image
 
@@ -54,7 +59,17 @@ resource "google_cloud_run_v2_service" "ui" {
           }
         }
       }
+      env {
+        name  = "GITHUB_POLLER_SERVICE_ACCOUNT_EMAIL"
+        value = google_service_account.github_poller.email
+      }
+      env {
+        name  = "GITHUB_POLLER_AUDIENCE"
+        value = local.github_poller_audience
+      }
     }
+
+    max_instance_request_concurrency = 40
   }
 }
 
@@ -77,6 +92,11 @@ resource "google_cloud_run_v2_service" "subscriber" {
 
   template {
     service_account = google_service_account.agent_sa.email
+
+    scaling {
+      max_instance_count = 1
+    }
+
     containers {
       image   = local.image
       command = ["python", "-m", "src.subscriber"]

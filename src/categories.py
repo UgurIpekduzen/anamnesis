@@ -13,6 +13,11 @@ _CACHE_TTL_SECONDS = int(os.environ.get("CATEGORY_CACHE_TTL_SECONDS", 300))
 _cache: set[str] | None = None
 _cache_loaded_at: float = 0.0
 
+# The only source of truth for what a fresh deployment's categories are —
+# seed_data.py and ensure_categories_seeded() below both use this, instead
+# of each hardcoding their own copy of the list (APPCE-93).
+DEFAULT_CATEGORIES = ["architecture", "decision", "bug", "status", "todo"]
+
 
 def _load_categories(client: firestore.Client) -> set[str]:
     doc = client.collection("config").document("categories").get()
@@ -21,6 +26,21 @@ def _load_categories(client: firestore.Client) -> set[str]:
         # which would reject every category as invalid.
         raise RuntimeError("config/categories document not found in Firestore")
     return set(doc.to_dict().get("allowed", []))
+
+
+def ensure_categories_seeded() -> None:
+    """Write the default category config if it doesn't exist yet.
+
+    Without this, a fresh deployment's config/categories document only
+    ever gets created by manually running seed_data.py — until then,
+    every publish_fact call fails with the RuntimeError above (APPCE-93).
+    Called once at API startup; a no-op once the document exists, so it
+    never overwrites categories someone has customized.
+    """
+    client = get_client()
+    doc_ref = client.collection("config").document("categories")
+    if not doc_ref.get().exists:
+        doc_ref.set({"allowed": DEFAULT_CATEGORIES})
 
 
 def get_allowed_categories(force_refresh: bool = False) -> set[str]:

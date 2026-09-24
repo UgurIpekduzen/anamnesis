@@ -1,3 +1,58 @@
+.usage-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.usage-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.usage-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.usage-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.usage-bar-warning .usage-bar-fill {
+  background: var(--warning-text);
+}
+
+.usage-bar-full .usage-bar-fill {
+  background: var(--error-text);
+}
+
+/* Where the user's own soft warning kicks in. */
+.usage-bar-threshold {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text-muted);
+  opacity: 0.7;
+}
+
+.usage-meta {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+}
+
 .usage-warning {
   background: var(--warning-bg);
   color: var(--warning-text);

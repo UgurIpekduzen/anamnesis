@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
 
 import {
+  addAllowedEmail,
   connectGithub,
   connectJira,
   disconnectGithub,
   disconnectJira,
+  getAllowedEmails,
   getGithubConnection,
   getJiraConnection,
   getSettings,
+  removeAllowedEmail,
   resetSettings,
   updateSettings,
+  type AllowedEmails,
   type GithubConnection,
   type JiraConnection,
   type SettingsResponse,
@@ -60,6 +64,13 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
   const [jiraBaseUrl, setJiraBaseUrl] = useState("");
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [jiraBusy, setJiraBusy] = useState(false);
+
+  // null: not an owner (or still loading) — the whole section stays
+  // hidden, since a non-owner can't use it anyway (APPCE-94).
+  const [allowedEmails, setAllowedEmails] = useState<AllowedEmails | null>(null);
+  const [newEmail, setNewEmail] = useState("");
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [accessBusy, setAccessBusy] = useState(false);
 
   function show(settings: SettingsResponse) {
     setLoaded(settings);
@@ -133,6 +144,39 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
       setJiraError("Couldn't disconnect Jira. Please try again.");
     }
     setJiraBusy(false);
+  }
+
+  useEffect(() => {
+    // A 403 (not an owner) resolves to null, not a caught error — most
+    // users simply never see this section, that's not a failure to report.
+    getAllowedEmails(idToken)
+      .then(setAllowedEmails)
+      .catch(() => setAccessError("Couldn't load account access."));
+  }, [idToken]);
+
+  async function addEmail() {
+    setAccessBusy(true);
+    setAccessError(null);
+    try {
+      const { extra_emails } = await addAllowedEmail(idToken, newEmail.trim());
+      setAllowedEmails((prev) => (prev ? { ...prev, extra_emails } : prev));
+      setNewEmail("");
+    } catch (e) {
+      setAccessError(e instanceof Error ? e.message : "Couldn't add that email.");
+    }
+    setAccessBusy(false);
+  }
+
+  async function removeEmail(email: string) {
+    setAccessBusy(true);
+    setAccessError(null);
+    try {
+      const { extra_emails } = await removeAllowedEmail(idToken, email);
+      setAllowedEmails((prev) => (prev ? { ...prev, extra_emails } : prev));
+    } catch {
+      setAccessError("Couldn't remove that email. Please try again.");
+    }
+    setAccessBusy(false);
   }
 
   useEffect(() => {
@@ -339,6 +383,45 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
             </>
           )}
         </div>
+
+        {allowedEmails && (
+          <div className="settings-field">
+            <div className="settings-label">Access</div>
+            <small className="settings-hint">
+              Anyone below can sign in to their own, fully separate projects — never yours.
+            </small>
+            <ul className="settings-access-list">
+              {allowedEmails.owner_emails.map((email) => (
+                <li key={email}>
+                  {email} <span className="settings-hint">(owner)</span>
+                </li>
+              ))}
+              {allowedEmails.extra_emails.map((email) => (
+                <li key={email}>
+                  {email}
+                  <button
+                    className="settings-access-remove"
+                    onClick={() => removeEmail(email)}
+                    disabled={accessBusy}
+                    aria-label={`Remove ${email}`}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <input
+              placeholder="Email to grant access to"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              aria-invalid={!!accessError}
+            />
+            {accessError && <small className="settings-hint invalid">{accessError}</small>}
+            <button onClick={addEmail} disabled={!newEmail.trim() || accessBusy}>
+              {accessBusy ? "Adding…" : "Add"}
+            </button>
+          </div>
+        )}
 
         <div className="settings-actions">
           <button className="settings-reset" onClick={reset} disabled={!loaded || atDefaults || saving}>

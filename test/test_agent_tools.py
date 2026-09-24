@@ -1,9 +1,28 @@
 import agent.agent as agent_module
 
 
+def _tool_name(t):
+    # Plain functions expose __name__; tools wrapped in
+    # FunctionTool(..., require_confirmation=True) (APPCE-91) expose .name
+    # instead and have no __name__ at all.
+    return getattr(t, "name", None) or t.__name__
+
+
+def _tool_by_name(tools, name):
+    return next(t for t in tools if _tool_name(t) == name)
+
+
+def _callable(t):
+    # A FunctionTool isn't directly callable like a plain function — .func
+    # is the actual wrapper with owner_uid/tenant_id already bound, which
+    # is what these tests care about (the confirmation gate itself is
+    # tested separately, in test_api_chat.py).
+    return t.func if hasattr(t, "func") else t
+
+
 def test_the_agents_facts_tool_is_capped_and_says_so():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
-    tool = next(t for t in tool_agent.tools if t.__name__ == "get_tenant_facts")
+    tool = _tool_by_name(tool_agent.tools, "get_tenant_facts")
 
     # The wrapper looks get_tenant_facts up at call time, so patching after
     # build_agent leaves the docstring copy (which needs the real one) alone.
@@ -29,7 +48,7 @@ def test_the_agents_facts_tool_is_capped_and_says_so():
 
 def test_set_github_repo_has_owner_uid_and_tenant_id_bound():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
-    tool = next(t for t in tool_agent.tools if t.__name__ == "set_github_repo")
+    tool = _tool_by_name(tool_agent.tools, "set_github_repo")
 
     seen = {}
 
@@ -41,7 +60,7 @@ def test_set_github_repo_has_owner_uid_and_tenant_id_bound():
     try:
         # The model only ever supplies github_repo — neither tenant_id nor
         # owner_uid is part of the callable signature it sees (APPCE-47/48).
-        tool("owner/repo")
+        _callable(tool)("owner/repo")
     finally:
         agent_module.set_github_repo = original
 
@@ -50,7 +69,7 @@ def test_set_github_repo_has_owner_uid_and_tenant_id_bound():
 
 def test_get_github_status_has_owner_uid_and_tenant_id_bound():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
-    tool = next(t for t in tool_agent.tools if t.__name__ == "get_github_status")
+    tool = _tool_by_name(tool_agent.tools, "get_github_status")
 
     seen = {}
 
@@ -70,7 +89,7 @@ def test_get_github_status_has_owner_uid_and_tenant_id_bound():
 
 def test_get_jira_status_resolves_the_project_key_and_the_users_own_credentials():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
-    tool = next(t for t in tool_agent.tools if t.__name__ == "get_jira_status")
+    tool = _tool_by_name(tool_agent.tools, "get_jira_status")
 
     calls = []
 
@@ -102,7 +121,7 @@ def test_get_jira_status_returns_an_error_result_when_the_tenant_has_no_linked_p
     # result the model can read, it crashes the whole turn instead (see
     # APPCE-83) — this must come back as a normal {"error": ...} result.
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
-    tool = next(t for t in tool_agent.tools if t.__name__ == "get_jira_status")
+    tool = _tool_by_name(tool_agent.tools, "get_jira_status")
 
     original_owned = agent_module.get_owned_tenant
     agent_module.get_owned_tenant = lambda tenant_id, owner_uid: {}
@@ -116,7 +135,7 @@ def test_get_jira_status_returns_an_error_result_when_the_tenant_has_no_linked_p
 
 def test_get_jira_status_returns_an_error_result_when_the_user_has_no_jira_connection():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
-    tool = next(t for t in tool_agent.tools if t.__name__ == "get_jira_status")
+    tool = _tool_by_name(tool_agent.tools, "get_jira_status")
 
     original_owned = agent_module.get_owned_tenant
     original_creds = agent_module.get_jira_credentials
@@ -133,7 +152,7 @@ def test_get_jira_status_returns_an_error_result_when_the_user_has_no_jira_conne
 
 def test_get_github_status_returns_an_error_result_instead_of_raising():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
-    tool = next(t for t in tool_agent.tools if t.__name__ == "get_github_status")
+    tool = _tool_by_name(tool_agent.tools, "get_github_status")
 
     original = agent_module.get_github_status
     agent_module.get_github_status = lambda owner_uid, tenant_id: (_ for _ in ()).throw(
@@ -149,14 +168,14 @@ def test_get_github_status_returns_an_error_result_instead_of_raising():
 
 def test_set_github_repo_returns_an_error_result_for_a_malformed_repo():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
-    tool = next(t for t in tool_agent.tools if t.__name__ == "set_github_repo")
+    tool = _tool_by_name(tool_agent.tools, "set_github_repo")
 
     original = agent_module.set_github_repo
     agent_module.set_github_repo = lambda tenant_id, github_repo, owner_uid: (_ for _ in ()).throw(
         ValueError("'not-a-repo' doesn't look like a GitHub 'owner/name' repo.")
     )
     try:
-        result = tool("not-a-repo")
+        result = _callable(tool)("not-a-repo")
     finally:
         agent_module.set_github_repo = original
 
@@ -165,7 +184,7 @@ def test_set_github_repo_returns_an_error_result_for_a_malformed_repo():
 
 def test_tenant_lifecycle_tools_are_not_exposed_to_the_model():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
-    tool_names = {t.__name__ for t in tool_agent.tools}
+    tool_names = {_tool_name(t) for t in tool_agent.tools}
 
     # Creating/renaming/deleting projects is UI-only now (see api/main.py's
     # /tenants endpoints) — the agent has nothing to scope those to.

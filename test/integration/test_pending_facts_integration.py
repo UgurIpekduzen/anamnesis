@@ -6,6 +6,7 @@ from src import pending_facts as pending_facts_module
 from src.pending_facts import (
     approve_pending_fact,
     create_pending_fact,
+    has_pending_fact_for_source,
     list_pending_facts,
     reject_pending_fact,
 )
@@ -34,6 +35,22 @@ def test_a_created_pending_fact_is_listed(tenant_id):
     assert listed[0]["category"] == "architecture"
     assert listed[0]["source"] == "github"
     assert listed[0]["source_url"] == "https://github.com/o/r/pull/1"
+
+
+def test_has_pending_fact_for_source_matches_only_that_url(tenant_id):
+    create_pending_fact(tenant_id, "A fact", "architecture", "github", "https://github.com/o/r/pull/1", OWNER_UID)
+
+    assert has_pending_fact_for_source(tenant_id, "https://github.com/o/r/pull/1") is True
+    assert has_pending_fact_for_source(tenant_id, "https://github.com/o/r/pull/2") is False
+
+
+def test_has_pending_fact_for_source_is_false_once_the_fact_is_rejected(tenant_id):
+    pending_id = create_pending_fact(
+        tenant_id, "A fact", "architecture", "github", "https://github.com/o/r/pull/1", OWNER_UID
+    )
+    reject_pending_fact(tenant_id, pending_id, OWNER_UID)
+
+    assert has_pending_fact_for_source(tenant_id, "https://github.com/o/r/pull/1") is False
 
 
 def test_create_pending_fact_rejects_an_invalid_category(tenant_id):

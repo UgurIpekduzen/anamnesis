@@ -53,6 +53,57 @@
   color: var(--text-muted);
 }
 
+/* A require_confirmation=True tool call waiting on approve/reject
+   (APPCE-91) — deliberately inline, not a modal: it's a normal part of
+   the conversation flow, not a separate decision blocking the whole app. */
+.chat-confirm {
+  align-self: flex-start;
+  max-width: 80%;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.chat-confirm-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.chat-confirm-args {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.chat-confirm-args td {
+  padding: 2px 8px 2px 0;
+  vertical-align: top;
+  color: var(--text-muted);
+}
+
+.chat-confirm-args td:first-child {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.chat-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.chat-confirm-approve {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0e1117;
+}
+
+.chat-confirm-approve:hover {
+  background: var(--accent-hover);
+}
+
 .chat-input-row {
   display: flex;
   gap: 8px;

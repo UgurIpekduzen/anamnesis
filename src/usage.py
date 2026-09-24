@@ -1,5 +1,7 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
+
+from google.cloud import firestore
 
 from src.firestore_client import get_client
 
@@ -9,24 +11,51 @@ from src.firestore_client import get_client
 # quota/cost problem (see APPCE-49).
 DAILY_MESSAGE_WARNING_THRESHOLD = int(os.environ.get("DAILY_MESSAGE_WARNING_THRESHOLD", 100))
 
+# The enforced ceiling (APPCE-102), as opposed to the soft warning above:
+# messages past it are refused before any model call is made. It is a cost
+# backstop against a runaway or stolen session, not a product quota — normal
+# use should never see it. Deliberately an environment variable and not a
+# user setting, so nobody can raise their own ceiling. A message can trigger
+# up to MAX_LLM_CALLS_PER_TURN model calls, so this bounds messages, not
+# tokens.
+DAILY_MESSAGE_HARD_LIMIT = int(os.environ.get("DAILY_MESSAGE_HARD_LIMIT", 200))
+
+
+class DailyLimitExceeded(Exception):
+    def __init__(self, limit: int):
+        super().__init__(f"Daily message limit of {limit} reached")
+        self.limit = limit
+
+
+@firestore.transactional
+def _count_message(transaction, doc_ref, today: str, limit: int) -> int:
+    snapshot = doc_ref.get(transaction=transaction)
+    data = snapshot.to_dict() if snapshot.exists else {}
+    current = data.get("message_count", 0) if data.get("date") == today else 0
+    if current >= limit:
+        # Nothing is written, so refused messages don't inflate the count.
+        raise DailyLimitExceeded(limit)
+    transaction.set(doc_ref, {"date": today, "message_count": current + 1})
+    return current + 1
+
 
 def record_message(owner_uid: str) -> int:
-    """Record one chat message for owner_uid and return today's running
+    """Count one chat message for owner_uid and return today's running
     count (UTC calendar day).
 
-    This is a read-then-write, not a transaction — acceptable here since
-    it only drives a soft UI warning, not an enforced limit, and this
-    project doesn't expect concurrent messages from the same owner_uid.
+    Raises DailyLimitExceeded, without counting, once the day's hard limit
+    is reached. The read and the write happen in one transaction, so two
+    messages sent at the same moment can't both slip under the limit.
     """
     today = datetime.now(timezone.utc).date().isoformat()
-    client = get_client()
-    doc_ref = client.collection("usage").document(owner_uid)
-    doc = doc_ref.get()
-    data = doc.to_dict() if doc.exists else {}
+    doc_ref = get_client().collection("usage").document(owner_uid)
+    return _count_message(get_client().transaction(), doc_ref, today, DAILY_MESSAGE_HARD_LIMIT)
 
-    count = data.get("message_count", 0) + 1 if data.get("date") == today else 1
-    doc_ref.set({"date": today, "message_count": count})
-    return count
+
+def next_reset_at() -> datetime:
+    """When the day's count starts over: the next midnight UTC."""
+    tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
+    return datetime.combine(tomorrow, time.min, tzinfo=timezone.utc)
 
 
 def get_today_count(owner_uid: str) -> int:

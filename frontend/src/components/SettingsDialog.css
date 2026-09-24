@@ -155,6 +155,45 @@
   cursor: default;
 }
 
+.settings-access-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-access-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.settings-access-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.settings-access-remove:hover:not(:disabled) {
+  color: var(--error-text);
+}
+
+.settings-access-remove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* The browser's built-in number stepper is light-colored and clashes with
    the dark theme. Typing and the ↑/↓ keys still work without it. */
 .settings-field input[type="number"] {

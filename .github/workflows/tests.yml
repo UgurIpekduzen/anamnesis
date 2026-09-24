@@ -1,0 +1,42 @@
+name: Tests
+
+# The same test run main.yml does before deploying, but on every pull
+# request — so a red test shows up on the PR, not after the merge. Nothing
+# here touches GCP: the emulators stand in for Firestore and Pub/Sub, so no
+# credentials are needed.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.9.30"
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Start Firestore and Pub/Sub emulators
+        run: |
+          docker run -d --name firestore-emulator -p 8080:8080 gcr.io/google.com/cloudsdktool/cloud-sdk:emulators gcloud emulators firestore start --host-port=0.0.0.0:8080
+          docker run -d --name pubsub-emulator -p 8085:8085 gcr.io/google.com/cloudsdktool/cloud-sdk:emulators gcloud beta emulators pubsub start --project=anamnesis-local --host-port=0.0.0.0:8085
+
+      - name: Wait for emulators to be ready
+        run: |
+          for i in $(seq 1 30); do (echo > /dev/tcp/localhost/8080) 2>/dev/null && break; sleep 1; done
+          for i in $(seq 1 30); do (echo > /dev/tcp/localhost/8085) 2>/dev/null && break; sleep 1; done
+
+      - name: Run tests
+        env:
+          FIRESTORE_EMULATOR_HOST: localhost:8080
+          PUBSUB_EMULATOR_HOST: localhost:8085
+          GCP_PROJECT_ID: anamnesis-local
+        run: uv run --frozen pytest test/ -v

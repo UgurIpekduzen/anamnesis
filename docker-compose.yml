@@ -19,6 +19,26 @@ services:
       - ~/.config/gcloud:/root/.config/gcloud:ro
     entrypoint: ["terraform"]
 
+  uv:
+    # uv runs in a container like gcloud/terraform above — nothing is
+    # installed on the host (APPCE-96). The environment is built inside the
+    # container (/tmp, gone with it), not in ./.venv: a venv created there
+    # points at the container's Python and would be broken on the host.
+    # A named volume would persist it, but Docker creates those root-owned,
+    # which this non-root user can't write to.
+    image: ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+    # Runs as the invoking user so uv.lock etc. aren't written root-owned
+    # into the repo (override with UV_UID/UV_GID if yours isn't 1000).
+    user: "${UV_UID:-1000}:${UV_GID:-1000}"
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      UV_PROJECT_ENVIRONMENT: /tmp/venv
+      UV_LINK_MODE: copy
+      UV_CACHE_DIR: /tmp/uv-cache
+    entrypoint: ["uv"]
+
   api:
     build:
       context: .

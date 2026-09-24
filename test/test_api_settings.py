@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 
 # api.deps reads these at import time.
 os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
@@ -106,4 +107,22 @@ def test_usage_reports_the_users_own_threshold(api, monkeypatch):
         api_main, "get_settings", lambda owner_uid: {"history_turns": 20, "daily_message_warning_threshold": 7}
     )
 
-    assert client.get("/usage").json() == {"count": 3, "threshold": 7}
+    body = client.get("/usage").json()
+
+    assert (body["count"], body["threshold"]) == (3, 7)
+
+
+def test_usage_reports_the_hard_limit_and_when_it_resets(api, monkeypatch):
+    client, _ = api
+    monkeypatch.setattr(api_main, "get_today_count", lambda owner_uid: 3)
+    monkeypatch.setattr(
+        api_main, "get_settings", lambda owner_uid: {"history_turns": 20, "daily_message_warning_threshold": 7}
+    )
+    monkeypatch.setattr(api_main, "DAILY_MESSAGE_HARD_LIMIT", 150)
+
+    body = client.get("/usage").json()
+
+    assert body["limit"] == 150
+    reset = datetime.fromisoformat(body["resets_at"])
+    assert reset > datetime.now(timezone.utc)
+    assert (reset.hour, reset.minute, reset.second) == (0, 0, 0)

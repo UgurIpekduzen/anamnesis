@@ -33,6 +33,29 @@ class FakeEvent:
         return True
 
 
+class FakeConfirmationEvent:
+    """Mimics the synthetic event ADK yields for a require_confirmation=True
+    tool (APPCE-91) — a lone adk_request_confirmation function call wrapping
+    the real tool's name/args, no final content yet."""
+
+    def __init__(self, request_id, original_name, original_args):
+        self.content = None
+        self._call = SimpleNamespace(
+            name="adk_request_confirmation",
+            id=request_id,
+            args={"originalFunctionCall": {"name": original_name, "args": original_args}},
+        )
+
+    def get_function_calls(self):
+        return [self._call]
+
+    def get_function_responses(self):
+        return []
+
+    def is_final_response(self):
+        return False
+
+
 class FakeSessionService:
     def __init__(self):
         self.deleted = []
@@ -49,17 +72,22 @@ class FakeRunner:
         self.fail = False
         self.silent = False  # runs to completion without ever producing an answer
         self.session_service = FakeSessionService()
+        # Queue of event lists, one per run() call — overrides the default
+        # single-FakeEvent("hi") behavior when set. Used to script a
+        # confirmation request followed by its resumed, real answer.
+        self.script: list[list] | None = None
 
     def run(self, *, user_id, session_id, new_message, run_config):
-        self.calls.append(
-            {
-                "session_id": session_id,
-                "run_config": run_config,
-                "text": new_message.parts[0].text,
-            }
-        )
+        # A confirm_response resumes with a function_response Part, not
+        # text — new_message.parts[0].text would be None for those, which
+        # is fine for the assertions that care (they check .args instead).
+        text = new_message.parts[0].text if new_message.parts[0].function_response is None else None
+        self.calls.append({"session_id": session_id, "run_config": run_config, "text": text})
         if self.fail:
             raise RuntimeError("boom")
+        if self.script is not None:
+            yield from self.script.pop(0)
+            return
         if not self.silent:
             yield FakeEvent("hi")
 
@@ -99,6 +127,9 @@ def chat(monkeypatch, spies):
     monkeypatch.setattr(
         api_main, "get_settings", lambda owner_uid: {"history_turns": 7, "daily_message_warning_threshold": 100}
     )
+    # `with client:` runs the app's lifespan, which would seed categories in
+    # real Firestore (APPCE-93) — a unit test mustn't depend on that.
+    monkeypatch.setattr(api_main, "ensure_categories_seeded", lambda: None)
     monkeypatch.setattr(api_main, "verify_token", lambda token: OWNER)
     monkeypatch.setattr(api_main, "get_owned_tenant", lambda tenant_id, owner_uid: {"name": "Some Tenant"})
     monkeypatch.setattr(api_main, "get_runner", lambda owner_uid, tenant_id: runner)
@@ -148,6 +179,81 @@ def test_an_agent_failure_becomes_an_error_frame_and_keeps_the_socket_open(chat)
         runner.fail = False
         ws.send_json({"message": "hello again"})
         assert ws.receive_json() == {"type": "final", "text": "hi"}
+
+
+def test_a_confirmation_request_is_sent_and_not_leaked_into_the_trace(chat):
+    client, runner, _ = chat
+    runner.script = [[FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})]]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "delete that fact"})
+        # Only the confirm_required frame — no tool_call for
+        # adk_request_confirmation, and no "final" yet.
+        assert ws.receive_json() == {
+            "type": "confirm_required",
+            "id": "req-1",
+            "tool_name": "delete_fact",
+            "args": {"fact_id": "f1"},
+        }
+
+
+def test_confirming_resumes_the_turn_and_saves_the_original_question(chat, spies):
+    client, runner, _ = chat
+    runner.script = [
+        [FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})],
+        [FakeEvent("Deleted it.")],
+    ]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "delete that fact"})
+        assert ws.receive_json()["type"] == "confirm_required"
+
+        ws.send_json({"type": "confirm_response", "confirmed": True})
+        assert ws.receive_json() == {"type": "final", "text": "Deleted it."}
+
+    # The resume call carried a FunctionResponse answering req-1, not text.
+    assert runner.calls[1]["text"] is None
+    # The saved turn uses the ORIGINAL question, not "confirm_response".
+    assert spies.saved == [("some_tenant", OWNER, "delete that fact", "Deleted it.")]
+
+
+def test_rejecting_resumes_the_turn_too(chat):
+    client, runner, _ = chat
+    runner.script = [
+        [FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})],
+        [FakeEvent("Okay, I won't delete it.")],
+    ]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "delete that fact"})
+        assert ws.receive_json()["type"] == "confirm_required"
+
+        ws.send_json({"type": "confirm_response", "confirmed": False})
+        assert ws.receive_json() == {"type": "final", "text": "Okay, I won't delete it."}
+
+
+def test_a_confirm_response_with_nothing_pending_is_rejected(chat):
+    client, runner, _ = chat
+    with open_chat(client) as ws:
+        ws.send_json({"type": "confirm_response", "confirmed": True})
+        assert ws.receive_json()["type"] == "error"
+    assert runner.calls == []
+
+
+def test_a_new_message_while_a_confirmation_is_pending_is_rejected(chat):
+    client, runner, _ = chat
+    runner.script = [[FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})]]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "delete that fact"})
+        assert ws.receive_json()["type"] == "confirm_required"
+
+        ws.send_json({"message": "something else entirely"})
+        assert ws.receive_json()["type"] == "error"
+
+    # Only the first message ever reached the agent — the second was
+    # rejected before touching it.
+    assert len(runner.calls) == 1
 
 
 def test_reset_deletes_the_server_side_session(chat):
@@ -318,30 +424,79 @@ def test_a_running_turn_does_not_block_other_requests(chat, monkeypatch):
     assert elapsed < 0.4
 
 
-def test_the_model_call_does_not_wait_for_the_usage_write(chat, monkeypatch):
+def test_the_message_is_counted_before_the_model_is_called(chat, monkeypatch):
+    # The hard daily limit (APPCE-102) can only refuse a message if it is
+    # decided before the agent starts, so the count is waited for.
     client, runner, _ = chat
-    agent_started = threading.Event()
-    waited_for_agent = []
+    order = []
 
-    def slow_usage(owner_uid):
-        # Only returns True if the agent started while this was still
-        # running — i.e. the two ran side by side, not one after the other.
-        waited_for_agent.append(agent_started.wait(2))
-
+    monkeypatch.setattr(api_main, "record_message", lambda owner_uid: order.append("counted"))
     original_run = runner.run
 
     def run(**kwargs):
-        agent_started.set()
+        order.append("agent")
         yield from original_run(**kwargs)
 
-    monkeypatch.setattr(api_main, "record_message", slow_usage)
     monkeypatch.setattr(runner, "run", run)
 
     with open_chat(client) as ws:
         ws.send_json({"message": "hello"})
         assert ws.receive_json()["type"] == "final"
 
-    assert waited_for_agent == [True]
+    assert order == ["counted", "agent"]
+
+
+def _over_the_limit(monkeypatch):
+    def refuse(owner_uid):
+        raise api_main.DailyLimitExceeded(200)
+
+    monkeypatch.setattr(api_main, "record_message", refuse)
+
+
+def test_a_message_over_the_daily_limit_never_reaches_the_agent(chat, spies, monkeypatch):
+    client, runner, _ = chat
+    _over_the_limit(monkeypatch)
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "hello"})
+        reply = ws.receive_json()
+
+    assert reply["type"] == "error"
+    assert "200" in reply["message"]
+    assert runner.calls == []
+    assert spies.saved == []
+
+
+def test_the_connection_survives_a_refused_message(chat, monkeypatch):
+    client, runner, _ = chat
+    _over_the_limit(monkeypatch)
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "hello"})
+        assert ws.receive_json()["type"] == "error"
+        # Still open: a later message is judged on its own (e.g. after the
+        # day rolls over) and reaches the agent.
+        monkeypatch.setattr(api_main, "record_message", lambda owner_uid: 1)
+        ws.send_json({"message": "again"})
+        assert ws.receive_json() == {"type": "final", "text": "hi"}
+
+    assert len(runner.calls) == 1
+
+
+def test_answering_a_confirmation_is_not_counted_as_another_message(chat, monkeypatch):
+    client, runner, recorded = chat
+    runner.script = [
+        [FakeConfirmationEvent("call-1", "publish_fact", {"content": "x", "category": "decision"})],
+        [FakeEvent("done")],
+    ]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "remember x"})
+        assert ws.receive_json()["type"] == "confirm_required"
+        ws.send_json({"type": "confirm_response", "confirmed": True})
+        assert ws.receive_json()["type"] == "final"
+
+    assert len(recorded) == 1
 
 
 def test_a_failing_usage_write_does_not_break_the_conversation(chat, monkeypatch):

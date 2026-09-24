@@ -18,12 +18,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      # uv installs from uv.lock exactly (--frozen), so a merge never deploys
+      # whatever happens to be the newest release that day (APPCE-96).
+      - uses: astral-sh/setup-uv@v5
         with:
+          version: "0.9.30"
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: uv sync --frozen
 
       - name: Start Firestore and Pub/Sub emulators
         run: |
@@ -40,7 +43,7 @@ jobs:
           FIRESTORE_EMULATOR_HOST: localhost:8080
           PUBSUB_EMULATOR_HOST: localhost:8085
           GCP_PROJECT_ID: anamnesis-local
-        run: pytest test/ -v
+        run: uv run --frozen pytest test/ -v
 
       - id: auth
         uses: google-github-actions/auth@v2
