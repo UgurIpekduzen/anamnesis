@@ -182,6 +182,64 @@ tasks:
     cmds:
       - docker compose run --rm gcloud secrets versions access latest --secret=github-token-encryption-key
 
+  secrets:github-key:rotate:
+    desc: Start a key rotation (APPCE-103) — put a new key in front of the current one, so new tokens use it and old ones stay readable. Then run, in order, reload, reencrypt and retire. SECRET=<name> targets another secret, for a rehearsal only.
+    vars:
+      SECRET: '{{.SECRET | default "github-token-encryption-key"}}'
+    cmds:
+      - |
+        # The app must already be running code that can read a list of keys
+        # (APPCE-103): an older one reads "new,old" as a single, invalid key
+        # and fails on the first token. Refuse to start unless the deployed
+        # image was built from a commit that contains that change.
+        DEPLOYED=$(docker compose run --rm -T gcloud run services describe anamnesis-app --region=us-central1 --format="value(spec.template.spec.containers[0].image)" | tr -d '\r\n' | sed 's/.*://')
+        if [ "{{.SECRET}}" = "github-token-encryption-key" ] && ! git merge-base --is-ancestor d628757 "$DEPLOYED" 2>/dev/null; then
+          echo "The deployed app ($DEPLOYED) predates multi-key support. Deploy a version that includes commit d628757 first." >&2
+          exit 1
+        fi
+        CURRENT=$(docker compose run --rm -T gcloud secrets versions access latest --secret={{.SECRET}} | tr -d '\r\n')
+        case "$CURRENT" in
+          "") echo "Couldn't read the current key." >&2; exit 1 ;;
+          *,*) echo "A rotation is already in progress (two keys are stored). Finish it first: reencrypt, then retire." >&2; exit 1 ;;
+        esac
+        NEW=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+        printf '%s,%s' "$NEW" "$CURRENT" | docker compose run --rm -T gcloud secrets versions add {{.SECRET}} --data-file=-
+
+  secrets:github-key:reload:
+    desc: Start a new revision of anamnesis-app so it re-reads the key (a secret marked "latest" is only resolved when a revision starts). Adds a label, so the next Terraform plan will show it as drift.
+    cmds:
+      - docker compose run --rm gcloud run services update anamnesis-app --region=us-central1 --update-labels=key-rotated=$(date +%s)
+
+  secrets:github-key:reencrypt:
+    desc: Re-encrypt every stored GitHub/Jira token with the newest key (safe to re-run; reports tokens no key can read)
+    cmds:
+      - docker compose build api
+      - |
+        KEYS=$(docker compose run --rm -T gcloud secrets versions access latest --secret=github-token-encryption-key | tr -d '\r\n')
+        docker compose run --rm -e GITHUB_TOKEN_ENCRYPTION_KEY="$KEYS" api python -m src.key_rotation reencrypt
+
+  secrets:github-key:retire:
+    desc: Finish a rotation — keep only the newest key and disable the older secret versions. Refuses if any stored token still needs an older key (run reencrypt first). SECRET=<name> targets another secret, for a rehearsal only.
+    vars:
+      SECRET: '{{.SECRET | default "github-token-encryption-key"}}'
+    cmds:
+      - |
+        KEYS=$(docker compose run --rm -T gcloud secrets versions access latest --secret={{.SECRET}} | tr -d '\r\n')
+        case "$KEYS" in
+          *,*) ;;
+          *) echo "Only one key is stored — nothing to retire."; exit 0 ;;
+        esac
+        PRIMARY=${KEYS%%,*}
+        docker compose build api
+        docker compose run --rm -e GITHUB_TOKEN_ENCRYPTION_KEY="$PRIMARY" api python -m src.key_rotation check \
+          || { echo "Some tokens still need an older key — run reencrypt first. Nothing was changed." >&2; exit 1; }
+        printf '%s' "$PRIMARY" | docker compose run --rm -T gcloud secrets versions add {{.SECRET}} --data-file=-
+        # Versions list newest first: skip the one just added, disable the rest.
+        for v in $(docker compose run --rm -T gcloud secrets versions list {{.SECRET}} --filter="state=ENABLED" --format="value(name)" | tr -d '\r' | tail -n +2); do
+          docker compose run --rm -T gcloud secrets versions disable "$v" --secret={{.SECRET}}
+        done
+        echo "Done. Run task secrets:github-key:reload so the app loads the single key."
+
   secrets:github-key:init:
     desc: One-time setup — generate a Fernet key and store it as the GitHub token encryption secret. Safe to re-run; skips if a version already exists (overwriting it would break already-encrypted tokens).
     cmds:
