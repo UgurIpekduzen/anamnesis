@@ -110,3 +110,36 @@ resource "google_service_account_iam_member" "github_actions_plan_wif" {
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_actions.name}/attribute.repository/UgurIpekduzen/anamnesis"
 }
+
+resource "google_project_iam_member" "github_actions_security_reviewer" {
+  project = var.project_id
+  role    = "roles/iam.securityReviewer"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "github_actions_image_push" {
+  repository = google_artifact_registry_repository.app_images.name
+  location   = google_artifact_registry_repository.app_images.location
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "github_actions_ui_deploy" {
+  name     = google_cloud_run_v2_service.ui.name
+  location = var.region
+  role     = "roles/run.developer"
+  member   = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "github_actions_subscriber_deploy" {
+  name     = google_cloud_run_v2_service.subscriber.name
+  location = var.region
+  role     = "roles/run.developer"
+  member   = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+resource "google_service_account_iam_member" "github_actions_act_as_agent" {
+  service_account_id = google_service_account.agent_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.github_actions.email}"
+}
