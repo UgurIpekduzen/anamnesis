@@ -31,7 +31,7 @@ export type TraceAction = ChatEvent & { at: number };
 
 // Old turns only matter for a quick look back; this keeps memory bounded
 // in a long session.
-export const MAX_TURNS = 20;
+const MAX_TURNS = 20;
 
 function updateLastTurn(turns: TraceTurn[], update: (turn: TraceTurn) => TraceTurn): TraceTurn[] {
   if (turns.length === 0) return turns;

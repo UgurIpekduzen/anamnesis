@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 
 from src.github_activity import fetch_recent_issues, fetch_recent_pull_requests
 from src.github_fact_extraction import extract_facts

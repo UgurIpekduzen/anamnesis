@@ -188,7 +188,7 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
       //
       // A close that interrupts an in-flight question (isThinking still
       // true) is surfaced as a friendly error instead of silently
-      // vanishing — mirrors app/chat.py's try/except in the Streamlit UI.
+      // vanishing.
       socket.onclose = (event) => {
         if (socketRef.current === socket) setConnected(false);
         setPendingConfirmation(null);

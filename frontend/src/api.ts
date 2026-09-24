@@ -247,7 +247,7 @@ export async function disconnectJira(idToken: string): Promise<JiraConnection> {
   return res.json();
 }
 
-export interface SavedTurn {
+interface SavedTurn {
   question: string;
   answer: string;
   created_at: string;
