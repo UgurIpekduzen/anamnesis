@@ -424,30 +424,79 @@ def test_a_running_turn_does_not_block_other_requests(chat, monkeypatch):
     assert elapsed < 0.4
 
 
-def test_the_model_call_does_not_wait_for_the_usage_write(chat, monkeypatch):
+def test_the_message_is_counted_before_the_model_is_called(chat, monkeypatch):
+    # The hard daily limit (APPCE-102) can only refuse a message if it is
+    # decided before the agent starts, so the count is waited for.
     client, runner, _ = chat
-    agent_started = threading.Event()
-    waited_for_agent = []
+    order = []
 
-    def slow_usage(owner_uid):
-        # Only returns True if the agent started while this was still
-        # running — i.e. the two ran side by side, not one after the other.
-        waited_for_agent.append(agent_started.wait(2))
-
+    monkeypatch.setattr(api_main, "record_message", lambda owner_uid: order.append("counted"))
     original_run = runner.run
 
     def run(**kwargs):
-        agent_started.set()
+        order.append("agent")
         yield from original_run(**kwargs)
 
-    monkeypatch.setattr(api_main, "record_message", slow_usage)
     monkeypatch.setattr(runner, "run", run)
 
     with open_chat(client) as ws:
         ws.send_json({"message": "hello"})
         assert ws.receive_json()["type"] == "final"
 
-    assert waited_for_agent == [True]
+    assert order == ["counted", "agent"]
+
+
+def _over_the_limit(monkeypatch):
+    def refuse(owner_uid):
+        raise api_main.DailyLimitExceeded(200)
+
+    monkeypatch.setattr(api_main, "record_message", refuse)
+
+
+def test_a_message_over_the_daily_limit_never_reaches_the_agent(chat, spies, monkeypatch):
+    client, runner, _ = chat
+    _over_the_limit(monkeypatch)
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "hello"})
+        reply = ws.receive_json()
+
+    assert reply["type"] == "error"
+    assert "200" in reply["message"]
+    assert runner.calls == []
+    assert spies.saved == []
+
+
+def test_the_connection_survives_a_refused_message(chat, monkeypatch):
+    client, runner, _ = chat
+    _over_the_limit(monkeypatch)
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "hello"})
+        assert ws.receive_json()["type"] == "error"
+        # Still open: a later message is judged on its own (e.g. after the
+        # day rolls over) and reaches the agent.
+        monkeypatch.setattr(api_main, "record_message", lambda owner_uid: 1)
+        ws.send_json({"message": "again"})
+        assert ws.receive_json() == {"type": "final", "text": "hi"}
+
+    assert len(runner.calls) == 1
+
+
+def test_answering_a_confirmation_is_not_counted_as_another_message(chat, monkeypatch):
+    client, runner, recorded = chat
+    runner.script = [
+        [FakeConfirmationEvent("call-1", "publish_fact", {"content": "x", "category": "decision"})],
+        [FakeEvent("done")],
+    ]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "remember x"})
+        assert ws.receive_json()["type"] == "confirm_required"
+        ws.send_json({"type": "confirm_response", "confirmed": True})
+        assert ws.receive_json()["type"] == "final"
+
+    assert len(recorded) == 1
 
 
 def test_a_failing_usage_write_does_not_break_the_conversation(chat, monkeypatch):

@@ -23,7 +23,7 @@ from src.jira_client import validate_jira_credentials
 from src.jira_connections import delete_jira_connection, has_jira_connection, save_jira_credentials
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.tenants import add_tenant, delete_tenant, get_owned_tenant, list_tenants, rename_tenant
-from src.usage import get_today_count, record_message
+from src.usage import DAILY_MESSAGE_HARD_LIMIT, DailyLimitExceeded, get_today_count, next_reset_at, record_message
 
 # Token-cost guards (see APPCE-59). A message stays in the session history
 # and is resent on every model call of the following turns, so an
@@ -226,6 +226,8 @@ def get_usage(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
     return {
         "count": get_today_count(owner_uid),
         "threshold": get_settings(owner_uid)["daily_message_warning_threshold"],
+        "limit": DAILY_MESSAGE_HARD_LIMIT,
+        "resets_at": next_reset_at().isoformat(),
     }
 
 
@@ -547,12 +549,10 @@ async def chat(websocket: WebSocket, tenant_id: str):
     # Set while a require_confirmation=True tool (APPCE-91) is waiting on
     # the user's approve/reject — the id of ADK's own synthetic
     # adk_request_confirmation call, not the original tool call's id.
-    # pending_question/pending_usage_task carry the original question and
-    # its in-flight usage-recording task across the round trip, so the
-    # eventual answer still gets attributed and saved correctly.
+    # pending_question carries the original question across the round trip,
+    # so the eventual answer still gets saved correctly.
     pending_confirmation_id: str | None = None
     pending_question: str | None = None
-    pending_usage_task: asyncio.Task | None = None
 
     try:
         while True:
@@ -595,7 +595,6 @@ async def chat(websocket: WebSocket, tenant_id: str):
                     ],
                 )
                 question = pending_question
-                usage_task = pending_usage_task
                 pending_confirmation_id = None
             else:
                 if pending_confirmation_id is not None:
@@ -617,12 +616,26 @@ async def chat(websocket: WebSocket, tenant_id: str):
                     )
                     continue
 
-                # The usage counter is a soft UI warning, so the model call
-                # doesn't wait for it: it runs alongside the turn and is
-                # awaited once the turn is done.
-                usage_task = asyncio.create_task(
-                    _best_effort(record_message, owner_uid, what="record message usage")
-                )
+                # The hard daily limit (APPCE-102) has to be decided before
+                # any model call is made, so — unlike the other Firestore
+                # calls here — this one is waited for. Counting and checking
+                # are one transaction, so concurrent messages can't both
+                # pass. Only the limit refuses a message: if Firestore itself
+                # fails the counter is unavailable, and that is logged rather
+                # than locking the user out (chat history and sessions
+                # depend on the same Firestore anyway).
+                try:
+                    await asyncio.to_thread(record_message, owner_uid)
+                except DailyLimitExceeded as exc:
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "message": f"Daily message limit of {exc.limit} reached. It resets at midnight UTC.",
+                        }
+                    )
+                    continue
+                except Exception as exc:
+                    print(f"Couldn't record message usage: {exc!r}")
                 # No "[Project: X]" prefix needed — the runner's Agent is
                 # already scoped to this one tenant (see api/runner.py).
                 message = types.Content(role="user", parts=[types.Part(text=question)])
@@ -663,18 +676,15 @@ async def chat(websocket: WebSocket, tenant_id: str):
                     }
                 )
                 pending_question = None
-                await usage_task
                 continue
 
             if confirmation:
                 pending_confirmation_id = confirmation["id"]
                 pending_question = question
-                pending_usage_task = usage_task
                 await websocket.send_json(confirmation)
                 continue
 
             await websocket.send_json({"type": "final", "text": final_text or "(no response)"})
-            await usage_task
 
             # Only a real answer is worth saving; a turn that produced none
             # would restore as a question the model never answered.
