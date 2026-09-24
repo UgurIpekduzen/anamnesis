@@ -80,3 +80,32 @@ resource "google_project_iam_member" "github_actions_wif_pool_admin" {
   role    = "roles/iam.workloadIdentityPoolAdmin"
   member  = "serviceAccount:${google_service_account.github_actions.email}"
 }
+
+resource "google_service_account" "github_actions_plan" {
+  account_id   = "github-actions-plan"
+  display_name = "GitHub Actions PR plan (read-only)"
+}
+
+resource "google_project_iam_member" "github_actions_plan_viewer" {
+  project = var.project_id
+  role    = "roles/viewer"
+  member  = "serviceAccount:${google_service_account.github_actions_plan.email}"
+}
+
+resource "google_project_iam_member" "github_actions_plan_security_reviewer" {
+  project = var.project_id
+  role    = "roles/iam.securityReviewer"
+  member  = "serviceAccount:${google_service_account.github_actions_plan.email}"
+}
+
+resource "google_storage_bucket_iam_member" "github_actions_plan_tfstate" {
+  bucket = "anamnesis-tfstate-gen-lang-client-0424267124"
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.github_actions_plan.email}"
+}
+
+resource "google_service_account_iam_member" "github_actions_plan_wif" {
+  service_account_id = google_service_account.github_actions_plan.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_actions.name}/attribute.repository/UgurIpekduzen/anamnesis"
+}
