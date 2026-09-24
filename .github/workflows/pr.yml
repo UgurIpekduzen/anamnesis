@@ -32,11 +32,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A plan only reads, so it runs as the read-only account instead of
+      # the one that can change the project (APPCE-100).
       - id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}
+          service_account: ${{ vars.GCP_PLAN_SERVICE_ACCOUNT_EMAIL }}
 
       - uses: hashicorp/setup-terraform@v3
         with:

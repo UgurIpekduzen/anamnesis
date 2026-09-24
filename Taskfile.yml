@@ -23,7 +23,7 @@ tasks:
       - docker compose run --rm terraform plan
 
   tf:apply:
-    desc: Apply Terraform, defaulting image_tag to whatever is currently deployed (unless TF_VAR_image_tag is already set)
+    desc: Apply Terraform without asking for confirmation, defaulting image_tag to whatever is currently deployed (unless TF_VAR_image_tag is already set) — run task tf:plan first
     cmds:
       - |
         CURRENT_TAG=$(docker compose run --rm gcloud run services describe anamnesis-app --region=us-central1 --format="value(spec.template.spec.containers[0].image)" 2>/dev/null | sed 's/.*://')
@@ -31,10 +31,14 @@ tasks:
         # vars into the container by default — -e <NAME> (no value) is
         # what actually pulls it from the host, this was silently
         # missing before and TF_VAR_* overrides never reached terraform.
-        if [ -n "$CURRENT_TAG" ]; then
-          TF_VAR_image_tag="${TF_VAR_image_tag:-$CURRENT_TAG}" docker compose run --rm -e TF_VAR_image_tag terraform apply
+        # Nobody reviews the plan at a prompt anymore, so an unreadable tag
+        # must stop the run: falling through would apply the default
+        # ("latest") and quietly repoint both services at it.
+        if [ -n "$CURRENT_TAG" ] || [ -n "$TF_VAR_image_tag" ]; then
+          TF_VAR_image_tag="${TF_VAR_image_tag:-$CURRENT_TAG}" docker compose run --rm -e TF_VAR_image_tag terraform apply -auto-approve
         else
-          docker compose run --rm -e TF_VAR_image_tag terraform apply
+          echo "Couldn't read the deployed image tag; set TF_VAR_image_tag and retry." >&2
+          exit 1
         fi
 
   tf:check:
