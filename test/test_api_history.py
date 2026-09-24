@@ -1,22 +1,15 @@
-import os
+from datetime import datetime, timezone
 
-# api.deps reads these at import time.
-os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
-os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
+import pytest
+from starlette.testclient import TestClient
 
-from datetime import datetime, timezone  # noqa: E402
-
-import pytest  # noqa: E402
-from starlette.testclient import TestClient  # noqa: E402
-
-import api.main as api_main  # noqa: E402
-from api.deps import get_current_owner_uid  # noqa: E402
+import api.main as api_main
 
 OWNER = "test@example.com"
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, signed_in_owner):
     calls = []
 
     def fake_load(tenant_id, owner_uid, limit):
@@ -29,12 +22,10 @@ def client(monkeypatch):
             }
         ]
 
-    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
     monkeypatch.setattr(api_main, "load_recent_turns", fake_load)
     test_client = TestClient(api_main.app)
     test_client.calls = calls
     yield test_client
-    api_main.app.dependency_overrides.clear()
 
 
 def test_history_returns_the_saved_turns_for_the_authenticated_user(client):

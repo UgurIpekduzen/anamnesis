@@ -1,20 +1,13 @@
-import os
+import pytest
+from starlette.testclient import TestClient
 
-# api.deps reads these at import time.
-os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
-os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
-
-import pytest  # noqa: E402
-from starlette.testclient import TestClient  # noqa: E402
-
-import api.main as api_main  # noqa: E402
-from api.deps import get_current_owner_uid  # noqa: E402
+import api.main as api_main
 
 OWNER = "test@example.com"
 
 
 @pytest.fixture
-def api(monkeypatch):
+def api(monkeypatch, signed_in_owner):
     added = []
     renamed = []
     deleted = []
@@ -24,9 +17,7 @@ def api(monkeypatch):
         api_main, "rename_tenant", lambda tenant_id, name, owner_uid: renamed.append((tenant_id, name, owner_uid))
     )
     monkeypatch.setattr(api_main, "delete_tenant", lambda tenant_id, owner_uid: deleted.append((tenant_id, owner_uid)))
-    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
     yield TestClient(api_main.app), added, renamed, deleted
-    api_main.app.dependency_overrides.clear()
 
 
 def test_post_creates_a_tenant_for_the_authenticated_user(api):

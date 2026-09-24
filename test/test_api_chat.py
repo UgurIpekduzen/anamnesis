@@ -1,19 +1,14 @@
-import os
 import re
 from contextlib import contextmanager
 import threading
 import time
 from types import SimpleNamespace
 
-# api.deps reads these at import time.
-os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
-os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
+import pytest
+from starlette.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
-import pytest  # noqa: E402
-from starlette.testclient import TestClient  # noqa: E402
-from starlette.websockets import WebSocketDisconnect  # noqa: E402
-
-import api.main as api_main  # noqa: E402
+import api.main as api_main
 
 OWNER = "test@example.com"
 WS_URL = "/ws/chat/some_tenant"

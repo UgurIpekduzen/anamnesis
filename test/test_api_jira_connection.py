@@ -1,21 +1,14 @@
-import os
+import pytest
+from starlette.testclient import TestClient
 
-# api.deps reads these at import time.
-os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
-os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
-
-import pytest  # noqa: E402
-from starlette.testclient import TestClient  # noqa: E402
-
-import api.main as api_main  # noqa: E402
-from api.deps import get_current_owner_uid  # noqa: E402
+import api.main as api_main
 
 OWNER = "test@example.com"
 VALID_BODY = {"email": "user@example.com", "token": "secret-token", "base_url": "https://example.atlassian.net"}
 
 
 @pytest.fixture
-def api(monkeypatch):
+def api(monkeypatch, signed_in_owner):
     saved = []
     deleted = []
 
@@ -25,13 +18,11 @@ def api(monkeypatch):
     def fake_delete(owner_uid):
         deleted.append(owner_uid)
 
-    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
     monkeypatch.setattr(api_main, "validate_jira_credentials", lambda email, token, base_url: None)
     monkeypatch.setattr(api_main, "save_jira_credentials", fake_save)
     monkeypatch.setattr(api_main, "delete_jira_connection", fake_delete)
     monkeypatch.setattr(api_main, "get_jira_base_url", lambda owner_uid: "https://example.atlassian.net")
     yield TestClient(api_main.app), saved, deleted
-    api_main.app.dependency_overrides.clear()
 
 
 def test_get_reports_connected_when_credentials_are_on_file(api, monkeypatch):

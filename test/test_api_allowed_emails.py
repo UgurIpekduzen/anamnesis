@@ -1,17 +1,8 @@
-import os
+import pytest
+from starlette.testclient import TestClient
 
-# api.deps and src.allowed_emails both read these at import time — kept in
-# sync with the convention every other test_api_*.py file already uses, or
-# whichever one gets imported first during test collection wins for the
-# whole session (module-level constants aren't re-evaluated per test).
-os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
-os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
-
-import pytest  # noqa: E402
-from starlette.testclient import TestClient  # noqa: E402
-
-import api.main as api_main  # noqa: E402
-from api.deps import get_current_owner_uid  # noqa: E402
+import api.main as api_main
+from api.deps import get_current_owner_uid
 
 OWNER = "test@example.com"
 NON_OWNER = "someone-else@example.com"
@@ -23,7 +14,6 @@ def api(monkeypatch):
     monkeypatch.setattr(api_main, "add_allowed_email", lambda email: None)
     monkeypatch.setattr(api_main, "remove_allowed_email", lambda email: None)
     yield TestClient(api_main.app)
-    api_main.app.dependency_overrides.clear()
 
 
 def test_owner_can_list_allowed_emails(api):

@@ -1,13 +1,7 @@
-import os
+import pytest
+from fastapi import HTTPException
 
-# api.deps reads these at import time.
-os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
-os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
-
-import pytest  # noqa: E402
-from fastapi import HTTPException  # noqa: E402
-
-import api.deps as deps  # noqa: E402
+import api.deps as deps
 
 
 @pytest.fixture(autouse=True)
