@@ -54,6 +54,14 @@ resource "google_cloud_run_v2_service" "ui" {
           }
         }
       }
+      env {
+        name  = "GITHUB_POLLER_SERVICE_ACCOUNT_EMAIL"
+        value = google_service_account.github_poller.email
+      }
+      env {
+        name  = "GITHUB_POLLER_AUDIENCE"
+        value = local.github_poller_audience
+      }
     }
   }
 }
