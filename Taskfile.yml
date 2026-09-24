@@ -1,5 +1,13 @@
 version: '3'
 
+vars:
+  # Spelled out once: another region, a renamed service or secret is one edit
+  # here instead of a search through every task.
+  REGION: us-central1
+  APP_SERVICE: anamnesis-app
+  SUBSCRIBER_SERVICE: anamnesis-subscriber
+  KEY_SECRET: github-token-encryption-key
+
 tasks:
   tf:init:
     cmds:
@@ -28,7 +36,7 @@ tasks:
     desc: Apply Terraform without asking for confirmation, defaulting image_tag to whatever is currently deployed (unless TF_VAR_image_tag is already set) — run task tf:plan first
     cmds:
       - |
-        CURRENT_TAG=$(docker compose run --rm gcloud run services describe anamnesis-app --region=us-central1 --format="value(spec.template.spec.containers[0].image)" 2>/dev/null | sed 's/.*://')
+        CURRENT_TAG=$(docker compose run --rm gcloud run services describe {{.APP_SERVICE}} --region={{.REGION}} --format="value(spec.template.spec.containers[0].image)" 2>/dev/null | sed 's/.*://')
         # docker compose run does NOT forward the invoking shell's env
         # vars into the container by default — -e <NAME> (no value) is
         # what actually pulls it from the host, this was silently
@@ -54,10 +62,10 @@ tasks:
         git fetch -q origin && git rev-parse origin/main
         echo
         echo "== Cloud Run =="
-        for s in anamnesis-app anamnesis-subscriber; do
-          docker compose run --rm -T gcloud run services describe $s --region=us-central1 --format="value(metadata.name,spec.template.spec.containers[0].image,status.latestReadyRevisionName)" | tr -d '\r'
+        for s in {{.APP_SERVICE}} {{.SUBSCRIBER_SERVICE}}; do
+          docker compose run --rm -T gcloud run services describe $s --region={{.REGION}} --format="value(metadata.name,spec.template.spec.containers[0].image,status.latestReadyRevisionName)" | tr -d '\r'
         done
-        URL=$(docker compose run --rm -T gcloud run services describe anamnesis-app --region=us-central1 --format="value(status.url)" | tr -d '\r\n')
+        URL=$(docker compose run --rm -T gcloud run services describe {{.APP_SERVICE}} --region={{.REGION}} --format="value(status.url)" | tr -d '\r\n')
         curl -s -o /dev/null -w "health: %{http_code}\n" "$URL/health"
 
   tf:check:
@@ -220,20 +228,20 @@ tasks:
   secrets:github-key:pull:
     desc: Print the current GitHub token encryption key, for pasting into your local .env (see .env.example)
     cmds:
-      - docker compose run --rm gcloud secrets versions access latest --secret=github-token-encryption-key
+      - docker compose run --rm gcloud secrets versions access latest --secret={{.KEY_SECRET}}
 
   secrets:github-key:rotate:
     desc: Start a key rotation (APPCE-103) — put a new key in front of the current one, so new tokens use it and old ones stay readable. Then run, in order, reload, reencrypt and retire. SECRET=<name> targets another secret, for a rehearsal only.
     vars:
-      SECRET: '{{.SECRET | default "github-token-encryption-key"}}'
+      SECRET: '{{.SECRET | default .KEY_SECRET}}'
     cmds:
       - |
         # The app must already be running code that can read a list of keys
         # (APPCE-103): an older one reads "new,old" as a single, invalid key
         # and fails on the first token. Refuse to start unless the deployed
         # image was built from a commit that contains that change.
-        DEPLOYED=$(docker compose run --rm -T gcloud run services describe anamnesis-app --region=us-central1 --format="value(spec.template.spec.containers[0].image)" | tr -d '\r\n' | sed 's/.*://')
-        if [ "{{.SECRET}}" = "github-token-encryption-key" ] && ! git merge-base --is-ancestor d628757 "$DEPLOYED" 2>/dev/null; then
+        DEPLOYED=$(docker compose run --rm -T gcloud run services describe {{.APP_SERVICE}} --region={{.REGION}} --format="value(spec.template.spec.containers[0].image)" | tr -d '\r\n' | sed 's/.*://')
+        if [ "{{.SECRET}}" = "{{.KEY_SECRET}}" ] && ! git merge-base --is-ancestor d628757 "$DEPLOYED" 2>/dev/null; then
           echo "The deployed app ($DEPLOYED) predates multi-key support. Deploy a version that includes commit d628757 first." >&2
           exit 1
         fi
@@ -248,20 +256,20 @@ tasks:
   secrets:github-key:reload:
     desc: Start a new revision of anamnesis-app so it re-reads the key (a secret marked "latest" is only resolved when a revision starts). Adds a label, so the next Terraform plan will show it as drift.
     cmds:
-      - docker compose run --rm gcloud run services update anamnesis-app --region=us-central1 --update-labels=key-rotated=$(date +%s)
+      - docker compose run --rm gcloud run services update {{.APP_SERVICE}} --region={{.REGION}} --update-labels=key-rotated=$(date +%s)
 
   secrets:github-key:reencrypt:
     desc: Re-encrypt every stored GitHub/Jira token with the newest key (safe to re-run; reports tokens no key can read)
     cmds:
       - docker compose build api
       - |
-        KEYS=$(docker compose run --rm -T gcloud secrets versions access latest --secret=github-token-encryption-key | tr -d '\r\n')
+        KEYS=$(docker compose run --rm -T gcloud secrets versions access latest --secret={{.KEY_SECRET}} | tr -d '\r\n')
         docker compose run --rm -e GITHUB_TOKEN_ENCRYPTION_KEY="$KEYS" api python -m src.key_rotation reencrypt
 
   secrets:github-key:retire:
     desc: Finish a rotation — keep only the newest key and disable the older secret versions. Refuses if any stored token still needs an older key (run reencrypt first). SECRET=<name> targets another secret, for a rehearsal only.
     vars:
-      SECRET: '{{.SECRET | default "github-token-encryption-key"}}'
+      SECRET: '{{.SECRET | default .KEY_SECRET}}'
     cmds:
       - |
         KEYS=$(docker compose run --rm -T gcloud secrets versions access latest --secret={{.SECRET}} | tr -d '\r\n')
@@ -285,15 +293,15 @@ tasks:
     cmds:
       - docker compose build api
       - |
-        KEYS=$(docker compose run --rm -T gcloud secrets versions access latest --secret=github-token-encryption-key | tr -d '\r\n')
+        KEYS=$(docker compose run --rm -T gcloud secrets versions access latest --secret={{.KEY_SECRET}} | tr -d '\r\n')
         docker compose run --rm -e GITHUB_TOKEN_ENCRYPTION_KEY="$KEYS" api python -m src.key_rotation check
 
   secrets:github-key:init:
     desc: One-time setup — generate a Fernet key and store it as the GitHub token encryption secret. Safe to re-run; skips if a version already exists (overwriting it would break already-encrypted tokens).
     cmds:
       - |
-        if docker compose run --rm gcloud secrets versions list github-token-encryption-key --format="value(name)" 2>/dev/null | grep -q .; then
-          echo "A key already exists for github-token-encryption-key — leaving it as is."
+        if docker compose run --rm gcloud secrets versions list {{.KEY_SECRET}} --format="value(name)" 2>/dev/null | grep -q .; then
+          echo "A key already exists for {{.KEY_SECRET}} — leaving it as is."
         else
-          python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" | docker compose run --rm -T gcloud secrets versions add github-token-encryption-key --data-file=-
+          python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" | docker compose run --rm -T gcloud secrets versions add {{.KEY_SECRET}} --data-file=-
         fi
