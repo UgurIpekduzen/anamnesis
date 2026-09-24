@@ -1,10 +1,11 @@
 import os
 from functools import lru_cache
 
-from dotenv import load_dotenv
 from google.cloud import firestore
 
-load_dotenv(os.environ.get("DOTENV_PATH", ".env"))
+from src.env import load_env
+
+load_env()
 
 
 @lru_cache(maxsize=None)
