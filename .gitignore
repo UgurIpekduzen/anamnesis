@@ -215,9 +215,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Streamlit
-.streamlit/secrets.toml
-
 # Personal working notes
 CLAUDE.md
 ARCHIVE.md
