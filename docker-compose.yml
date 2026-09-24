@@ -52,14 +52,19 @@ services:
     # No emulator env vars on purpose — this container hits real GCP,
     # like it will on Cloud Run.
     environment:
-      GCP_PROJECT_ID: gen-lang-client-0424267124
+      # The real project comes from GOOGLE_CLOUD_PROJECT in .env. GCP_PROJECT_ID
+      # is not read from there on purpose: in .env it names the emulator's
+      # made-up project, not this one.
+      GCP_PROJECT_ID: ${GOOGLE_CLOUD_PROJECT}
       GOOGLE_GENAI_USE_ENTERPRISE: "1"
-      GOOGLE_CLOUD_PROJECT: gen-lang-client-0424267124
-      GOOGLE_CLOUD_LOCATION: us-central1
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-us-central1}
       # Not a secret — a Google OAuth client ID is meant to be public,
       # it's embedded in the frontend's JS bundle too (see APPCE-54).
       GOOGLE_OAUTH_CLIENT_ID: 430288501339-aiifao42l0fp6qirm2kiluh8fv4qfb3k.apps.googleusercontent.com
-      ALLOWED_EMAILS: u.ipkdzn@gmail.com
+      # Who may sign in locally, from .env (see .env.example). Empty means
+      # nobody can.
+      ALLOWED_EMAILS: ${ALLOWED_EMAILS:-}
       # Compose reads this from the repo-root .env for variable substitution
       # (not via env_file — see the "no env_file" note above), so it stays
       # out of this file. See .env.example for how to fetch the real value.
