@@ -3,8 +3,20 @@ import ReactMarkdown from "react-markdown";
 
 import { chatSocketUrl, getChatHistory } from "../api";
 import type { ChatEvent } from "../trace";
+import { describeArgs } from "../traceView";
 import ConfirmDialog from "./ConfirmDialog";
 import "./Chat.css";
+
+// Shown instead of the raw tool name (APPCE-91) — every entry here is a
+// tool wrapped with require_confirmation=True in agent/agent.py.
+const CONFIRM_TOOL_LABELS: Record<string, string> = {
+  publish_fact: "Save this fact",
+  update_fact: "Update this fact",
+  delete_fact: "Delete this fact",
+  set_git_repo_path: "Set the local repo path",
+  set_jira_project_key: "Link this Jira project",
+  set_github_repo: "Link this GitHub repo",
+};
 
 // Mirrors the backend's MAX_MESSAGE_CHARS default (api/main.py) purely as
 // a convenience — the server enforces it either way.
@@ -39,12 +51,21 @@ interface ChatMessage {
   isError?: boolean;
 }
 
+interface PendingConfirmation {
+  toolName: string;
+  args: unknown;
+}
+
 function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   // Clear chat asks first: it deletes the saved conversation for good.
   const [confirmingClear, setConfirmingClear] = useState(false);
+  // Set when a require_confirmation=True tool (APPCE-91) is waiting on an
+  // approve/reject — blocks the input row until answered, since the agent
+  // can't do anything else until this one round trip resolves.
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   // Whether the socket is open right now. A browser silently drops a send()
   // on a socket that isn't, so sending is gated on this — otherwise a
   // message typed during a reconnect vanishes and the UI thinks forever.
@@ -137,6 +158,12 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
               ? { type: "tool_call", id: data.id, name: data.name, args: data.args }
               : { type: "tool_result", id: data.id, name: data.name, result: data.result },
           );
+        } else if (data.type === "confirm_required") {
+          // Still "thinking" — the turn isn't done, it's just paused on
+          // the user. Not sent to the Trace tab: it isn't a completed
+          // tool call, and the backend already excludes ADK's synthetic
+          // adk_request_confirmation call from tool_call/tool_result.
+          setPendingConfirmation({ toolName: data.tool_name, args: data.args });
         } else if (data.type === "final") {
           setMessages((prev) => [...prev, { role: "assistant", content: data.text }]);
           setIsThinking(false);
@@ -146,6 +173,7 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
           // connection stays open, so just show why and stop "thinking".
           setMessages((prev) => [...prev, { role: "assistant", content: data.message, isError: true }]);
           setIsThinking(false);
+          setPendingConfirmation(null);
           onEventRef.current?.({ type: "failed" });
         }
       };
@@ -163,6 +191,7 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
       // vanishing — mirrors app/chat.py's try/except in the Streamlit UI.
       socket.onclose = (event) => {
         if (socketRef.current === socket) setConnected(false);
+        setPendingConfirmation(null);
         if (isThinkingRef.current) {
           setMessages((prev) => [
             ...prev,
@@ -196,13 +225,19 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
 
   function sendMessage() {
     const question = input.trim();
-    if (!question || !tenantId || socketRef.current?.readyState !== WebSocket.OPEN) return;
+    if (!question || !tenantId || !!pendingConfirmation || socketRef.current?.readyState !== WebSocket.OPEN) return;
 
     setMessages((prev) => [...prev, { role: "user", content: question }]);
     setIsThinking(true);
     setInput("");
     socketRef.current.send(JSON.stringify({ message: question }));
     onEvent?.({ type: "sent", question });
+  }
+
+  function respondToConfirmation(confirmed: boolean) {
+    if (!pendingConfirmation || socketRef.current?.readyState !== WebSocket.OPEN) return;
+    setPendingConfirmation(null);
+    socketRef.current.send(JSON.stringify({ type: "confirm_response", confirmed }));
   }
 
   function clearChat() {
@@ -214,6 +249,8 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
       socketRef.current.send(JSON.stringify({ type: "reset" }));
     }
     clearedRef.current = true;
+    setPendingConfirmation(null);
+    setIsThinking(false);
     setMessages([]);
     onEvent?.({ type: "cleared" });
   }
@@ -231,8 +268,37 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
           </div>
         ))}
 
-        {isThinking && (
+        {isThinking && !pendingConfirmation && (
           <div className="chat-thinking">Thinking…</div>
+        )}
+
+        {pendingConfirmation && (
+          <div className="chat-confirm">
+            <div className="chat-confirm-title">
+              {CONFIRM_TOOL_LABELS[pendingConfirmation.toolName] ?? pendingConfirmation.toolName}?
+            </div>
+            {(() => {
+              const view = describeArgs(pendingConfirmation.args);
+              return view.kind === "table" ? (
+                <table className="chat-confirm-args">
+                  <tbody>
+                    {view.rows.map(([name, value]) => (
+                      <tr key={name}>
+                        <td>{name}</td>
+                        <td>{value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null;
+            })()}
+            <div className="chat-confirm-actions">
+              <button onClick={() => respondToConfirmation(false)}>Reject</button>
+              <button className="chat-confirm-approve" onClick={() => respondToConfirmation(true)}>
+                Approve
+              </button>
+            </div>
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>
@@ -243,12 +309,23 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           placeholder={
-            !tenantId ? "Select a project first" : connected ? "Ask or record something" : "Connecting…"
+            !tenantId
+              ? "Select a project first"
+              : pendingConfirmation
+                ? "Approve or reject the pending action above"
+                : connected
+                  ? "Ask or record something"
+                  : "Connecting…"
           }
-          disabled={!tenantId || !connected}
+          disabled={!tenantId || !connected || !!pendingConfirmation}
           maxLength={MAX_MESSAGE_CHARS}
         />
-        <button onClick={sendMessage} disabled={!tenantId || !connected} title="Send" className="send-button">
+        <button
+          onClick={sendMessage}
+          disabled={!tenantId || !connected || !!pendingConfirmation}
+          title="Send"
+          className="send-button"
+        >
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="22" y1="2" x2="11" y2="13" />
             <polygon points="22 2 15 22 11 13 2 9 22 2" />

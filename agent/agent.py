@@ -1,6 +1,7 @@
 import os
 
 from google.adk.agents.llm_agent import Agent
+from google.adk.tools.function_tool import FunctionTool
 
 from agent.history import make_history_limiter
 from src.facts import delete_fact, get_tenant_facts, update_fact
@@ -195,12 +196,20 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         ),
         tools=[
             _get_tenant_facts,
-            _publish_fact,
-            _update_fact,
-            _delete_fact,
-            _set_git_repo_path,
-            _set_jira_project_key,
-            _set_github_repo,
+            # Wrapped with require_confirmation=True (APPCE-91): these
+            # write/mutate state, and the instruction's "ask the user
+            # first" rule alone isn't enough — a live prompt-injection
+            # test (APPCE-92) got a naturally-phrased request embedded in
+            # a GitHub issue title to call publish_fact with zero actual
+            # user confirmation. ADK pauses the turn and requires an
+            # explicit approve/reject from the client before running the
+            # real function (see api/main.py's chat handler).
+            FunctionTool(_publish_fact, require_confirmation=True),
+            FunctionTool(_update_fact, require_confirmation=True),
+            FunctionTool(_delete_fact, require_confirmation=True),
+            FunctionTool(_set_git_repo_path, require_confirmation=True),
+            FunctionTool(_set_jira_project_key, require_confirmation=True),
+            FunctionTool(_set_github_repo, require_confirmation=True),
             _get_github_status,
             _get_jira_status,
         ],

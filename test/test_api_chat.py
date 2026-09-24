@@ -33,6 +33,29 @@ class FakeEvent:
         return True
 
 
+class FakeConfirmationEvent:
+    """Mimics the synthetic event ADK yields for a require_confirmation=True
+    tool (APPCE-91) — a lone adk_request_confirmation function call wrapping
+    the real tool's name/args, no final content yet."""
+
+    def __init__(self, request_id, original_name, original_args):
+        self.content = None
+        self._call = SimpleNamespace(
+            name="adk_request_confirmation",
+            id=request_id,
+            args={"originalFunctionCall": {"name": original_name, "args": original_args}},
+        )
+
+    def get_function_calls(self):
+        return [self._call]
+
+    def get_function_responses(self):
+        return []
+
+    def is_final_response(self):
+        return False
+
+
 class FakeSessionService:
     def __init__(self):
         self.deleted = []
@@ -49,17 +72,22 @@ class FakeRunner:
         self.fail = False
         self.silent = False  # runs to completion without ever producing an answer
         self.session_service = FakeSessionService()
+        # Queue of event lists, one per run() call — overrides the default
+        # single-FakeEvent("hi") behavior when set. Used to script a
+        # confirmation request followed by its resumed, real answer.
+        self.script: list[list] | None = None
 
     def run(self, *, user_id, session_id, new_message, run_config):
-        self.calls.append(
-            {
-                "session_id": session_id,
-                "run_config": run_config,
-                "text": new_message.parts[0].text,
-            }
-        )
+        # A confirm_response resumes with a function_response Part, not
+        # text — new_message.parts[0].text would be None for those, which
+        # is fine for the assertions that care (they check .args instead).
+        text = new_message.parts[0].text if new_message.parts[0].function_response is None else None
+        self.calls.append({"session_id": session_id, "run_config": run_config, "text": text})
         if self.fail:
             raise RuntimeError("boom")
+        if self.script is not None:
+            yield from self.script.pop(0)
+            return
         if not self.silent:
             yield FakeEvent("hi")
 
@@ -148,6 +176,81 @@ def test_an_agent_failure_becomes_an_error_frame_and_keeps_the_socket_open(chat)
         runner.fail = False
         ws.send_json({"message": "hello again"})
         assert ws.receive_json() == {"type": "final", "text": "hi"}
+
+
+def test_a_confirmation_request_is_sent_and_not_leaked_into_the_trace(chat):
+    client, runner, _ = chat
+    runner.script = [[FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})]]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "delete that fact"})
+        # Only the confirm_required frame — no tool_call for
+        # adk_request_confirmation, and no "final" yet.
+        assert ws.receive_json() == {
+            "type": "confirm_required",
+            "id": "req-1",
+            "tool_name": "delete_fact",
+            "args": {"fact_id": "f1"},
+        }
+
+
+def test_confirming_resumes_the_turn_and_saves_the_original_question(chat, spies):
+    client, runner, _ = chat
+    runner.script = [
+        [FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})],
+        [FakeEvent("Deleted it.")],
+    ]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "delete that fact"})
+        assert ws.receive_json()["type"] == "confirm_required"
+
+        ws.send_json({"type": "confirm_response", "confirmed": True})
+        assert ws.receive_json() == {"type": "final", "text": "Deleted it."}
+
+    # The resume call carried a FunctionResponse answering req-1, not text.
+    assert runner.calls[1]["text"] is None
+    # The saved turn uses the ORIGINAL question, not "confirm_response".
+    assert spies.saved == [("some_tenant", OWNER, "delete that fact", "Deleted it.")]
+
+
+def test_rejecting_resumes_the_turn_too(chat):
+    client, runner, _ = chat
+    runner.script = [
+        [FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})],
+        [FakeEvent("Okay, I won't delete it.")],
+    ]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "delete that fact"})
+        assert ws.receive_json()["type"] == "confirm_required"
+
+        ws.send_json({"type": "confirm_response", "confirmed": False})
+        assert ws.receive_json() == {"type": "final", "text": "Okay, I won't delete it."}
+
+
+def test_a_confirm_response_with_nothing_pending_is_rejected(chat):
+    client, runner, _ = chat
+    with open_chat(client) as ws:
+        ws.send_json({"type": "confirm_response", "confirmed": True})
+        assert ws.receive_json()["type"] == "error"
+    assert runner.calls == []
+
+
+def test_a_new_message_while_a_confirmation_is_pending_is_rejected(chat):
+    client, runner, _ = chat
+    runner.script = [[FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})]]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "delete that fact"})
+        assert ws.receive_json()["type"] == "confirm_required"
+
+        ws.send_json({"message": "something else entirely"})
+        assert ws.receive_json()["type"] == "error"
+
+    # Only the first message ever reached the agent — the second was
+    # rejected before touching it.
+    assert len(runner.calls) == 1
 
 
 def test_reset_deletes_the_server_side_session(chat):

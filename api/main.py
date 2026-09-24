@@ -396,17 +396,52 @@ async def _best_effort(func, *args, what: str) -> None:
         print(f"Couldn't {what}: {exc!r}")
 
 
+# ADK's own name for the synthetic function call it generates when a
+# require_confirmation=True tool is invoked (APPCE-91) — never a real tool
+# in agent/agent.py's tools list, so it's filtered out of the Trace tab's
+# tool_call/tool_result messages and handled separately (see chat() below).
+_REQUEST_CONFIRMATION_FUNCTION_CALL_NAME = "adk_request_confirmation"
+
+
 def _event_to_messages(event) -> list[dict]:
     # The id pairs a result with its call for the UI's Trace tab — matching
     # by tool name alone breaks as soon as the model calls one tool twice.
     messages = []
     for call in event.get_function_calls():
+        if call.name == _REQUEST_CONFIRMATION_FUNCTION_CALL_NAME:
+            continue
         messages.append({"type": "tool_call", "id": call.id, "name": call.name, "args": call.args})
     for response in event.get_function_responses():
+        if response.name == _REQUEST_CONFIRMATION_FUNCTION_CALL_NAME:
+            continue
         messages.append(
             {"type": "tool_result", "id": response.id, "name": response.name, "result": response.response}
         )
     return messages
+
+
+def _confirmation_request(event) -> dict | None:
+    """If this event is ADK's synthetic "please confirm" call, describe it.
+
+    Returns a dict with the ORIGINAL tool call's name/args (what the user
+    should actually be asked to approve), not adk_request_confirmation's
+    own name/args — those are just the envelope.
+
+    Simplification: only the first confirmation request in the event is
+    handled if more than one is present (the model calling two
+    confirmation-gated tools in the same turn) — not something this
+    agent's single-step-per-turn instruction (APPCE-84) does in practice.
+    """
+    for call in event.get_function_calls():
+        if call.name == _REQUEST_CONFIRMATION_FUNCTION_CALL_NAME:
+            original = (call.args or {}).get("originalFunctionCall") or {}
+            return {
+                "type": "confirm_required",
+                "id": call.id,
+                "tool_name": original.get("name"),
+                "args": original.get("args"),
+            }
+    return None
 
 
 async def _authenticate(websocket: WebSocket) -> str | None:
@@ -509,6 +544,16 @@ async def chat(websocket: WebSocket, tenant_id: str):
     except Exception as exc:
         print(f"Couldn't restore chat memory: {exc!r}")
 
+    # Set while a require_confirmation=True tool (APPCE-91) is waiting on
+    # the user's approve/reject — the id of ADK's own synthetic
+    # adk_request_confirmation call, not the original tool call's id.
+    # pending_question/pending_usage_task carry the original question and
+    # its in-flight usage-recording task across the round trip, so the
+    # eventual answer still gets attributed and saved correctly.
+    pending_confirmation_id: str | None = None
+    pending_question: str | None = None
+    pending_usage_task: asyncio.Task | None = None
+
     try:
         while True:
             data = await websocket.receive_json()
@@ -527,32 +572,63 @@ async def chat(websocket: WebSocket, tenant_id: str):
                 # ...and the saved copy, or the next cold start would bring
                 # the conversation back from the dead.
                 await _best_effort(clear_turns, tenant_id, owner_uid, what="clear saved chat history")
+                pending_confirmation_id = None
+                pending_question = None
                 continue
 
-            question = data.get("message")
-            if not isinstance(question, str) or not question.strip():
-                await websocket.send_json({"type": "error", "message": "Message can't be empty."})
-                continue
-            if len(question) > MAX_MESSAGE_CHARS:
-                await websocket.send_json(
-                    {
-                        "type": "error",
-                        "message": f"Message too long ({len(question)} characters, limit {MAX_MESSAGE_CHARS}).",
-                    }
+            if data.get("type") == "confirm_response":
+                if pending_confirmation_id is None:
+                    await websocket.send_json(
+                        {"type": "error", "message": "No confirmation is pending."}
+                    )
+                    continue
+                message = types.Content(
+                    role="user",
+                    parts=[
+                        types.Part(
+                            function_response=types.FunctionResponse(
+                                id=pending_confirmation_id,
+                                name=_REQUEST_CONFIRMATION_FUNCTION_CALL_NAME,
+                                response={"confirmed": bool(data.get("confirmed"))},
+                            )
+                        )
+                    ],
                 )
-                continue
+                question = pending_question
+                usage_task = pending_usage_task
+                pending_confirmation_id = None
+            else:
+                if pending_confirmation_id is not None:
+                    await websocket.send_json(
+                        {"type": "error", "message": "Please approve or reject the pending action first."}
+                    )
+                    continue
 
-            # The usage counter is a soft UI warning, so the model call
-            # doesn't wait for it: it runs alongside the turn and is
-            # awaited once the turn is done.
-            usage_task = asyncio.create_task(
-                _best_effort(record_message, owner_uid, what="record message usage")
-            )
+                question = data.get("message")
+                if not isinstance(question, str) or not question.strip():
+                    await websocket.send_json({"type": "error", "message": "Message can't be empty."})
+                    continue
+                if len(question) > MAX_MESSAGE_CHARS:
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "message": f"Message too long ({len(question)} characters, limit {MAX_MESSAGE_CHARS}).",
+                        }
+                    )
+                    continue
 
-            # No "[Project: X]" prefix needed — the runner's Agent is
-            # already scoped to this one tenant (see api/runner.py).
-            message = types.Content(role="user", parts=[types.Part(text=question)])
+                # The usage counter is a soft UI warning, so the model call
+                # doesn't wait for it: it runs alongside the turn and is
+                # awaited once the turn is done.
+                usage_task = asyncio.create_task(
+                    _best_effort(record_message, owner_uid, what="record message usage")
+                )
+                # No "[Project: X]" prefix needed — the runner's Agent is
+                # already scoped to this one tenant (see api/runner.py).
+                message = types.Content(role="user", parts=[types.Part(text=question)])
+
             final_text = None
+            confirmation = None
 
             try:
                 async for event in _iterate_off_loop(
@@ -563,6 +639,12 @@ async def chat(websocket: WebSocket, tenant_id: str):
                         run_config=RunConfig(max_llm_calls=MAX_LLM_CALLS_PER_TURN),
                     )
                 ):
+                    confirmation = confirmation or _confirmation_request(event)
+                    if confirmation:
+                        # Don't leak ADK's synthetic call into the Trace tab
+                        # — it's not a real tool, and the actual tool call
+                        # it wraps hasn't run yet.
+                        continue
                     for msg in _event_to_messages(event):
                         await websocket.send_json(jsonable_encoder(msg))
                     if event.is_final_response() and event.content and event.content.parts:
@@ -580,7 +662,15 @@ async def chat(websocket: WebSocket, tenant_id: str):
                         "message": "Something went wrong while talking to the agent. Please try again.",
                     }
                 )
+                pending_question = None
                 await usage_task
+                continue
+
+            if confirmation:
+                pending_confirmation_id = confirmation["id"]
+                pending_question = question
+                pending_usage_task = usage_task
+                await websocket.send_json(confirmation)
                 continue
 
             await websocket.send_json({"type": "final", "text": final_text or "(no response)"})
@@ -588,7 +678,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
 
             # Only a real answer is worth saving; a turn that produced none
             # would restore as a question the model never answered.
-            if final_text is not None:
+            if final_text is not None and question is not None:
                 await _best_effort(append_turn, tenant_id, owner_uid, question, final_text, what="save chat turn")
     except WebSocketDisconnect:
         pass
