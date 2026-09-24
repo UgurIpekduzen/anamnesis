@@ -133,6 +133,22 @@ def test_get_jira_status_returns_an_error_result_when_the_tenant_has_no_linked_p
     assert result == {"error": "This project has no linked Jira project key."}
 
 
+def test_get_jira_status_reports_a_saved_token_the_current_key_cannot_read(monkeypatch):
+    # An uncaught error here would crash the whole turn (APPCE-83); a lost
+    # encryption key must reach the user as "reconnect it" instead
+    # (APPCE-103).
+    from src.token_encryption import UnreadableToken
+
+    def unreadable(owner_uid):
+        raise UnreadableToken("The saved token can't be decrypted. Reconnect it in Settings.")
+
+    monkeypatch.setattr(agent_module, "get_owned_tenant", lambda tenant_id, owner_uid: {"jira_project_key": "APPCE"})
+    monkeypatch.setattr(agent_module, "get_jira_credentials", unreadable)
+    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "get_jira_status")
+
+    assert tool() == {"error": "The saved token can't be decrypted. Reconnect it in Settings."}
+
+
 def test_get_jira_status_returns_an_error_result_when_the_user_has_no_jira_connection():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
     tool = _tool_by_name(tool_agent.tools, "get_jira_status")

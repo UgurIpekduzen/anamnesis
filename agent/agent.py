@@ -86,7 +86,12 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         jira_project_key = get_owned_tenant(tenant_id, owner_uid).get("jira_project_key")
         if not jira_project_key:
             return {"error": "This project has no linked Jira project key."}
-        credentials = get_jira_credentials(owner_uid)
+        try:
+            credentials = get_jira_credentials(owner_uid)
+        except ValueError as e:
+            # A saved token the current key can't read (APPCE-103): say so
+            # instead of crashing the turn.
+            return {"error": str(e)}
         if credentials is None:
             return {"error": "No Jira account connected. Connect one in Settings."}
         try:
