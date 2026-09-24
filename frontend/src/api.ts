@@ -166,6 +166,26 @@ export async function resetSettings(idToken: string): Promise<SettingsResponse> 
   return res.json();
 }
 
+// Which GitHub repo / Jira project a project is linked to (APPCE-107). A
+// value links or changes it, null unlinks it. A 400 carries the reason the
+// value was refused (not an owner/name repo, not a Jira key ...) — surface it.
+export async function setTenantLink(
+  idToken: string,
+  tenantId: string,
+  field: "github_repo" | "jira_project_key",
+  value: string | null,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(tenantId)}/${field}`, {
+    method: value === null ? "DELETE" : "PUT",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: value === null ? undefined : JSON.stringify({ [field]: value }),
+  });
+  if (!res.ok) {
+    const detail = res.status === 400 ? (await res.json().catch(() => null))?.detail : null;
+    throw new Error(detail || `setTenantLink failed: ${res.status}`);
+  }
+}
+
 export interface GithubConnection {
   connected: boolean;
 }

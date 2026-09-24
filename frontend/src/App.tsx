@@ -280,7 +280,14 @@ function App() {
           }}
         />
         {selectedTenant && !tenantsError && (
-          <ProjectLinks tenant={selectedTenant} githubConnected={githubConnected} jira={jiraConnection} />
+          <ProjectLinks
+            key={selectedTenant.tenant_id}
+            idToken={idToken}
+            tenant={selectedTenant}
+            githubConnected={githubConnected}
+            jira={jiraConnection}
+            onChanged={refreshTenantsQuietly}
+          />
         )}
 
         <div className="tabs">
