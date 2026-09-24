@@ -127,6 +127,9 @@ def chat(monkeypatch, spies):
     monkeypatch.setattr(
         api_main, "get_settings", lambda owner_uid: {"history_turns": 7, "daily_message_warning_threshold": 100}
     )
+    # `with client:` runs the app's lifespan, which would seed categories in
+    # real Firestore (APPCE-93) — a unit test mustn't depend on that.
+    monkeypatch.setattr(api_main, "ensure_categories_seeded", lambda: None)
     monkeypatch.setattr(api_main, "verify_token", lambda token: OWNER)
     monkeypatch.setattr(api_main, "get_owned_tenant", lambda tenant_id, owner_uid: {"name": "Some Tenant"})
     monkeypatch.setattr(api_main, "get_runner", lambda owner_uid, tenant_id: runner)

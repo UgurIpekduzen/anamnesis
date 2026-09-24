@@ -10,6 +10,14 @@ from fastapi import HTTPException  # noqa: E402
 import api.deps as deps  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def no_extra_allowed_emails(monkeypatch):
+    # verify_token also consults the runtime allowlist in Firestore
+    # (APPCE-94) for any email outside the Terraform-configured owners —
+    # a unit test mustn't reach real Firestore for that.
+    monkeypatch.setattr(deps, "get_extra_allowed_emails", lambda: set())
+
+
 def _verifier(claims=None, error=None):
     seen = {}
 
@@ -212,3 +220,11 @@ def test_an_unknown_key_id_is_not_retried_when_the_cache_is_fresh(monkeypatch):
         deps.verify_token("tok")
     assert excinfo.value.status_code == 401
     assert len(attempts) == 1
+
+
+def test_a_runtime_allowed_email_outside_the_owners_is_accepted(monkeypatch):
+    fake, _ = _verifier(claims={"email": "invited@example.com"})
+    monkeypatch.setattr(deps.id_token, "verify_oauth2_token", fake)
+    monkeypatch.setattr(deps, "get_extra_allowed_emails", lambda: {"invited@example.com"})
+
+    assert deps.verify_token("tok") == "invited@example.com"

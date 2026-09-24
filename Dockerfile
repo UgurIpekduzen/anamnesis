@@ -2,8 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# uv (pinned) installs exactly what uv.lock says — --frozen fails the build
+# instead of silently re-resolving to whatever is newest today (APPCE-96).
+COPY --from=ghcr.io/astral-sh/uv:0.9.30 /uv /bin/uv
+ENV UV_LINK_MODE=copy
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+ENV PATH="/app/.venv/bin:$PATH"
 
 COPY src/ src/
 COPY agent/ agent/

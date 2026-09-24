@@ -45,6 +45,26 @@ tasks:
       - task: tf:validate
       - task: tf:plan
 
+  uv:lock:
+    desc: Re-resolve pyproject.toml into uv.lock without upgrading anything already locked (uv runs in Docker, APPCE-96)
+    cmds:
+      - docker compose run --rm uv lock
+
+  uv:upgrade:
+    desc: Deliberately upgrade every dependency to its newest allowed version and rewrite uv.lock — review the diff, run the tests and task eval:injection before committing
+    cmds:
+      - docker compose run --rm uv lock --upgrade
+
+  uv:add:
+    desc: Add a dependency and update uv.lock — task uv:add -- <package> (add --dev for test-only ones)
+    cmds:
+      - docker compose run --rm uv add {{.CLI_ARGS}}
+
+  uv:test:
+    desc: Run the unit tests in the locked, isolated environment (no emulators or credentials — exactly what CI's unit stage sees)
+    cmds:
+      - docker compose run --rm uv run pytest test/ --ignore=test/integration {{.CLI_ARGS}}
+
   emulators:up:
     desc: Start the Firestore and Pub/Sub emulators in the background
     cmds:
