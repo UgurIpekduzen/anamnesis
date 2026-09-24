@@ -1,4 +1,3 @@
-import re
 from contextlib import contextmanager
 import threading
 import time
@@ -648,20 +647,22 @@ def test_a_connection_that_never_authenticates_is_dropped(chat, monkeypatch):
 # --- Request duration log (APPCE-68)
 
 
-def test_each_rest_call_logs_its_duration(chat, capsys):
+def test_each_rest_call_logs_its_duration(chat, capsys, log_lines):
     client, _, _ = chat
     assert client.get("/health").status_code == 200
 
-    out = capsys.readouterr().out
-    assert re.search(r"^GET /health -> 200 in \d+ ms$", out, re.MULTILINE)
+    (entry,) = [e for e in log_lines(capsys.readouterr().out) if e["event"] == "request"]
+    assert (entry["method"], entry["path"], entry["status"]) == ("GET", "/health", 200)
+    assert isinstance(entry["duration_ms"], int) and entry["duration_ms"] >= 0
 
 
-def test_the_duration_log_never_includes_the_query_string(chat, capsys):
+def test_the_duration_log_never_includes_the_query_string(chat, capsys, log_lines):
     client, _, _ = chat
     client.get("/health?token=super-secret&x=1")
 
     out = capsys.readouterr().out
-    assert "GET /health -> 200" in out
+    (entry,) = [e for e in log_lines(out) if e["event"] == "request"]
+    assert entry["path"] == "/health"
     assert "super-secret" not in out
     assert "?" not in out
 

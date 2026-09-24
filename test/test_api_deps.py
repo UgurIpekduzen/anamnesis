@@ -82,7 +82,7 @@ def test_a_token_google_rejects_is_a_401(monkeypatch):
         ("Something nobody anticipated", "other"),
     ],
 )
-def test_the_rejection_log_names_the_reason_without_echoing_the_token(monkeypatch, capsys, message, expected):
+def test_the_rejection_log_names_the_reason_without_echoing_the_token(monkeypatch, capsys, message, expected, log_lines):
     secret = "SECRET-TOKEN-MATERIAL"
     fake, _ = _verifier(error=ValueError(f"{message} [{secret}]"))
     monkeypatch.setattr(deps.id_token, "verify_oauth2_token", fake)
@@ -91,7 +91,8 @@ def test_the_rejection_log_names_the_reason_without_echoing_the_token(monkeypatc
         deps.verify_token("tok")
 
     logged = capsys.readouterr().out
-    assert f"Token rejected ({expected})" in logged
+    (entry,) = log_lines(logged)
+    assert (entry["severity"], entry["event"], entry["reason"]) == ("WARNING", "token_rejected", expected)
     assert secret not in logged
 
 

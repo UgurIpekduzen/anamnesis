@@ -27,6 +27,7 @@ from src.jira_connections import (
     save_jira_credentials,
 )
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
+from src.log import log
 from src.tenants import add_tenant, delete_tenant, get_owned_tenant, list_tenants, rename_tenant
 from src.usage import DAILY_MESSAGE_HARD_LIMIT, DailyLimitExceeded, get_today_count, next_reset_at, record_message
 
@@ -86,7 +87,14 @@ async def log_request_duration(request: Request, call_next):
     response = await call_next(request)
     if request.method != "OPTIONS":
         elapsed_ms = (time.perf_counter() - started) * 1000
-        print(f"{request.method} {request.url.path} -> {response.status_code} in {elapsed_ms:.0f} ms")
+        log(
+            "INFO",
+            "request",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            duration_ms=round(elapsed_ms),
+        )
     return response
 
 
@@ -403,7 +411,7 @@ async def _best_effort(func, *args, what: str) -> None:
     try:
         await asyncio.to_thread(func, *args)
     except Exception as exc:
-        print(f"Couldn't {what}: {exc!r}")
+        log("WARNING", "best_effort_failed", what=what, error=repr(exc))
 
 
 # ADK's own name for the synthetic function call it generates when a
@@ -552,7 +560,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
             lambda: load_recent_turns(tenant_id, owner_uid, get_settings(owner_uid)["history_turns"]),
         )
     except Exception as exc:
-        print(f"Couldn't restore chat memory: {exc!r}")
+        log("WARNING", "chat_memory_restore_failed", error=repr(exc))
 
     # Set while a require_confirmation=True tool (APPCE-91) is waiting on
     # the user's approve/reject — the id of ADK's own synthetic
@@ -643,7 +651,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
                     )
                     continue
                 except Exception as exc:
-                    print(f"Couldn't record message usage: {exc!r}")
+                    log("WARNING", "usage_record_failed", error=repr(exc))
                 # No "[Project: X]" prefix needed — the runner's Agent is
                 # already scoped to this one tenant (see api/runner.py).
                 message = types.Content(role="user", parts=[types.Part(text=question)])
@@ -676,7 +684,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
                 # Includes ADK's LlmCallsLimitExceededError. Surface a
                 # friendly error and keep the connection alive instead of
                 # letting the socket die mid-question.
-                print(f"Agent call failed: {exc!r}")
+                log("ERROR", "agent_call_failed", error=repr(exc))
                 await websocket.send_json(
                     {
                         "type": "error",

@@ -1,5 +1,6 @@
 """Setup shared by every test (APPCE-106)."""
 
+import json
 import os
 import sys
 
@@ -14,6 +15,22 @@ os.environ.setdefault("GITHUB_POLLER_SERVICE_ACCOUNT_EMAIL", "poller@test-projec
 os.environ.setdefault("GITHUB_POLLER_AUDIENCE", "https://anamnesis-app.example/internal/poll-github")
 
 OWNER = "test@example.com"
+
+
+@pytest.fixture
+def log_lines():
+    """Reads the structured log lines (src.log) out of what a test captured."""
+
+    def read(captured_out: str) -> list[dict]:
+        lines = []
+        for line in captured_out.splitlines():
+            try:
+                lines.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+        return lines
+
+    return read
 
 
 @pytest.fixture

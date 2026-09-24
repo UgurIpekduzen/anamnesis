@@ -8,6 +8,7 @@ from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
 from src.allowed_emails import OWNER_EMAILS, get_extra_allowed_emails
+from src.log import log
 
 _CLIENT_ID = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
 
@@ -116,7 +117,7 @@ def verify_token(token: str) -> str:
             else:
                 raise
     except ValueError as exc:
-        print(f"Token rejected ({_rejection_reason(exc)})")
+        log("WARNING", "token_rejected", reason=_rejection_reason(exc))
         raise HTTPException(status_code=401, detail=f"Invalid token: {exc}") from exc
 
     # Anyone can put an address they don't control in a Google Workspace or
