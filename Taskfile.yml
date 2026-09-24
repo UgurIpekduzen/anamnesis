@@ -19,10 +19,12 @@ tasks:
       - docker compose run --rm terraform validate
 
   tf:plan:
+    aliases: [tp]
     cmds:
       - docker compose run --rm terraform plan
 
   tf:apply:
+    aliases: [ta]
     desc: Apply Terraform without asking for confirmation, defaulting image_tag to whatever is currently deployed (unless TF_VAR_image_tag is already set) — run task tf:plan first
     cmds:
       - |
@@ -41,7 +43,25 @@ tasks:
           exit 1
         fi
 
+  deploy:status:
+    desc: Show the latest Deploy workflow run, what is running on Cloud Run against origin/main, and whether the app is healthy
+    cmds:
+      - |
+        echo "== Latest Deploy run =="
+        gh run list -w Deploy -L 1
+        echo
+        echo "== origin/main =="
+        git fetch -q origin && git rev-parse origin/main
+        echo
+        echo "== Cloud Run =="
+        for s in anamnesis-app anamnesis-subscriber; do
+          docker compose run --rm -T gcloud run services describe $s --region=us-central1 --format="value(metadata.name,spec.template.spec.containers[0].image,status.latestReadyRevisionName)" | tr -d '\r'
+        done
+        URL=$(docker compose run --rm -T gcloud run services describe anamnesis-app --region=us-central1 --format="value(status.url)" | tr -d '\r\n')
+        curl -s -o /dev/null -w "health: %{http_code}\n" "$URL/health"
+
   tf:check:
+    aliases: [tf]
     desc: Run init, auto-fix formatting, validate, and plan in sequence
     cmds:
       - task: tf:init
@@ -59,12 +79,25 @@ tasks:
     cmds:
       - docker compose run --rm uv lock --upgrade
 
+  test:integration:
+    desc: Run the integration tests against the Firestore and Pub/Sub emulators (starts them if needed) — task test:integration -- <pytest args>
+    deps: [emulators:up]
+    cmds:
+      - docker compose run --rm -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e PUBSUB_EMULATOR_HOST=pubsub-emulator:8085 -e GCP_PROJECT_ID=anamnesis-local uv run pytest test/integration {{.CLI_ARGS}}
+
+  test:all:
+    desc: Run the unit tests, then the integration tests — the same tests CI runs
+    cmds:
+      - task: uv:test
+      - task: test:integration
+
   uv:add:
     desc: Add a dependency and update uv.lock — task uv:add -- <package> (add --dev for test-only ones)
     cmds:
       - docker compose run --rm uv add {{.CLI_ARGS}}
 
   uv:test:
+    aliases: [test, t]
     desc: Run the unit tests in the locked, isolated environment (no emulators or credentials — exactly what CI's unit stage sees)
     cmds:
       - docker compose run --rm uv run pytest test/ --ignore=test/integration {{.CLI_ARGS}}
@@ -95,6 +128,7 @@ tasks:
       - docker compose down subscriber
 
   api:up:
+    aliases: [up]
     desc: Run the FastAPI backend in the background (APPCE-53)
     cmds:
       # The API's code is baked into its image (no bind mount), so without
@@ -108,6 +142,7 @@ tasks:
       - docker compose logs -f api
 
   api:down:
+    aliases: [down]
     desc: Stop the FastAPI backend
     cmds:
       - docker compose down api
@@ -121,6 +156,11 @@ tasks:
     desc: Tail logs from the React dev server
     cmds:
       - docker compose logs -f frontend
+
+  frontend:check:
+    desc: Type-check the frontend (needs the dev server container running — task frontend:up)
+    cmds:
+      - docker compose exec -T frontend npx tsc -b
 
   frontend:down:
     desc: Stop the React dev server
@@ -239,6 +279,14 @@ tasks:
           docker compose run --rm -T gcloud secrets versions disable "$v" --secret={{.SECRET}}
         done
         echo "Done. Run task secrets:github-key:reload so the app loads the single key."
+
+  secrets:github-key:check:
+    desc: Check that the keys in the secret can read every stored GitHub/Jira token — read only, nothing is written
+    cmds:
+      - docker compose build api
+      - |
+        KEYS=$(docker compose run --rm -T gcloud secrets versions access latest --secret=github-token-encryption-key | tr -d '\r\n')
+        docker compose run --rm -e GITHUB_TOKEN_ENCRYPTION_KEY="$KEYS" api python -m src.key_rotation check
 
   secrets:github-key:init:
     desc: One-time setup — generate a Fernet key and store it as the GitHub token encryption secret. Safe to re-run; skips if a version already exists (overwriting it would break already-encrypted tokens).
