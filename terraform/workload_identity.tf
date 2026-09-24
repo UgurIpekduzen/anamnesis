@@ -11,6 +11,7 @@ resource "google_iam_workload_identity_pool_provider" "github_actions" {
   attribute_mapping = {
     "google.subject"       = "assertion.sub"
     "attribute.repository" = "assertion.repository"
+    "attribute.ref"        = "assertion.ref"
   }
 
   oidc {
@@ -30,7 +31,7 @@ resource "google_service_account" "github_actions" {
 resource "google_service_account_iam_member" "github_actions_wif" {
   service_account_id = google_service_account.github_actions.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_actions.name}/attribute.repository/UgurIpekduzen/anamnesis"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_actions.name}/attribute.ref/refs/heads/main"
 }
 
 resource "google_project_iam_member" "github_actions_viewer" {
