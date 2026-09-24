@@ -7,6 +7,7 @@ from src import jira_connections
 from src.firestore_client import get_client
 from src.jira_connections import (
     delete_jira_connection,
+    get_jira_base_url,
     get_jira_credentials,
     has_jira_connection,
     save_jira_credentials,
@@ -51,6 +52,20 @@ def test_the_base_url_is_stored_without_a_trailing_slash(owner):
     save_jira_credentials(owner, "user@example.com", "secret-token", "https://example.atlassian.net/")
 
     assert get_jira_credentials(owner)["base_url"] == "https://example.atlassian.net"
+
+
+def test_the_base_url_can_be_read_without_the_encryption_key(owner, monkeypatch):
+    save_jira_credentials(owner, "user@example.com", "secret-token", "https://example.atlassian.net/")
+
+    # No key at all: reading the address must not need one.
+    monkeypatch.delenv("GITHUB_TOKEN_ENCRYPTION_KEY")
+    _get_fernet.cache_clear()
+
+    assert get_jira_base_url(owner) == "https://example.atlassian.net"
+
+
+def test_an_unconnected_user_has_no_base_url(owner):
+    assert get_jira_base_url(owner) is None
 
 
 def test_the_stored_document_never_holds_the_raw_token(owner):

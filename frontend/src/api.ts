@@ -10,6 +10,8 @@ export interface Tenant {
   name: string;
   jira_project_key: string | null;
   git_repo_path: string | null;
+  // "owner/name" of the linked GitHub repo (APPCE-83), or null.
+  github_repo: string | null;
 }
 
 export interface Fact {
@@ -202,6 +204,9 @@ export async function disconnectGithub(idToken: string): Promise<GithubConnectio
 
 export interface JiraConnection {
   connected: boolean;
+  // The workspace address, only sent by GET while connected (APPCE-105);
+  // it lets the UI link a project's Jira key.
+  base_url?: string | null;
 }
 
 export async function getJiraConnection(idToken: string): Promise<JiraConnection> {

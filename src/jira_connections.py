@@ -32,6 +32,18 @@ def has_jira_connection(owner_uid: str) -> bool:
     return client.collection(COLLECTION).document(owner_uid).get().exists
 
 
+def get_jira_base_url(owner_uid: str) -> str | None:
+    """The workspace address of the user's connected Jira, or None if they
+    haven't connected one.
+
+    Not a secret (the user typed it, and it only names their own workspace),
+    so it is read without touching the encrypted token. The UI uses it to
+    link a project's Jira key (APPCE-105).
+    """
+    doc = get_client().collection(COLLECTION).document(owner_uid).get()
+    return doc.to_dict()["base_url"] if doc.exists else None
+
+
 def get_jira_credentials(owner_uid: str) -> dict | None:
     """The user's Jira credentials, or None if they haven't connected one.
 

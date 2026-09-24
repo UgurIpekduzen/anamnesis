@@ -20,7 +20,12 @@ from src.facts import get_tenant_facts
 from src.github_client import validate_github_token
 from src.github_connections import delete_github_connection, has_github_connection, save_github_token
 from src.jira_client import validate_jira_credentials
-from src.jira_connections import delete_jira_connection, has_jira_connection, save_jira_credentials
+from src.jira_connections import (
+    delete_jira_connection,
+    get_jira_base_url,
+    has_jira_connection,
+    save_jira_credentials,
+)
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.tenants import add_tenant, delete_tenant, get_owned_tenant, list_tenants, rename_tenant
 from src.usage import DAILY_MESSAGE_HARD_LIMIT, DailyLimitExceeded, get_today_count, next_reset_at, record_message
@@ -345,7 +350,10 @@ class JiraConnectionUpdate(BaseModel):
 
 @app.get("/jira/connection")
 def read_jira_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    return {"connected": has_jira_connection(owner_uid)}
+    connected = has_jira_connection(owner_uid)
+    # The workspace address (not the token) lets the UI link a project's
+    # Jira key; there is nothing to link when nothing is connected.
+    return {"connected": connected, "base_url": get_jira_base_url(owner_uid) if connected else None}
 
 
 @app.put("/jira/connection")

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import "./App.css";
-import { listTenants, type Tenant } from "./api";
+import { getGithubConnection, getJiraConnection, listTenants, type JiraConnection, type Tenant } from "./api";
 import AccountMenu from "./components/AccountMenu";
 import Auth from "./components/Auth";
 import Chat from "./components/Chat";
 import Facts from "./components/Facts";
 import PendingFacts from "./components/PendingFacts";
+import ProjectLinks from "./components/ProjectLinks";
 import SettingsDialog from "./components/SettingsDialog";
 import TenantSelector from "./components/TenantSelector";
 import TracePanel from "./components/TracePanel";
@@ -40,6 +41,11 @@ function App() {
   const [traceTurns, dispatchTrace] = useReducer(traceReducer, []);
   const [tenantsError, setTenantsError] = useState(false);
   const [tenantsReloadKey, setTenantsReloadKey] = useState(0);
+  // Whether the user's GitHub/Jira accounts are connected (APPCE-105) —
+  // null until known. Re-read whenever Settings closes, where they change.
+  const [githubConnected, setGithubConnected] = useState<boolean | null>(null);
+  const [jiraConnection, setJiraConnection] = useState<JiraConnection | null>(null);
+  const [connectionsReloadKey, setConnectionsReloadKey] = useState(0);
   // Set by TenantSelector right before a reload it triggered itself (e.g.
   // just created a project) — picked up once the fresh list lands, since
   // the list fetch below is async and would otherwise overwrite a
@@ -59,11 +65,31 @@ function App() {
   // The token is refreshed silently about every 50 minutes; the account it
   // belongs to is what decides whether the project list is stale.
   const userId = useMemo(() => tokenSubject(idToken), [idToken]);
+  const selectedTenant = tenants.find((t) => t.tenant_id === selectedTenantId) ?? null;
   const idTokenRef = useRef(idToken);
   idTokenRef.current = idToken;
 
+  // Counts project-list requests so a late answer to an older one is dropped
+  // (a quiet refresh must never overwrite a newer list or another account's).
+  const tenantsRequestRef = useRef(0);
+
+  // Re-read the project list without touching the selection, unlike the
+  // effect below (which resets everything). Used after the assistant links a
+  // GitHub repo or Jira key, so the project card shows it (APPCE-105).
+  function refreshTenantsQuietly() {
+    const token = idTokenRef.current;
+    if (!token) return;
+    const request = ++tenantsRequestRef.current;
+    listTenants(token)
+      .then((fetched) => {
+        if (request === tenantsRequestRef.current) setTenants(fetched);
+      })
+      .catch(() => {});
+  }
+
   useEffect(() => {
     if (!userId || !idTokenRef.current) return;
+    tenantsRequestRef.current++;
     // Clear immediately (not just on the fetch resolving) so Chat/Facts
     // — gated on selectedTenantId — briefly unmount instead of running
     // a moment longer against the previous account's stale tenant_id
@@ -94,6 +120,22 @@ function App() {
       cancelled = true;
     };
   }, [userId, tenantsReloadKey]);
+
+  useEffect(() => {
+    if (!userId || !idTokenRef.current) return;
+    let cancelled = false;
+    // Two independent lookups: one failing must not hide the other. A
+    // failure leaves the status unknown (no warning), not "disconnected".
+    getGithubConnection(idTokenRef.current)
+      .then((c) => !cancelled && setGithubConnected(c.connected))
+      .catch(() => !cancelled && setGithubConnected(null));
+    getJiraConnection(idTokenRef.current)
+      .then((c) => !cancelled && setJiraConnection(c))
+      .catch(() => !cancelled && setJiraConnection(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, connectionsReloadKey]);
 
   useEffect(() => {
     return whenGoogleReady(() => {
@@ -149,7 +191,11 @@ function App() {
     }
     // A fact the agent just recorded lands asynchronously (Pub/Sub), so
     // this refetch can beat it — the Facts refresh button covers that.
-    if (event.type === "answered") setFactsRefreshKey((k) => k + 1);
+    if (event.type === "answered") {
+      setFactsRefreshKey((k) => k + 1);
+      // The assistant may just have linked a repo or a Jira key.
+      refreshTenantsQuietly();
+    }
   }
 
   // The Trace belongs to one project's conversation, like the chat itself.
@@ -208,7 +254,11 @@ function App() {
       {settingsOpen && (
         <SettingsDialog
           idToken={idToken}
-          onClose={() => setSettingsOpen(false)}
+          onClose={() => {
+            setSettingsOpen(false);
+            // Connecting or disconnecting an account happens in Settings.
+            setConnectionsReloadKey((k) => k + 1);
+          }}
           // The warning threshold lives in Settings, so the counter in the
           // sidebar has to refetch to pick up a new one.
           onSaved={() => setUsageRefreshKey((k) => k + 1)}
@@ -229,6 +279,9 @@ function App() {
             setTenantsReloadKey((k) => k + 1);
           }}
         />
+        {selectedTenant && !tenantsError && (
+          <ProjectLinks tenant={selectedTenant} githubConnected={githubConnected} jira={jiraConnection} />
+        )}
 
         <div className="tabs">
           <button
