@@ -31,7 +31,7 @@ def _verifier(claims=None, error=None):
 
 
 def test_a_valid_allowlisted_token_returns_its_email(monkeypatch):
-    fake, seen = _verifier(claims={"email": "test@example.com"})
+    fake, seen = _verifier(claims={"email": "test@example.com", "email_verified": True})
     monkeypatch.setattr(deps.id_token, "verify_oauth2_token", fake)
 
     assert deps.verify_token("tok") == "test@example.com"
@@ -39,7 +39,7 @@ def test_a_valid_allowlisted_token_returns_its_email(monkeypatch):
 
 
 def test_verification_allows_a_small_clock_skew(monkeypatch):
-    fake, seen = _verifier(claims={"email": "test@example.com"})
+    fake, seen = _verifier(claims={"email": "test@example.com", "email_verified": True})
     monkeypatch.setattr(deps.id_token, "verify_oauth2_token", fake)
 
     deps.verify_token("tok")
@@ -48,7 +48,20 @@ def test_verification_allows_a_small_clock_skew(monkeypatch):
 
 
 def test_a_valid_token_for_an_account_off_the_allowlist_is_forbidden(monkeypatch):
-    fake, _ = _verifier(claims={"email": "stranger@example.com"})
+    fake, _ = _verifier(claims={"email": "stranger@example.com", "email_verified": True})
+    monkeypatch.setattr(deps.id_token, "verify_oauth2_token", fake)
+
+    with pytest.raises(HTTPException) as excinfo:
+        deps.verify_token("tok")
+    assert excinfo.value.status_code == 403
+
+
+@pytest.mark.parametrize("verified", [False, "false", None, "true"])
+def test_an_allowlisted_email_that_is_not_verified_is_forbidden(monkeypatch, verified):
+    claims = {"email": "test@example.com"}
+    if verified is not None:
+        claims["email_verified"] = verified
+    fake, _ = _verifier(claims=claims)
     monkeypatch.setattr(deps.id_token, "verify_oauth2_token", fake)
 
     with pytest.raises(HTTPException) as excinfo:
@@ -195,7 +208,7 @@ def test_an_unknown_key_id_triggers_one_refetch_when_the_cache_is_old_enough(mon
         attempts.append(1)
         if len(attempts) == 1:
             raise ValueError("Certificate for key id abc not found.")
-        return {"email": "test@example.com"}
+        return {"email": "test@example.com", "email_verified": True}
 
     monkeypatch.setattr(deps.id_token, "verify_oauth2_token", fake)
 
@@ -223,7 +236,7 @@ def test_an_unknown_key_id_is_not_retried_when_the_cache_is_fresh(monkeypatch):
 
 
 def test_a_runtime_allowed_email_outside_the_owners_is_accepted(monkeypatch):
-    fake, _ = _verifier(claims={"email": "invited@example.com"})
+    fake, _ = _verifier(claims={"email": "invited@example.com", "email_verified": True})
     monkeypatch.setattr(deps.id_token, "verify_oauth2_token", fake)
     monkeypatch.setattr(deps, "get_extra_allowed_emails", lambda: {"invited@example.com"})
 

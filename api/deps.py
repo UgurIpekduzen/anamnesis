@@ -119,6 +119,17 @@ def verify_token(token: str) -> str:
         print(f"Token rejected ({_rejection_reason(exc)})")
         raise HTTPException(status_code=401, detail=f"Invalid token: {exc}") from exc
 
+    # Anyone can put an address they don't control in a Google Workspace or
+    # third-party-linked account; only a verified one proves ownership. The
+    # allowlist is editable at runtime (APPCE-94), so this check matters.
+    # Compared with `is not True` so a missing or string "false" claim fails.
+    if claims.get("email_verified") is not True:
+        raise HTTPException(status_code=403, detail="This account's email isn't verified")
+
+    # Identity stays the email rather than the immutable `sub` claim
+    # (APPCE-98): every Firestore document is keyed by it, so switching needs
+    # a data migration. Deliberate for personal scale, where the allowlist is
+    # curated by hand and a reassigned address is an unlikely risk.
     email = claims.get("email")
     if not email or (email not in OWNER_EMAILS and email not in get_extra_allowed_emails()):
         raise HTTPException(status_code=403, detail="This account isn't authorized")
