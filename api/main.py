@@ -28,7 +28,17 @@ from src.jira_connections import (
 )
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.log import log
-from src.tenants import add_tenant, delete_tenant, get_owned_tenant, list_tenants, rename_tenant
+from src.tenants import (
+    add_tenant,
+    clear_github_repo,
+    clear_jira_project_key,
+    delete_tenant,
+    get_owned_tenant,
+    list_tenants,
+    rename_tenant,
+    set_github_repo,
+    set_jira_project_key,
+)
 from src.usage import DAILY_MESSAGE_HARD_LIMIT, DailyLimitExceeded, get_today_count, next_reset_at, record_message
 
 # Token-cost guards (see APPCE-59). A message stays in the session history
@@ -162,6 +172,66 @@ def remove_tenant(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid
     except PermissionError:
         raise HTTPException(status_code=404, detail="Project not found")
     return {"status": "deleted"}
+
+
+# Which GitHub repo and Jira project a project is linked to is set here, in
+# the UI, and not by the chat agent: these values decide whose repo gets polled
+# with the user's token and what goes into a Jira query, and the agent reads
+# text other people wrote (APPCE-107).
+class GithubRepoUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    github_repo: str = Field(strict=True, min_length=1, max_length=140)
+
+
+class JiraProjectKeyUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    jira_project_key: str = Field(strict=True, min_length=1, max_length=60)
+
+
+@app.put("/tenants/{tenant_id}/github_repo")
+def update_github_repo(
+    tenant_id: str, body: GithubRepoUpdate, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    try:
+        set_github_repo(tenant_id, body.github_repo, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"github_repo": body.github_repo}
+
+
+@app.delete("/tenants/{tenant_id}/github_repo")
+def remove_github_repo(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    try:
+        clear_github_repo(tenant_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"github_repo": None}
+
+
+@app.put("/tenants/{tenant_id}/jira_project_key")
+def update_jira_project_key(
+    tenant_id: str, body: JiraProjectKeyUpdate, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    try:
+        set_jira_project_key(tenant_id, body.jira_project_key, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"jira_project_key": body.jira_project_key}
+
+
+@app.delete("/tenants/{tenant_id}/jira_project_key")
+def remove_jira_project_key(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    try:
+        clear_jira_project_key(tenant_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"jira_project_key": None}
 
 
 @app.get("/tenants/{tenant_id}/facts")

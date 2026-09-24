@@ -1,3 +1,5 @@
+import re
+
 import requests
 
 # The result of get_jira_status goes into the model's context and stays in
@@ -6,6 +8,24 @@ import requests
 # compact lines for the first 15 ~530 (APPCE-104).
 DEFAULT_LIMIT = 15
 MAX_SUMMARY_CHARS = 100
+
+# A Jira project key: an uppercase letter, then uppercase letters, digits or
+# underscores. The key is put into a JQL query (project = "KEY"), so anything
+# else — a quote above all — could change what the query means (APPCE-107).
+_PROJECT_KEY_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,49}$")
+
+
+def validate_project_key(project_key: str) -> None:
+    """Reject anything that isn't a plain Jira project key such as "APPCE".
+
+    Raises:
+        ValueError: the key has characters a Jira project key can't have.
+    """
+    if not isinstance(project_key, str) or not _PROJECT_KEY_PATTERN.match(project_key):
+        raise ValueError(
+            "A Jira project key is uppercase letters, digits and underscores, starting with a letter "
+            "(for example APPCE)."
+        )
 
 
 def validate_jira_credentials(email: str, token: str, base_url: str) -> None:
@@ -67,6 +87,8 @@ def get_jira_status(
         "truncated" is true when the project has more open issues than were
         returned — say so instead of presenting the list as complete.
     """
+    # A key saved before it was validated may still be in the database.
+    validate_project_key(project_key)
     jql = f'project = "{project_key}" AND statusCategory != Done ORDER BY updated DESC'
     response = requests.get(
         f"{base_url.rstrip('/')}/rest/api/3/search/jql",

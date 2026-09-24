@@ -1,7 +1,13 @@
 import pytest
 import requests
 
-from src.jira_client import DEFAULT_LIMIT, MAX_SUMMARY_CHARS, get_jira_status, validate_jira_credentials
+from src.jira_client import (
+    DEFAULT_LIMIT,
+    MAX_SUMMARY_CHARS,
+    get_jira_status,
+    validate_jira_credentials,
+    validate_project_key,
+)
 
 
 class FakeResponse:
@@ -145,3 +151,40 @@ def test_validate_jira_credentials_wraps_a_connection_failure(monkeypatch):
 
     with pytest.raises(ValueError):
         validate_jira_credentials("user@example.com", "secret-token", "https://not-a-real-host.invalid")
+
+
+@pytest.mark.parametrize("key", ["APPCE", "BD2026", "AB", "A_1", "X" * 50])
+def test_a_plain_project_key_is_accepted(key):
+    validate_project_key(key)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "",
+        "a",
+        "appce",  # lowercase
+        "A",  # a single character
+        "1ABC",  # starts with a digit
+        "AB CD",
+        "AB-CD",
+        'X" OR project != "',  # would change the meaning of the query it is put into
+        "X\nY",
+        "X" * 51,
+        None,
+        123,
+    ],
+)
+def test_anything_that_is_not_a_plain_project_key_is_rejected(key):
+    with pytest.raises(ValueError):
+        validate_project_key(key)
+
+
+def test_a_bad_key_saved_earlier_never_reaches_jira(monkeypatch):
+    def unexpected(*args, **kwargs):
+        raise AssertionError("no request may be made with an invalid key")
+
+    monkeypatch.setattr("src.jira_client.requests.get", unexpected)
+
+    with pytest.raises(ValueError):
+        get_jira_status('X" OR project != "', "u@example.com", "t", "https://example.atlassian.net")

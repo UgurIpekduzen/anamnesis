@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from google.cloud import firestore
 
 from src.firestore_client import get_client
+from src.jira_client import validate_project_key
 
 
 # Named here (not in src/chat_history.py) so delete_tenant can cascade into
@@ -94,12 +95,24 @@ def delete_tenant(tenant_id: str, owner_uid: str) -> None:
 
 
 def set_jira_project_key(tenant_id: str, jira_project_key: str, owner_uid: str) -> None:
-    """Attach a Jira project key to an existing tenant."""
+    """Attach a Jira project key to an existing tenant.
+
+    Raises:
+        ValueError: jira_project_key isn't a plain project key such as "APPCE".
+    """
+    validate_project_key(jira_project_key)
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     client.collection("tenants").document(tenant_id).update(
         {"jira_project_key": jira_project_key}
     )
+
+
+def clear_jira_project_key(tenant_id: str, owner_uid: str) -> None:
+    """Detach the Jira project key from a tenant."""
+    get_owned_tenant(tenant_id, owner_uid)
+    client = get_client()
+    client.collection("tenants").document(tenant_id).update({"jira_project_key": firestore.DELETE_FIELD})
 
 
 # owner/name only — GitHub usernames/orgs are alphanumeric-or-hyphen (not
@@ -118,9 +131,27 @@ def set_github_repo(tenant_id: str, github_repo: str, owner_uid: str) -> None:
     """
     if not _GITHUB_REPO_PATTERN.match(github_repo):
         raise ValueError(f"'{github_repo}' doesn't look like a GitHub 'owner/name' repo.")
+    tenant = get_owned_tenant(tenant_id, owner_uid)
+    changes = {"github_repo": github_repo}
+    if tenant.get("github_repo") != github_repo:
+        # Polling skips whatever was last updated before the previous poll.
+        # That cut-off belongs to the old repo; keeping it would make the new
+        # repo's existing PRs and issues look "already processed".
+        changes["github_polled_at"] = firestore.DELETE_FIELD
+    client = get_client()
+    client.collection("tenants").document(tenant_id).update(changes)
+
+
+def clear_github_repo(tenant_id: str, owner_uid: str) -> None:
+    """Detach the GitHub repo from a tenant, which stops it being polled.
+
+    The poll cut-off goes with it, for the reason given in set_github_repo.
+    """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
-    client.collection("tenants").document(tenant_id).update({"github_repo": github_repo})
+    client.collection("tenants").document(tenant_id).update(
+        {"github_repo": firestore.DELETE_FIELD, "github_polled_at": firestore.DELETE_FIELD}
+    )
 
 
 def mark_github_polled(tenant_id: str, owner_uid: str) -> None:
