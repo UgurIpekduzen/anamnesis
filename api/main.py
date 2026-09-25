@@ -26,6 +26,7 @@ from src.jira_connections import (
     has_jira_connection,
     save_jira_credentials,
 )
+from src.similar_facts import find_similar_facts
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.log import log
 from src.tenants import (
@@ -569,6 +570,23 @@ def _confirmation_request(event) -> dict | None:
     return None
 
 
+async def _similar_saved_facts(tenant_id: str, owner_uid: str, content) -> list[dict]:
+    """Facts already saved that say (nearly) what a fact awaiting approval
+    says, so the confirmation can warn about a duplicate (APPCE-111).
+
+    Best effort, like the other side jobs of a turn: a failed lookup means
+    no warning, never a failed confirmation.
+    """
+    if not isinstance(content, str):
+        return []
+    try:
+        facts = await asyncio.to_thread(get_tenant_facts, tenant_id, owner_uid)
+    except Exception as exc:
+        log("WARNING", "best_effort_failed", what="similar facts", error=repr(exc))
+        return []
+    return find_similar_facts(content, facts)
+
+
 async def _authenticate(websocket: WebSocket) -> str | None:
     """Read the first frame, {"type": "auth", "token": ...}, and verify it.
 
@@ -802,6 +820,10 @@ async def chat(websocket: WebSocket, tenant_id: str):
                 continue
 
             if confirmation:
+                if confirmation["tool_name"] == "publish_fact":
+                    confirmation["similar"] = await _similar_saved_facts(
+                        tenant_id, owner_uid, (confirmation["args"] or {}).get("content")
+                    )
                 pending_confirmation_id = confirmation["id"]
                 pending_question = question
                 await websocket.send_json(confirmation)

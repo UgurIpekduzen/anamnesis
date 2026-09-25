@@ -122,9 +122,18 @@ interface ChatMessage {
   card?: ProposalCard;
 }
 
+interface SimilarFact {
+  fact_id: string;
+  content: string;
+  category: string;
+}
+
 interface PendingConfirmation {
   toolName: string;
   args: unknown;
+  // Saved facts that say (nearly) the same as the one awaiting approval —
+  // computed by the server, only for publish_fact (APPCE-111).
+  similar: SimilarFact[];
 }
 
 function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
@@ -236,7 +245,7 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
           // the user. Not sent to the Trace tab: it isn't a completed
           // tool call, and the backend already excludes ADK's synthetic
           // adk_request_confirmation call from tool_call/tool_result.
-          setPendingConfirmation({ toolName: data.tool_name, args: data.args });
+          setPendingConfirmation({ toolName: data.tool_name, args: data.args, similar: data.similar ?? [] });
         } else if (data.type === "final") {
           setMessages((prev) => [...prev, { role: "assistant", content: data.text }]);
           setIsThinking(false);
@@ -412,6 +421,18 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
                 </table>
               ) : null;
             })()}
+            {pendingConfirmation.similar.length > 0 && (
+              <div className="chat-confirm-similar">
+                <div>Already saved — this may be a duplicate:</div>
+                <ul>
+                  {pendingConfirmation.similar.map((fact) => (
+                    <li key={fact.fact_id}>
+                      {fact.content} <span className="chat-proposal-label">({fact.category})</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="chat-confirm-actions">
               <button onClick={() => respondToConfirmation(false)}>Reject</button>
               <button className="chat-confirm-approve" onClick={() => respondToConfirmation(true)}>

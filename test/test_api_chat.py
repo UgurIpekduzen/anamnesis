@@ -141,6 +141,8 @@ def chat(monkeypatch, spies):
     monkeypatch.setattr(api_main, "get_owned_tenant", lambda tenant_id, owner_uid: {"name": "Some Tenant"})
     monkeypatch.setattr(api_main, "get_runner", lambda owner_uid, tenant_id: runner)
     monkeypatch.setattr(api_main, "record_message", lambda owner_uid: recorded.append(owner_uid))
+    # A publish_fact confirmation looks for duplicates among the saved facts.
+    monkeypatch.setattr(api_main, "get_tenant_facts", lambda tenant_id, owner_uid: [])
     return TestClient(api_main.app), runner, recorded
 
 
@@ -675,3 +677,49 @@ def test_cors_preflights_are_not_logged(chat, capsys):
     )
 
     assert "OPTIONS" not in capsys.readouterr().out
+
+
+def test_a_fact_that_is_already_saved_is_flagged_on_its_confirmation(chat, monkeypatch):
+    client, runner, _ = chat
+    saved = [
+        {"fact_id": "f1", "content": "Uses PostgreSQL", "category": "architecture"},
+        {"fact_id": "f2", "content": "Deploys on Cloud Run", "category": "architecture"},
+    ]
+    monkeypatch.setattr(api_main, "get_tenant_facts", lambda tenant_id, owner_uid: saved)
+    runner.script = [
+        [FakeConfirmationEvent("req-1", "publish_fact", {"content": "uses postgresql.", "category": "decision"})]
+    ]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "remember we use postgres"})
+        frame = ws.receive_json()
+
+    assert frame["type"] == "confirm_required"
+    assert frame["similar"] == [{"fact_id": "f1", "content": "Uses PostgreSQL", "category": "architecture"}]
+
+
+def test_a_new_fact_gets_an_empty_similar_list_and_other_tools_get_none(chat):
+    client, runner, _ = chat
+    runner.script = [
+        [FakeConfirmationEvent("req-1", "publish_fact", {"content": "Brand new", "category": "todo"})],
+    ]
+    with open_chat(client) as ws:
+        ws.send_json({"message": "remember it"})
+        assert ws.receive_json()["similar"] == []
+
+
+def test_a_failed_duplicate_lookup_does_not_block_the_confirmation(chat, monkeypatch):
+    client, runner, _ = chat
+
+    def down(tenant_id, owner_uid):
+        raise RuntimeError("Firestore unavailable")
+
+    monkeypatch.setattr(api_main, "get_tenant_facts", down)
+    runner.script = [[FakeConfirmationEvent("req-1", "publish_fact", {"content": "x", "category": "todo"})]]
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "remember it"})
+        frame = ws.receive_json()
+
+    assert frame["type"] == "confirm_required"
+    assert frame["similar"] == []

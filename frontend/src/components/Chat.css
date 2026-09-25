@@ -212,3 +212,13 @@
 .chat-proposal-label {
   opacity: 0.6;
 }
+
+.chat-confirm-similar {
+  margin: 0.5rem 0;
+  font-size: 0.9em;
+}
+
+.chat-confirm-similar ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+}
