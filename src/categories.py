@@ -14,8 +14,7 @@ _cache: set[str] | None = None
 _cache_loaded_at: float = 0.0
 
 # The only source of truth for what a fresh deployment's categories are —
-# seed_data.py and ensure_categories_seeded() below both use this, instead
-# of each hardcoding their own copy of the list (APPCE-93).
+# ensure_categories_seeded() below writes it (APPCE-93).
 DEFAULT_CATEGORIES = ["architecture", "decision", "bug", "status", "todo"]
 
 
@@ -31,9 +30,9 @@ def _load_categories(client: firestore.Client) -> set[str]:
 def ensure_categories_seeded() -> None:
     """Write the default category config if it doesn't exist yet.
 
-    Without this, a fresh deployment's config/categories document only
-    ever gets created by manually running seed_data.py — until then,
-    every publish_fact call fails with the RuntimeError above (APPCE-93).
+    Without this, a fresh deployment's config/categories document would not
+    exist and every publish_fact call would fail with the RuntimeError above
+    (APPCE-93). Nobody has to seed anything by hand.
     Called once at API startup; a no-op once the document exists, so it
     never overwrites categories someone has customized.
     """

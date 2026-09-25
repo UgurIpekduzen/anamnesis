@@ -3,8 +3,8 @@ import socket
 
 import pytest
 
-from seed_data import seed
 from setup_pubsub import setup as setup_pubsub
+from src.categories import ensure_categories_seeded
 
 
 def _emulator_reachable(host_env_var: str) -> bool:
@@ -36,8 +36,9 @@ def _seed_categories(_require_emulators):
     # A freshly started emulator (every CI run, or after a local restart)
     # has no config/categories document — create_fact/validate_category
     # would fail on every test otherwise. The emulator has no persistent
-    # volume, so this can't be a one-time manual step.
-    seed()
+    # volume, so this can't be a one-time manual step. The same function the
+    # API runs at startup.
+    ensure_categories_seeded()
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -65,9 +65,8 @@ MAX_AUTH_FRAME_CHARS = 8192
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Without this, a fresh deployment's Firestore has no config/categories
-    # document until someone manually runs seed_data.py, and every
-    # publish_fact call fails loudly until then (APPCE-93). No-op once the
-    # document exists — never overwrites customized categories.
+    # document and every publish_fact call fails loudly (APPCE-93). No-op
+    # once the document exists — never overwrites customized categories.
     ensure_categories_seeded()
     yield
 
