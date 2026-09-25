@@ -220,6 +220,14 @@ tasks:
       # service already carries the real-GCP (Vertex AI) credentials.
       - docker compose run --rm -v "$PWD/eval:/app/eval" api python -m eval.prompt_injection {{.CLI_ARGS}}
 
+  eval:groundedness:
+    desc: Groundedness eval against the real model — is what the agent says backed by its tools' data (costs tokens; not part of pytest) — task eval:groundedness -- --runs 5 [--only <text>]
+    cmds:
+      # The agent's code is baked into the api image, so build it first or the
+      # eval measures whatever was built last (layer cache makes this quick).
+      - docker compose build api
+      - docker compose run --rm -v "$PWD/eval:/app/eval" api python -m eval.groundedness {{.CLI_ARGS}}
+
   gcloud:
     desc: Run an arbitrary gcloud command via the dockerized CLI (task gcloud -- <args>)
     cmds:
