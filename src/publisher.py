@@ -17,7 +17,7 @@ def publish_fact(tenant_id: str, content: str, category: str, owner_uid: str, so
     it, since only this function can have put it there (see APPCE-48).
 
     Args:
-        tenant_id: The project identifier, e.g. "recruiter_ai".
+        tenant_id: The project identifier, e.g. "my_project".
         content: The fact text.
         category: One of the allowed categories (architecture, decision,
             bug, status, todo).

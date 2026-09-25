@@ -6,10 +6,10 @@ from src.tenants import _slugify
 @pytest.mark.parametrize(
     "name,expected",
     [
-        ("TMDB Hit Classifier", "tmdb_hit_classifier"),
-        ("Recruiter.AI", "recruiter_ai"),
-        ("  Finio  ", "finio"),
-        ("BD2026", "bd2026"),
+        ("My Project", "my_project"),
+        ("Demo.Shop", "demo_shop"),
+        ("  Blog  ", "blog"),
+        ("APP2026", "app2026"),
     ],
 )
 def test_slugify_derives_expected_tenant_id(name, expected):

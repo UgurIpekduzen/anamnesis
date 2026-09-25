@@ -13,7 +13,7 @@ def create_fact(tenant_id: str, content: str, category: str, source: str = "chat
     src.publisher.publish_fact for that instead.
 
     Args:
-        tenant_id: The project identifier, e.g. "recruiter_ai".
+        tenant_id: The project identifier, e.g. "my_project".
         content: The fact text.
         category: One of the allowed categories (architecture, decision,
             bug, status, todo).
@@ -41,7 +41,7 @@ def get_tenant_facts(tenant_id: str, owner_uid: str, limit: int | None = None) -
     needed.
 
     Args:
-        tenant_id: The project identifier, e.g. "recruiter_ai".
+        tenant_id: The project identifier, e.g. "my_project".
 
     Returns:
         A list of fact dicts with "fact_id" (use this exact value when

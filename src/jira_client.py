@@ -83,7 +83,7 @@ def get_jira_status(
 
     Data minimization (APPCE-29): only returns key, issue type, status and
     summary — never assignee/reporter/comment-author fields, since those
-    could identify a third party (e.g. a Recruiter.AI candidate referenced
+    could identify a third party (e.g. a job candidate referenced
     in a ticket). `summary` itself isn't filtered further: the result is
     never persisted, it's only shown back to the same user who already has
     Jira access, so it doesn't create new exposure.
