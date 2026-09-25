@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { getTenantFacts, type Fact } from "../api";
+import { getCategories, getTenantFacts, type Fact } from "../api";
 import "./Facts.css";
-
-const CATEGORY_ORDER = ["architecture", "decision", "bug", "status", "todo"];
 
 interface Props {
   idToken: string;
@@ -13,7 +11,9 @@ interface Props {
   refreshKey: number;
 }
 
-function groupByCategory(facts: Fact[]): [string, Fact[]][] {
+// The user's own categories come first, in their order; a category they
+// removed later still shows its facts, after those.
+function groupByCategory(facts: Fact[], order: string[]): [string, Fact[]][] {
   const groups = new Map<string, Fact[]>();
   for (const fact of facts) {
     const list = groups.get(fact.category) ?? [];
@@ -21,13 +21,14 @@ function groupByCategory(facts: Fact[]): [string, Fact[]][] {
     groups.set(fact.category, list);
   }
 
-  const known = CATEGORY_ORDER.filter((c) => groups.has(c));
-  const unknown = [...groups.keys()].filter((c) => !CATEGORY_ORDER.includes(c));
+  const known = order.filter((c) => groups.has(c));
+  const unknown = [...groups.keys()].filter((c) => !order.includes(c));
   return [...known, ...unknown].map((category) => [category, groups.get(category)!]);
 }
 
 function Facts({ idToken, tenantId, refreshKey }: Props) {
   const [facts, setFacts] = useState<Fact[]>([]);
+  const [order, setOrder] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,6 +36,10 @@ function Facts({ idToken, tenantId, refreshKey }: Props) {
     getTenantFacts(idToken, tenantId)
       .then(setFacts)
       .catch((err) => setError(String(err)));
+    // Only the order depends on this; without it the groups just follow the facts.
+    getCategories(idToken)
+      .then((c) => setOrder(c.categories))
+      .catch(() => setOrder([]));
   }, [idToken, tenantId, refreshKey]);
 
   if (error) return <p>Error loading facts: {error}</p>;
@@ -42,7 +47,7 @@ function Facts({ idToken, tenantId, refreshKey }: Props) {
 
   return (
     <div className="facts">
-      {groupByCategory(facts).map(([category, categoryFacts]) => (
+      {groupByCategory(facts, order).map(([category, categoryFacts]) => (
         <details key={category} className="facts-category" open>
           <summary>
             {category} ({categoryFacts.length})

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { getSettings, resetSettings, updateSettings, type SettingsResponse, type SettingsValues } from "../api";
 import AccessSection from "./settings/AccessSection";
+import CategoriesSection from "./settings/CategoriesSection";
 import GithubSection from "./settings/GithubSection";
 import JiraSection from "./settings/JiraSection";
 import "./SettingsDialog.css";
@@ -145,6 +146,7 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
 
         {error && <p className="settings-error">{error}</p>}
 
+        <CategoriesSection idToken={idToken} />
         <GithubSection idToken={idToken} />
         <JiraSection idToken={idToken} />
         <AccessSection idToken={idToken} />

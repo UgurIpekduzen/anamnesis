@@ -9,3 +9,4 @@ export * from "./settings";
 export * from "./connections";
 export * from "./access";
 export * from "./status";
+export * from "./categories";

@@ -231,6 +231,8 @@ function App() {
             setSettingsOpen(false);
             // Connecting or disconnecting an account happens in Settings.
             reloadConnections();
+            // The Facts tab lists groups in the user's category order.
+            bumpFacts();
           }}
           // The warning threshold lives in Settings, so the counter in the
           // sidebar has to refetch to pick up a new one.

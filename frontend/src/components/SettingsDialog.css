@@ -10,6 +10,9 @@
 
 .settings-dialog {
   width: min(440px, calc(100vw - 32px));
+  /* Taller than the window once every section is open: scroll inside. */
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -116,6 +119,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  /* Stays visible while the sections above scroll. */
+  position: sticky;
+  bottom: -24px;
+  margin-bottom: -24px;
+  padding: 12px 0 24px;
+  background: var(--bg-card);
 }
 
 .settings-actions-right {
@@ -195,4 +204,48 @@
 .settings-field input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+.category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+.category-chip button {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 6px;
+}
+
+.category-chip button:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.category-add {
+  display: flex;
+  gap: 6px;
+}
+
+.category-add input {
+  flex: 1;
+}
+
+.category-suggested {
+  border-style: dashed;
+  border-radius: 999px;
+  font-size: 13px;
+  padding: 2px 10px;
 }
