@@ -51,6 +51,7 @@
 
 .tabs .tab {
   flex: 1;
+  padding: 6px 8px;
   border: none;
   border-radius: 0;
   border-bottom: 2px solid transparent;
