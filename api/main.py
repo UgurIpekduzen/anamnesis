@@ -16,7 +16,7 @@ from api.internal_auth import verify_scheduler_token
 from src.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
 from src.categories import ensure_categories_seeded
 from src.chat_history import append_turn, clear_turns, load_recent_turns
-from src.facts import get_tenant_facts
+from src.facts import delete_fact, get_fact, get_tenant_facts, update_fact
 from src.github_client import validate_github_token
 from src.github_connections import delete_github_connection, has_github_connection, save_github_token
 from src.jira_client import validate_jira_credentials
@@ -148,6 +148,15 @@ def create_tenant(body: TenantCreate, owner_uid: str = Depends(get_current_owner
     return {"tenant_id": tenant_id}
 
 
+class FactUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Omitted means unchanged, same as update_fact — but an empty body would
+    # change nothing, so it is refused below.
+    content: str | None = Field(default=None, strict=True, min_length=1, max_length=2000)
+    category: str | None = Field(default=None, strict=True, min_length=1, max_length=50)
+
+
 class TenantRename(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -237,6 +246,34 @@ def remove_jira_project_key(tenant_id: str, owner_uid: str = Depends(get_current
 @app.get("/tenants/{tenant_id}/facts")
 def get_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
     return get_tenant_facts(tenant_id, owner_uid)
+
+
+# What a chat proposal card's button calls (APPCE-107): the model only ever
+# proposes an edit or a delete, and the user's click is what makes it.
+@app.patch("/tenants/{tenant_id}/facts/{fact_id}")
+def edit_fact(
+    tenant_id: str, fact_id: str, body: FactUpdate, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    if body.content is None and body.category is None:
+        raise HTTPException(status_code=422, detail="Give a content or a category to change")
+    try:
+        get_fact(tenant_id, fact_id, owner_uid)
+        update_fact(tenant_id, fact_id, owner_uid, content=body.content, category=body.category)
+    except (PermissionError, LookupError):
+        raise HTTPException(status_code=404, detail="Fact not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"status": "updated"}
+
+
+@app.delete("/tenants/{tenant_id}/facts/{fact_id}")
+def remove_fact(tenant_id: str, fact_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    try:
+        get_fact(tenant_id, fact_id, owner_uid)
+        delete_fact(tenant_id, fact_id, owner_uid)
+    except (PermissionError, LookupError):
+        raise HTTPException(status_code=404, detail="Fact not found")
+    return {"status": "deleted"}
 
 
 # Lazily-importing wrappers (APPCE-50, same pattern as get_runner/
