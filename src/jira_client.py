@@ -48,14 +48,32 @@ def validate_jira_credentials(email: str, token: str, base_url: str) -> None:
     response.raise_for_status()
 
 
-def _format_issue(issue: dict) -> str:
+def _format_issue(issue: dict, with_resolved_date: bool = False) -> str:
     summary = issue["fields"]["summary"]
     if len(summary) > MAX_SUMMARY_CHARS:
         summary = summary[: MAX_SUMMARY_CHARS - 1] + "…"
-    return (
-        f'{issue["key"]} · {issue["fields"]["issuetype"]["name"]} · '
-        f'{issue["fields"]["status"]["name"]} · {summary}'
+    parts = [issue["key"], issue["fields"]["issuetype"]["name"], issue["fields"]["status"]["name"]]
+    if with_resolved_date:
+        # "2026-09-20T10:04:00.000+0300" -> "2026-09-20"; absent on an issue
+        # that was moved to Done without a resolution.
+        parts.append((issue["fields"].get("resolutiondate") or "no date")[:10])
+    return " · ".join([*parts, summary])
+
+
+def _search(jql: str, fields: str, email: str, token: str, base_url: str, limit: int, resolved: bool) -> dict:
+    response = requests.get(
+        f"{base_url.rstrip('/')}/rest/api/3/search/jql",
+        auth=(email, token),
+        # One more than asked for, only to learn whether there is more.
+        params={"jql": jql, "fields": fields, "maxResults": limit + 1},
+        timeout=10,
     )
+    response.raise_for_status()
+    issues = response.json().get("issues", [])
+    return {
+        "issues": [_format_issue(issue, resolved) for issue in issues[:limit]],
+        "truncated": len(issues) > limit,
+    }
 
 
 def get_jira_status(
@@ -89,16 +107,22 @@ def get_jira_status(
     # A key saved before it was validated may still be in the database.
     validate_project_key(project_key)
     jql = f'project = "{project_key}" AND statusCategory != Done ORDER BY updated DESC'
-    response = requests.get(
-        f"{base_url.rstrip('/')}/rest/api/3/search/jql",
-        auth=(email, token),
-        # One more than asked for, only to learn whether there is more.
-        params={"jql": jql, "fields": "summary,status,issuetype", "maxResults": limit + 1},
-        timeout=10,
-    )
-    response.raise_for_status()
-    issues = response.json().get("issues", [])
-    return {
-        "issues": [_format_issue(issue) for issue in issues[:limit]],
-        "truncated": len(issues) > limit,
-    }
+    return _search(jql, "summary,status,issuetype", email, token, base_url, limit, resolved=False)
+
+
+def get_jira_recently_done(
+    project_key: str, email: str, token: str, base_url: str, limit: int = DEFAULT_LIMIT
+) -> dict:
+    """Recently finished issues of a Jira project — what was done lately.
+
+    Same data minimization and size limits as get_jira_status (APPCE-29,
+    APPCE-104): key, type, status, resolution date and a cut-off summary,
+    never people. The most recently updated `limit` done issues only.
+
+    Returns:
+        {"issues": ["KEY · Type · Status · YYYY-MM-DD · Summary", ...],
+        "truncated": bool} — "truncated" is true when there are more.
+    """
+    validate_project_key(project_key)
+    jql = f'project = "{project_key}" AND statusCategory = Done ORDER BY updated DESC'
+    return _search(jql, "summary,status,issuetype,resolutiondate", email, token, base_url, limit, resolved=True)

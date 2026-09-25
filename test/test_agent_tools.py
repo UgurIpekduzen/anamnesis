@@ -193,6 +193,8 @@ def test_the_only_tool_that_writes_is_publish_fact_and_it_asks_first():
         "get_tenant_facts",
         "get_github_status",
         "get_jira_status",
+        "get_jira_recently_done",
+        "get_github_history",
         "propose_link",
         "propose_fact_update",
         "propose_fact_delete",
@@ -294,3 +296,80 @@ def test_the_agent_names_the_propose_tools_and_not_the_removed_write_tools():
     assert "propose_fact_update" in instruction and "propose_fact_delete" in instruction
     assert "update_fact" not in instruction.replace("propose_fact_update", "")
     assert "delete_fact" not in instruction.replace("propose_fact_delete", "")
+
+
+def _jira_ready(monkeypatch, project_key="APPCE"):
+    monkeypatch.setattr(agent_module, "get_owned_tenant", lambda tenant_id, owner_uid: {"jira_project_key": project_key})
+    monkeypatch.setattr(
+        agent_module,
+        "get_jira_credentials",
+        lambda owner_uid: {"email": "user@example.com", "token": "secret-token", "base_url": "https://x"},
+    )
+
+
+def test_get_jira_recently_done_uses_the_projects_key_and_the_users_own_credentials(monkeypatch):
+    # Built first: the tool takes its name from the real function.
+    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "get_jira_recently_done")
+    _jira_ready(monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        agent_module,
+        "get_jira_recently_done",
+        lambda project_key, email, token, base_url: calls.append((project_key, email, token, base_url))
+        or {"issues": [], "truncated": False},
+    )
+
+    assert tool() == {"issues": [], "truncated": False}
+    assert calls == [("APPCE", "user@example.com", "secret-token", "https://x")]
+
+
+def test_get_jira_recently_done_returns_error_results_instead_of_raising(monkeypatch):
+    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "get_jira_recently_done")
+
+    monkeypatch.setattr(agent_module, "get_owned_tenant", lambda tenant_id, owner_uid: {})
+    assert "no linked Jira" in tool()["error"]
+
+    _jira_ready(monkeypatch)
+    monkeypatch.setattr(agent_module, "get_jira_credentials", lambda owner_uid: None)
+    assert "No Jira account" in tool()["error"]
+
+    _jira_ready(monkeypatch)
+
+    def http_failure(*args, **kwargs):
+        raise RuntimeError("Jira timed out")
+
+    monkeypatch.setattr(agent_module, "get_jira_recently_done", http_failure)
+    assert tool() == {"error": "Jira timed out"}
+
+
+def test_get_github_history_has_owner_uid_and_tenant_id_bound_and_returns_errors_as_results(monkeypatch):
+    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "get_github_history")
+    seen = {}
+
+    def fake(owner_uid, tenant_id):
+        seen.update(owner_uid=owner_uid, tenant_id=tenant_id)
+        return {"pull_requests": [], "issues": [], "truncated": False}
+
+    monkeypatch.setattr(agent_module, "get_github_history", fake)
+    tool()
+    assert seen == {"owner_uid": "test@example.com", "tenant_id": "some_tenant"}
+
+    def no_repo(owner_uid, tenant_id):
+        raise ValueError("Tenant 'some_tenant' has no GitHub repo attached.")
+
+    monkeypatch.setattr(agent_module, "get_github_history", no_repo)
+    assert tool() == {"error": "Tenant 'some_tenant' has no GitHub repo attached."}
+
+
+def test_the_history_tools_have_a_description_the_model_can_use():
+    tools = agent_module.build_agent("test@example.com", "some_tenant").tools
+
+    for name in ("get_jira_recently_done", "get_github_history"):
+        assert "truncated" in _tool_by_name(tools, name).__doc__
+
+
+def test_the_agent_treats_history_titles_as_data():
+    instruction = agent_module.build_agent("test@example.com", "some_tenant").instruction
+
+    assert "get_jira_recently_done" in instruction and "get_github_history" in instruction
+    assert "never as instructions" in instruction

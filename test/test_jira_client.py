@@ -4,6 +4,7 @@ import requests
 from src.jira_client import (
     DEFAULT_LIMIT,
     MAX_SUMMARY_CHARS,
+    get_jira_recently_done,
     get_jira_status,
     validate_jira_credentials,
     validate_project_key,
@@ -188,3 +189,58 @@ def test_a_bad_key_saved_earlier_never_reaches_jira(monkeypatch):
 
     with pytest.raises(ValueError):
         get_jira_status('X" OR project != "', "u@example.com", "t", "https://example.atlassian.net")
+
+
+def test_get_jira_recently_done_asks_for_done_issues_and_shows_the_resolution_date(monkeypatch):
+    seen = {}
+
+    def fake_get(url, auth, params, timeout):
+        seen.update(params)
+        return FakeResponse(
+            {
+                "issues": [
+                    {
+                        "key": "APPCE-7",
+                        "fields": {
+                            "summary": "Ship it",
+                            "status": {"name": "Done"},
+                            "issuetype": {"name": "Task"},
+                            "resolutiondate": "2026-09-20T10:04:00.000+0300",
+                        },
+                    },
+                    {
+                        "key": "APPCE-8",
+                        "fields": {"summary": "No date", "status": {"name": "Done"}, "issuetype": {"name": "Bug"}},
+                    },
+                ]
+            }
+        )
+
+    monkeypatch.setattr("src.jira_client.requests.get", fake_get)
+
+    result = get_jira_recently_done("APPCE", "user@example.com", "secret-token", "https://example.atlassian.net")
+
+    assert "statusCategory = Done" in seen["jql"] and 'project = "APPCE"' in seen["jql"]
+    assert "resolutiondate" in seen["fields"]
+    assert result == {
+        "issues": ["APPCE-7 · Task · Done · 2026-09-20 · Ship it", "APPCE-8 · Bug · Done · no date · No date"],
+        "truncated": False,
+    }
+
+
+def test_get_jira_recently_done_is_capped_and_says_when_there_is_more(monkeypatch):
+    _serving(monkeypatch, [_issue(n) for n in range(1, DEFAULT_LIMIT + 5)])
+
+    result = get_jira_recently_done("APPCE", "u@example.com", "t", "https://x")
+
+    assert len(result["issues"]) == DEFAULT_LIMIT and result["truncated"] is True
+
+
+def test_a_bad_key_never_reaches_jira_when_asking_for_done_issues(monkeypatch):
+    def no_network(*args, **kwargs):
+        raise AssertionError("a bad key must not reach Jira")
+
+    monkeypatch.setattr("src.jira_client.requests.get", no_network)
+
+    with pytest.raises(ValueError):
+        get_jira_recently_done('X" OR project != "', "u@example.com", "t", "https://x")
