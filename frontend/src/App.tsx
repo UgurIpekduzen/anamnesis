@@ -32,6 +32,10 @@ const MIN_MAIN_WIDTH = 320;
 // sign-in screen unmounts.
 const SILENT_REFRESH_INTERVAL_MS = 50 * 60 * 1000;
 
+// When to re-read the facts after a fact was published: the write goes
+// through Pub/Sub, so it usually lands within a couple of seconds.
+const FACTS_RETRY_DELAYS_MS = [1500, 4000, 8000];
+
 function App() {
   const [idToken, setIdToken] = useState<string | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -72,6 +76,8 @@ function App() {
   // Counts project-list requests so a late answer to an older one is dropped
   // (a quiet refresh must never overwrite a newer list or another account's).
   const tenantsRequestRef = useRef(0);
+  // Pending re-fetches of the facts list after a fact was published.
+  const factsRetryTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // Re-read the project list without touching the selection, unlike the
   // effect below (which resets everything). Used after the assistant links a
@@ -189,8 +195,15 @@ function App() {
     if (event.type === "sent" || event.type === "answered" || event.type === "failed") {
       setUsageRefreshKey((k) => k + 1);
     }
-    // A fact the agent just recorded lands asynchronously (Pub/Sub), so
-    // this refetch can beat it — the Facts refresh button covers that.
+    // A fact the agent just recorded lands asynchronously (Pub/Sub), so a
+    // single refetch when the turn ends can beat it. Ask again a few times
+    // shortly after; the Facts refresh button stays as the last resort.
+    if (event.type === "tool_result" && event.name === "publish_fact") {
+      factsRetryTimersRef.current.forEach(clearTimeout);
+      factsRetryTimersRef.current = FACTS_RETRY_DELAYS_MS.map((delay) =>
+        setTimeout(() => setFactsRefreshKey((k) => k + 1), delay),
+      );
+    }
     if (event.type === "answered") {
       setFactsRefreshKey((k) => k + 1);
       // The assistant may just have linked a repo or a Jira key.
@@ -201,7 +214,12 @@ function App() {
   // The Trace belongs to one project's conversation, like the chat itself.
   useEffect(() => {
     dispatchTrace({ type: "cleared", at: Date.now() });
+    // A retry for the previous project's facts has no business firing now.
+    factsRetryTimersRef.current.forEach(clearTimeout);
+    factsRetryTimersRef.current = [];
   }, [selectedTenantId]);
+
+  useEffect(() => () => factsRetryTimersRef.current.forEach(clearTimeout), []);
 
   // disableAutoSelect stops GIS from silently re-selecting this same
   // account next time — without it, "sign out" would just log the user
