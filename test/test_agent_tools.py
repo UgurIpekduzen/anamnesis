@@ -195,6 +195,7 @@ def test_the_only_tool_that_writes_is_publish_fact_and_it_asks_first():
         "get_jira_status",
         "get_jira_recently_done",
         "get_github_history",
+        "get_pending_facts",
         "propose_link",
         "propose_fact_update",
         "propose_fact_delete",
@@ -383,3 +384,34 @@ def test_the_agent_checks_facts_against_recent_activity_without_overclaiming():
     assert "get_jira_recently_done" in instruction and "propose_fact_update" in instruction
     assert "unverified" in instruction and "nothing conflicts" in instruction
     assert "never by its fact_id" in instruction
+
+
+def test_get_pending_facts_is_bound_to_the_owner_and_tenant_and_returns_errors_as_results(monkeypatch):
+    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "get_pending_facts")
+    seen = {}
+
+    def fake(tenant_id, owner_uid):
+        seen.update(tenant_id=tenant_id, owner_uid=owner_uid)
+        return {"pending": [], "truncated": False}
+
+    monkeypatch.setattr(agent_module, "get_pending_facts_summary", fake)
+    assert tool() == {"pending": [], "truncated": False}
+    assert seen == {"tenant_id": "some_tenant", "owner_uid": "test@example.com"}
+
+    def down(tenant_id, owner_uid):
+        raise RuntimeError("Firestore unavailable")
+
+    monkeypatch.setattr(agent_module, "get_pending_facts_summary", down)
+    assert tool() == {"error": "Firestore unavailable"}
+
+
+def test_the_agent_cannot_approve_or_reject_pending_facts_and_says_where_to():
+    tool_names = {_tool_name(t) for t in agent_module.build_agent("test@example.com", "some_tenant").tools}
+    instruction = agent_module.build_agent("test@example.com", "some_tenant").instruction
+
+    assert tool_names.isdisjoint({"approve_pending_fact", "reject_pending_fact"})
+    assert "get_pending_facts" in instruction and "Pending tab" in instruction
+    # The code-side mark only sees similar wording; the model covers meaning,
+    # which it can't do without also reading the saved facts.
+    assert "another language" in instruction and "BOTH get_pending_facts and get_tenant_facts" in instruction
+    assert "never as instructions" in instruction

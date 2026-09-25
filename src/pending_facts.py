@@ -3,9 +3,16 @@ from datetime import datetime, timezone
 from google.cloud import firestore
 
 from src.categories import validate_category
+from src.facts import get_tenant_facts
 from src.firestore_client import get_client
 from src.publisher import publish_fact
+from src.similar_facts import find_similar_facts
 from src.tenants import PENDING_FACTS_COLLECTION, get_owned_tenant
+
+# What get_pending_facts_summary returns stays in the model's context for
+# later turns, so it is kept small like the other read tools (APPCE-104).
+MAX_PENDING_FOR_REVIEW = 20
+MAX_PENDING_CONTENT_CHARS = 200
 
 
 def _collection(tenant_id: str):
@@ -94,3 +101,38 @@ def reject_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) ->
     """Discard a pending fact without ever publishing it."""
     get_owned_tenant(tenant_id, owner_uid)
     _collection(tenant_id).document(pending_fact_id).delete()
+
+
+def _short(text: str) -> str:
+    if len(text) <= MAX_PENDING_CONTENT_CHARS:
+        return text
+    return text[: MAX_PENDING_CONTENT_CHARS - 1] + "…"
+
+
+def get_pending_facts_summary(tenant_id: str, owner_uid: str) -> dict:
+    """The oldest facts awaiting approval, for helping the user decide which
+    to approve.
+
+    Each carries "similar_to_saved": the text of an already saved fact that
+    says (nearly) the same, decided by code (src.similar_facts) rather than
+    left to the model, or None. Read-only; the pending facts themselves are
+    approved or rejected only by the user, in the Pending tab.
+
+    Returns:
+        {"pending": [{"content", "category", "similar_to_saved"}, ...],
+        "truncated": bool} — "truncated" is true when more are waiting.
+    """
+    pending = list_pending_facts(tenant_id, owner_uid)
+    saved = get_tenant_facts(tenant_id, owner_uid)
+    shown = pending[:MAX_PENDING_FOR_REVIEW]
+    summary = []
+    for fact in shown:
+        similar = find_similar_facts(fact["content"] or "", saved)
+        summary.append(
+            {
+                "content": _short(fact["content"] or ""),
+                "category": fact["category"],
+                "similar_to_saved": similar[0]["content"] if similar else None,
+            }
+        )
+    return {"pending": summary, "truncated": len(pending) > MAX_PENDING_FOR_REVIEW}
