@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 
 import { chatSocketUrl, deleteFact, getChatHistory, setTenantLink, updateFact } from "../api";
 import type { ChatEvent } from "../trace";
+import { recallableMessages, step } from "../inputHistory";
 import { describeArgs } from "../traceView";
 import ConfirmDialog from "./ConfirmDialog";
 import "./Chat.css";
@@ -139,6 +140,10 @@ interface PendingConfirmation {
 function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  // Browsing earlier messages with ↑/↓ (APPCE-112): where in the list, and
+  // the draft to come back to when browsing goes past the newest one.
+  const [recallIndex, setRecallIndex] = useState<number | null>(null);
+  const draftRef = useRef("");
   const [isThinking, setIsThinking] = useState(false);
   // Clear chat asks first: it deletes the saved conversation for good.
   const [confirmingClear, setConfirmingClear] = useState(false);
@@ -312,6 +317,7 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
     setMessages((prev) => [...prev, { role: "user", content: question }]);
     setIsThinking(true);
     setInput("");
+    setRecallIndex(null);
     socketRef.current.send(JSON.stringify({ message: question }));
     onEvent?.({ type: "sent", question });
   }
@@ -343,6 +349,16 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
     }
   }
 
+  function recall(direction: "up" | "down") {
+    const sent = recallableMessages(messages.filter((msg) => msg.role === "user").map((msg) => msg.content));
+    if (recallIndex === null) draftRef.current = input;
+    const result = step(direction, sent, recallIndex, draftRef.current);
+    if (!result) return false;
+    setRecallIndex(result.index);
+    setInput(result.text);
+    return true;
+  }
+
   function clearChat() {
     // Also drop the server-side session — clearing only the UI would
     // leave the model still seeing (and billing for) the old history.
@@ -354,6 +370,7 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
     clearedRef.current = true;
     setPendingConfirmation(null);
     setIsThinking(false);
+    setRecallIndex(null);
     setMessages([]);
     onEvent?.({ type: "cleared" });
   }
@@ -447,8 +464,19 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
       <div className="chat-input-row">
         <input
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          onChange={(e) => {
+            // Editing a recalled message makes it the new draft.
+            setRecallIndex(null);
+            setInput(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") sendMessage();
+            // Not while an IME is composing (Turkish/Asian input methods use
+            // the arrow keys to pick a candidate).
+            else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.nativeEvent.isComposing) {
+              if (recall(e.key === "ArrowUp" ? "up" : "down")) e.preventDefault();
+            }
+          }}
           placeholder={
             !tenantId
               ? "Select a project first"
