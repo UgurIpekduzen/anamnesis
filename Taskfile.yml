@@ -79,6 +79,27 @@ tasks:
       - task: tf:validate
       - task: tf:plan
 
+  alert:test:
+    aliases: [at]
+    desc: Write a fake ERROR log line so an alert policy fires and mails the owner (APPCE-109) — task alert:test [EVENT=agent_call_failed|github_poll]
+    vars:
+      EVENT: '{{.EVENT | default "agent_call_failed"}}'
+    requires:
+      vars:
+        - name: EVENT
+          enum: [agent_call_failed, github_poll]
+    cmds:
+      - >-
+        docker compose run --rm -T gcloud logging write anamnesis-alert-test
+        '{"event":"{{.EVENT}}","note":"alert test, ignore"}'
+        --payload-type=json --severity=ERROR
+        --monitored-resource-type=cloud_run_revision
+        --monitored-resource-labels=service_name={{.APP_SERVICE}},location={{.REGION}},revision_name=test,configuration_name=test
+      - |
+        echo "Wrote a fake {{.EVENT}} error at $(date -u +%H:%M:%S) UTC."
+        echo "The policy 'Anamnesis: {{.EVENT}}' should open within a minute and mail the owner shortly after."
+        echo "No mail? A policy mails at most once an hour and stays open for 30 minutes after the last matching line."
+
   uv:lock:
     desc: Re-resolve pyproject.toml into uv.lock without upgrading anything already locked (uv runs in Docker, APPCE-96)
     cmds:
