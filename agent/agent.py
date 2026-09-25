@@ -4,7 +4,7 @@ from google.adk.agents.llm_agent import Agent
 from google.adk.tools.function_tool import FunctionTool
 
 from agent.history import make_history_limiter
-from src.categories import validate_category
+from src.categories import validate_category_for
 from src.facts import get_fact, get_tenant_facts
 from src.github_activity import get_github_history, get_github_status
 from src.jira_client import get_jira_recently_done, get_jira_status, validate_project_key
@@ -158,7 +158,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
             return {"error": "Give the new content or the new category."}
         try:
             if category is not None:
-                validate_category(category)
+                validate_category_for(owner_uid, category)
             fact = get_fact(tenant_id, fact_id, owner_uid)
         except (ValueError, LookupError) as e:
             return {"error": str(e)}

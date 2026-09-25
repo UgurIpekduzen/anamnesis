@@ -252,7 +252,9 @@ def _fact_tool(monkeypatch, name, fact=FACT):
         return fact
 
     monkeypatch.setattr(agent_module, "get_fact", fake_get_fact)
-    monkeypatch.setattr(agent_module, "validate_category", lambda c: None if c in {"bug", "decision"} else _bad(c))
+    monkeypatch.setattr(
+        agent_module, "validate_category_for", lambda owner_uid, c: None if c in {"bug", "decision"} else _bad(c)
+    )
     return _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, name)
 
 

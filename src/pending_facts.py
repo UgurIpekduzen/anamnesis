@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from google.cloud import firestore
 
-from src.categories import validate_category
+from src.categories import validate_category_for
 from src.facts import get_tenant_facts
 from src.firestore_client import get_client
 from src.publisher import publish_fact
@@ -45,7 +45,7 @@ def create_pending_fact(
         The generated pending_fact_id.
     """
     get_owned_tenant(tenant_id, owner_uid)
-    validate_category(category)
+    validate_category_for(owner_uid, category)
 
     now = datetime.now(timezone.utc)
     _, doc_ref = _collection(tenant_id).add(

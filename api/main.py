@@ -15,6 +15,7 @@ from api.deps import get_current_owner_uid, require_owner, verify_token
 from api.internal_auth import verify_scheduler_token
 from src.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
 from src.categories import (
+    InvalidCategory,
     ensure_categories_seeded,
     get_category_settings,
     reset_categories,
@@ -364,6 +365,9 @@ def approve_pending_fact_endpoint(
         approve_pending_fact(tenant_id, pending_fact_id, owner_uid)
     except PermissionError:
         raise HTTPException(status_code=404, detail="Project not found")
+    except InvalidCategory as exc:
+        # The user removed this fact's category after it was staged.
+        raise HTTPException(status_code=400, detail=str(exc))
     except ValueError:
         raise HTTPException(status_code=404, detail="Pending fact not found")
     return {"status": "approved"}

@@ -26,7 +26,7 @@ def wired(monkeypatch):
     monkeypatch.setattr(github_polling, "fetch_recent_pull_requests", lambda owner_uid, tenant_id: state["prs"])
     monkeypatch.setattr(github_polling, "fetch_recent_issues", lambda owner_uid, tenant_id: state["issues"])
 
-    def fake_extract(title, body, kind):
+    def fake_extract(title, body, kind, owner_uid):
         state["extract_calls"].append(title)
         return state["extracted"].get(title, [])
 

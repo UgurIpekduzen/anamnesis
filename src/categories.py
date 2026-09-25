@@ -85,6 +85,20 @@ _USER_CACHE_TTL_SECONDS = 30
 _user_cache: dict[str, tuple[float, list[str] | None]] = {}
 
 
+class InvalidCategory(ValueError):
+    """A category that isn't allowed here. A ValueError, so existing handlers
+    still catch it; a separate type so an endpoint can tell "this category" from
+    "this thing doesn't exist"."""
+
+
+def validate_category_name(category) -> None:
+    """Reject anything that isn't shaped like a category name — a slug, not
+    free text. Membership in a user's list is validate_category_for's job; this
+    is for places that don't know the owner (the Pub/Sub subscriber)."""
+    if not isinstance(category, str) or not _NAME.match(category):
+        raise InvalidCategory(f"'{category}' isn't a valid category name.")
+
+
 def check_category_names(categories) -> list[str]:
     """Normalise (trim, lower-case) and validate a user's whole list.
 
@@ -160,4 +174,4 @@ def validate_category_for(owner_uid: str, category: str) -> None:
     """Reject a category that isn't in owner_uid's list."""
     allowed = get_categories(owner_uid)
     if category not in allowed:
-        raise ValueError(f"Invalid category '{category}'. Allowed: {allowed}")
+        raise InvalidCategory(f"Invalid category '{category}'. Allowed: {allowed}")

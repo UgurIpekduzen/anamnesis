@@ -1,6 +1,6 @@
 import json
 
-from src.categories import validate_category
+from src.categories import validate_category_for
 from src.pubsub_client import get_publisher_client, topic_path
 from src.tenants import get_owned_tenant
 
@@ -19,8 +19,7 @@ def publish_fact(tenant_id: str, content: str, category: str, owner_uid: str, so
     Args:
         tenant_id: The project identifier, e.g. "my_project".
         content: The fact text.
-        category: One of the allowed categories (architecture, decision,
-            bug, status, todo).
+        category: One of the owner's categories (see src.categories).
         source: Where this fact came from — "chat" or "github" (see
             src.facts.create_fact).
 
@@ -28,7 +27,7 @@ def publish_fact(tenant_id: str, content: str, category: str, owner_uid: str, so
         The published message ID.
     """
     get_owned_tenant(tenant_id, owner_uid)
-    validate_category(category)
+    validate_category_for(owner_uid, category)
 
     payload = {"tenant_id": tenant_id, "content": content, "category": category, "source": source}
     data = json.dumps(payload).encode("utf-8")

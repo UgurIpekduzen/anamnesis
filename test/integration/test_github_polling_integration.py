@@ -35,7 +35,7 @@ def test_polling_twice_stages_each_item_once(tenant_id, monkeypatch):
     monkeypatch.setattr(
         github_polling,
         "extract_facts",
-        lambda title, body, kind: [{"content": f"Fact from {title}", "category": "decision"}],
+        lambda title, body, kind, owner_uid: [{"content": f"Fact from {title}", "category": "decision"}],
     )
     # A retried scheduler run: the poll timestamp hasn't advanced, so both
     # items look new again and only the duplicate check can stop them.

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from google.cloud import firestore
 
-from src.categories import validate_category
+from src.categories import validate_category_for, validate_category_name
 from src.firestore_client import get_client
 from src.tenants import get_owned_tenant
 
@@ -21,7 +21,10 @@ def create_fact(tenant_id: str, content: str, category: str, source: str = "chat
             conversation) or "github" (approved from the Pending review
             queue, see APPCE-81/82).
     """
-    validate_category(category)
+    # Only the name's shape: the message came from publish_fact, which checked
+    # the category against its owner's list. A user may since have removed it
+    # from the list — the fact keeps it (APPCE-116).
+    validate_category_name(category)
 
     client = get_client()
     now = datetime.now(timezone.utc)
@@ -113,7 +116,7 @@ def update_fact(
     """
     get_owned_tenant(tenant_id, owner_uid)
     if category is not None:
-        validate_category(category)
+        validate_category_for(owner_uid, category)
 
     updates = {"updated_at": datetime.now(timezone.utc)}
     if content is not None:
