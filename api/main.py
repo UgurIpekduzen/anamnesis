@@ -302,10 +302,24 @@ def reject_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) ->
     return _reject_pending_fact(tenant_id, pending_fact_id, owner_uid)
 
 
+def get_pending_fact_stats(tenant_id: str, owner_uid: str) -> dict:
+    from src.pending_facts import get_pending_fact_stats as _get_pending_fact_stats
+
+    return _get_pending_fact_stats(tenant_id, owner_uid)
+
+
 @app.get("/tenants/{tenant_id}/pending_facts")
 def get_pending_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
     try:
         return list_pending_facts(tenant_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+
+@app.get("/tenants/{tenant_id}/pending_facts/stats")
+def get_pending_facts_stats(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    try:
+        return get_pending_fact_stats(tenant_id, owner_uid)
     except PermissionError:
         raise HTTPException(status_code=404, detail="Project not found")
 

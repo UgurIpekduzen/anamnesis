@@ -9,6 +9,14 @@ from src.publisher import publish_fact
 from src.similar_facts import find_similar_facts
 from src.tenants import PENDING_FACTS_COLLECTION, get_owned_tenant
 
+# A pending fact is never deleted once it is decided (APPCE-110): the document
+# stays with a status, so the approval rate can be counted and a source that
+# was already approved or rejected is not proposed again. Documents from
+# before this field existed have no status and count as pending.
+PENDING = "pending"
+APPROVED = "approved"
+REJECTED = "rejected"
+
 # What get_pending_facts_summary returns stays in the model's context for
 # later turns, so it is kept small like the other read tools (APPCE-104).
 MAX_PENDING_FOR_REVIEW = 20
@@ -46,6 +54,7 @@ def create_pending_fact(
             "category": category,
             "source": source,
             "source_url": source_url,
+            "status": PENDING,
             "created_at": now,
         }
     )
@@ -53,8 +62,8 @@ def create_pending_fact(
 
 
 def has_pending_fact_for_source(tenant_id: str, source_url: str) -> bool:
-    """Whether a fact from this origin (e.g. a PR/issue URL) is already
-    waiting for review.
+    """Whether a fact from this origin (e.g. a PR/issue URL) was already
+    staged: still waiting for review, or approved or rejected before.
 
     Lets the GitHub poller stay idempotent (APPCE-101): Cloud Scheduler is
     at-least-once, so a retried or overlapping run must not stage the same
@@ -64,6 +73,10 @@ def has_pending_fact_for_source(tenant_id: str, source_url: str) -> bool:
     """
     query = _collection(tenant_id).where(filter=firestore.FieldFilter("source_url", "==", source_url)).limit(1)
     return any(True for _ in query.stream())
+
+
+def _is_pending(data: dict) -> bool:
+    return data.get("status", PENDING) == PENDING
 
 
 def list_pending_facts(tenant_id: str, owner_uid: str) -> list[dict]:
@@ -79,28 +92,51 @@ def list_pending_facts(tenant_id: str, owner_uid: str) -> list[dict]:
             "created_at": doc.get("created_at"),
         }
         for doc in _collection(tenant_id).order_by("created_at").stream()
+        if _is_pending(doc.to_dict())
     ]
+
+
+def _decide(doc_ref, status: str) -> None:
+    """Record a decision. The fact's text goes: the rate and the "already
+    seen" check only need the source, and the text was derived from what
+    other people wrote (APPCE-29, data minimization)."""
+    doc_ref.update({"status": status, "decided_at": datetime.now(timezone.utc), "content": firestore.DELETE_FIELD})
 
 
 def approve_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
     """Turn a pending fact into a real one via the normal publish path
-    (src.publisher.publish_fact), then remove the staged copy.
+    (src.publisher.publish_fact), then mark the staged copy approved.
     """
     get_owned_tenant(tenant_id, owner_uid)
     doc_ref = _collection(tenant_id).document(pending_fact_id)
     doc = doc_ref.get()
-    if not doc.exists:
+    if not doc.exists or not _is_pending(doc.to_dict()):
         raise ValueError(f"No pending fact '{pending_fact_id}' for tenant '{tenant_id}'.")
 
     data = doc.to_dict()
     publish_fact(tenant_id, data["content"], data["category"], owner_uid, source=data.get("source", "chat"))
-    doc_ref.delete()
+    _decide(doc_ref, APPROVED)
 
 
 def reject_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
-    """Discard a pending fact without ever publishing it."""
+    """Discard a pending fact without ever publishing it, remembering that it
+    was rejected. Rejecting one that is gone or already decided does nothing."""
     get_owned_tenant(tenant_id, owner_uid)
-    _collection(tenant_id).document(pending_fact_id).delete()
+    doc_ref = _collection(tenant_id).document(pending_fact_id)
+    doc = doc_ref.get()
+    if doc.exists and _is_pending(doc.to_dict()):
+        _decide(doc_ref, REJECTED)
+
+
+def get_pending_fact_stats(tenant_id: str, owner_uid: str) -> dict:
+    """How many staged facts are waiting, approved and rejected — the approval
+    rate is approved / (approved + rejected). Counts start from when decisions
+    began to be kept (APPCE-110); earlier ones were deleted."""
+    get_owned_tenant(tenant_id, owner_uid)
+    counts = {PENDING: 0, APPROVED: 0, REJECTED: 0}
+    for doc in _collection(tenant_id).select(["status"]).stream():
+        counts[doc.to_dict().get("status", PENDING)] += 1
+    return counts
 
 
 def _short(text: str) -> str:
