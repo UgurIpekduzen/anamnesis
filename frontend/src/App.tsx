@@ -375,6 +375,7 @@ function App() {
             tenantId={selectedTenantId}
             onEvent={handleChatEvent}
             onAuthFailed={handleAuthFailed}
+            onLinked={refreshTenantsQuietly}
           />
         </div>
       </main>

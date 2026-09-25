@@ -188,3 +188,22 @@
   font-size: 1.05em;
   margin: 12px 0 6px;
 }
+
+.chat-proposal-change {
+  margin: 0.25rem 0 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.chat-proposal-old {
+  opacity: 0.6;
+}
+
+.chat-proposal-error {
+  color: var(--error, #c0392b);
+  margin: 0 0 0.5rem;
+}
+
+.chat-proposal-outcome {
+  opacity: 0.7;
+  font-size: 0.9em;
+}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
-import { chatSocketUrl, getChatHistory } from "../api";
+import { chatSocketUrl, getChatHistory, setTenantLink } from "../api";
 import type { ChatEvent } from "../trace";
 import { describeArgs } from "../traceView";
 import ConfirmDialog from "./ConfirmDialog";
@@ -13,9 +13,6 @@ const CONFIRM_TOOL_LABELS: Record<string, string> = {
   publish_fact: "Save this fact",
   update_fact: "Update this fact",
   delete_fact: "Delete this fact",
-  set_git_repo_path: "Set the local repo path",
-  set_jira_project_key: "Link this Jira project",
-  set_github_repo: "Link this GitHub repo",
 };
 
 // Mirrors the backend's MAX_MESSAGE_CHARS default (api/main.py) purely as
@@ -43,12 +40,28 @@ interface Props {
   // is the app's cue to stop reconnecting quietly and ask the user to sign
   // in again instead (APPCE-69).
   onAuthFailed?: () => void;
+  // A proposal card's button changed the project (linked a repo or key), so
+  // the project list — and the card that shows the links — must be refetched.
+  onLinked?: () => void;
 }
+
+// What the model's propose_link tool returns (agent/agent.py): nothing has
+// been saved — the button on the card is what links.
+interface LinkProposal {
+  kind: "github_repo" | "jira_project_key";
+  value: string;
+  current: string | null;
+  status: "open" | "applying" | "done" | "dismissed";
+  error?: string;
+}
+
+const LINK_LABELS = { github_repo: "GitHub repo", jira_project_key: "Jira project" } as const;
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   isError?: boolean;
+  proposal?: LinkProposal;
 }
 
 interface PendingConfirmation {
@@ -56,7 +69,7 @@ interface PendingConfirmation {
   args: unknown;
 }
 
-function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
+function Chat({ idToken, tenantId, onEvent, onAuthFailed, onLinked }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
@@ -152,6 +165,12 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
           if (socketRef.current !== socket) return;
           attempt = 0;
           setConnected(true);
+        } else if (data.type === "tool_result" && data.name === "propose_link" && data.result?.proposal === "link") {
+          const { kind, value, current } = data.result;
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: "", proposal: { kind, value, current, status: "open" } },
+          ]);
         } else if (data.type === "tool_call" || data.type === "tool_result") {
           onEventRef.current?.(
             data.type === "tool_call"
@@ -240,6 +259,24 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
     socketRef.current.send(JSON.stringify({ type: "confirm_response", confirmed }));
   }
 
+  function updateProposal(index: number, changes: Partial<LinkProposal>) {
+    setMessages((prev) =>
+      prev.map((msg, i) => (i === index && msg.proposal ? { ...msg, proposal: { ...msg.proposal, ...changes } } : msg)),
+    );
+  }
+
+  async function applyProposal(index: number, proposal: LinkProposal) {
+    if (!tenantId) return;
+    updateProposal(index, { status: "applying", error: undefined });
+    try {
+      await setTenantLink(idTokenRef.current, tenantId, proposal.kind, proposal.value);
+      updateProposal(index, { status: "done" });
+      onLinked?.();
+    } catch (err) {
+      updateProposal(index, { status: "open", error: err instanceof Error ? err.message : "Couldn't link it." });
+    }
+  }
+
   function clearChat() {
     // Also drop the server-side session — clearing only the UI would
     // leave the model still seeing (and billing for) the old history.
@@ -258,7 +295,37 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
   return (
     <div className="chat">
       <div className="chat-messages">
-        {messages.map((msg, i) => (
+        {messages.map((msg, i) =>
+          msg.proposal ? (
+            <div key={i} className="chat-confirm chat-proposal">
+              <div className="chat-confirm-title">
+                {msg.proposal.current ? "Change" : "Link"} the {LINK_LABELS[msg.proposal.kind]}?
+              </div>
+              <div className="chat-proposal-change">
+                {msg.proposal.current && <span className="chat-proposal-old">{msg.proposal.current} → </span>}
+                <strong>{msg.proposal.value}</strong>
+              </div>
+              {msg.proposal.error && <p className="chat-proposal-error">{msg.proposal.error}</p>}
+              {msg.proposal.status === "done" ? (
+                <div className="chat-proposal-outcome">Linked.</div>
+              ) : msg.proposal.status === "dismissed" ? (
+                <div className="chat-proposal-outcome">Dismissed.</div>
+              ) : (
+                <div className="chat-confirm-actions">
+                  <button onClick={() => updateProposal(i, { status: "dismissed" })} disabled={msg.proposal.status === "applying"}>
+                    Dismiss
+                  </button>
+                  <button
+                    className="chat-confirm-approve"
+                    onClick={() => applyProposal(i, msg.proposal!)}
+                    disabled={msg.proposal.status === "applying"}
+                  >
+                    {msg.proposal.current ? "Change" : "Link"}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
           <div key={i} className={`chat-bubble ${msg.role}${msg.isError ? " error" : ""}`}>
             {msg.role === "assistant" && !msg.isError ? (
               <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
@@ -266,7 +333,8 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed }: Props) {
               msg.content
             )}
           </div>
-        ))}
+          ),
+        )}
 
         {isThinking && !pendingConfirmation && (
           <div className="chat-thinking">Thinking…</div>

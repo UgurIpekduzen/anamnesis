@@ -46,27 +46,6 @@ def test_the_agents_facts_tool_is_capped_and_says_so():
     assert "most recent" in tool.__doc__
 
 
-def test_set_github_repo_has_owner_uid_and_tenant_id_bound():
-    tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
-    tool = _tool_by_name(tool_agent.tools, "set_github_repo")
-
-    seen = {}
-
-    def fake_set_github_repo(tenant_id, github_repo, owner_uid):
-        seen.update(tenant_id=tenant_id, github_repo=github_repo, owner_uid=owner_uid)
-
-    original = agent_module.set_github_repo
-    agent_module.set_github_repo = fake_set_github_repo
-    try:
-        # The model only ever supplies github_repo — neither tenant_id nor
-        # owner_uid is part of the callable signature it sees (APPCE-47/48).
-        _callable(tool)("owner/repo")
-    finally:
-        agent_module.set_github_repo = original
-
-    assert seen == {"tenant_id": "some_tenant", "github_repo": "owner/repo", "owner_uid": "test@example.com"}
-
-
 def test_get_github_status_has_owner_uid_and_tenant_id_bound():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
     tool = _tool_by_name(tool_agent.tools, "get_github_status")
@@ -182,22 +161,6 @@ def test_get_github_status_returns_an_error_result_instead_of_raising():
     assert result == {"error": "Tenant 'some_tenant' has no GitHub repo attached."}
 
 
-def test_set_github_repo_returns_an_error_result_for_a_malformed_repo():
-    tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
-    tool = _tool_by_name(tool_agent.tools, "set_github_repo")
-
-    original = agent_module.set_github_repo
-    agent_module.set_github_repo = lambda tenant_id, github_repo, owner_uid: (_ for _ in ()).throw(
-        ValueError("'not-a-repo' doesn't look like a GitHub 'owner/name' repo.")
-    )
-    try:
-        result = _callable(tool)("not-a-repo")
-    finally:
-        agent_module.set_github_repo = original
-
-    assert result == {"error": "'not-a-repo' doesn't look like a GitHub 'owner/name' repo."}
-
-
 def test_tenant_lifecycle_tools_are_not_exposed_to_the_model():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
     tool_names = {_tool_name(t) for t in tool_agent.tools}
@@ -205,3 +168,60 @@ def test_tenant_lifecycle_tools_are_not_exposed_to_the_model():
     # Creating/renaming/deleting projects is UI-only now (see api/main.py's
     # /tenants endpoints) — the agent has nothing to scope those to.
     assert tool_names.isdisjoint({"list_tenants", "add_tenant", "rename_tenant", "delete_tenant"})
+
+
+def test_the_agent_cannot_link_a_project_to_a_repo_or_a_jira_project_itself():
+    tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
+    tool_names = {_tool_name(t) for t in tool_agent.tools}
+
+    # Which repo is polled and which Jira project is queried is decided by the
+    # user pressing a button (APPCE-107), not by a model that reads text other
+    # people wrote. git_repo_path went with them: nothing else sets it.
+    assert tool_names.isdisjoint({"set_github_repo", "set_jira_project_key", "set_git_repo_path"})
+
+
+def test_the_only_tools_that_write_are_the_three_fact_tools_and_each_asks_first():
+    tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
+
+    # A FunctionTool is what require_confirmation=True wraps a tool in
+    # (APPCE-91); the plain functions read or only propose.
+    confirming = {_tool_name(t) for t in tool_agent.tools if hasattr(t, "func")}
+    plain = {_tool_name(t) for t in tool_agent.tools if not hasattr(t, "func")}
+
+    assert confirming == {"publish_fact", "update_fact", "delete_fact"}
+    assert plain == {"get_tenant_facts", "get_github_status", "get_jira_status", "propose_link"}
+
+
+def _propose_link(monkeypatch, kind, value, current=None):
+    def no_database(*args, **kwargs):
+        raise AssertionError("a proposal must not write anything")
+
+    monkeypatch.setattr("src.tenants.get_client", no_database)
+    monkeypatch.setattr(agent_module, "get_owned_tenant", lambda tenant_id, owner_uid: {kind: current})
+    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "propose_link")
+    return tool(kind, value)
+
+
+def test_propose_link_returns_a_proposal_and_writes_nothing(monkeypatch):
+    result = _propose_link(monkeypatch, "github_repo", "owner/repo", current="old/repo")
+
+    assert result == {"proposal": "link", "kind": "github_repo", "value": "owner/repo", "current": "old/repo"}
+
+
+def test_propose_link_accepts_a_jira_key(monkeypatch):
+    result = _propose_link(monkeypatch, "jira_project_key", "APPCE")
+
+    assert result == {"proposal": "link", "kind": "jira_project_key", "value": "APPCE", "current": None}
+
+
+def test_propose_link_turns_an_invalid_value_into_an_error_result(monkeypatch):
+    for kind, value in [("github_repo", "not a repo"), ("jira_project_key", 'X" OR project != "'), ("other", "x")]:
+        assert "error" in _propose_link(monkeypatch, kind, value)
+
+
+def test_the_agent_says_a_link_needs_the_users_button_press():
+    instruction = agent_module.build_agent("test@example.com", "some_tenant").instruction
+
+    assert "propose_link" in instruction
+    assert "press" in instruction
+    assert "set_" not in instruction  # it must not name a tool it no longer has

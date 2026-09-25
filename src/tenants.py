@@ -122,6 +122,16 @@ def clear_jira_project_key(tenant_id: str, owner_uid: str) -> None:
 _GITHUB_REPO_PATTERN = re.compile(r"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})/[a-zA-Z0-9_.-]{1,100}$")
 
 
+def validate_github_repo(github_repo: str) -> None:
+    """Reject anything that isn't a plain "owner/name" GitHub repo.
+
+    Raises:
+        ValueError: github_repo isn't a plain "owner/name" string.
+    """
+    if not isinstance(github_repo, str) or not _GITHUB_REPO_PATTERN.match(github_repo):
+        raise ValueError(f"'{github_repo}' doesn't look like a GitHub 'owner/name' repo.")
+
+
 def set_github_repo(tenant_id: str, github_repo: str, owner_uid: str) -> None:
     """Attach a GitHub repo (owner/name) to an existing tenant, used to poll
     its PRs/issues for facts (see APPCE-80).
@@ -129,8 +139,7 @@ def set_github_repo(tenant_id: str, github_repo: str, owner_uid: str) -> None:
     Raises:
         ValueError: github_repo isn't a plain "owner/name" string.
     """
-    if not _GITHUB_REPO_PATTERN.match(github_repo):
-        raise ValueError(f"'{github_repo}' doesn't look like a GitHub 'owner/name' repo.")
+    validate_github_repo(github_repo)
     tenant = get_owned_tenant(tenant_id, owner_uid)
     changes = {"github_repo": github_repo}
     if tenant.get("github_repo") != github_repo:
