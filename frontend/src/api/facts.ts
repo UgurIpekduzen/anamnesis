@@ -59,6 +59,22 @@ export async function getPendingFacts(idToken: string, tenantId: string): Promis
   return res.json();
 }
 
+// How the staged facts were decided (APPCE-110); the approval rate is
+// approved / (approved + rejected).
+export interface PendingFactStats {
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
+export async function getPendingFactStats(idToken: string, tenantId: string): Promise<PendingFactStats> {
+  const res = await fetch(`${API_BASE}/tenants/${tenantId}/pending_facts/stats`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`getPendingFactStats failed: ${res.status}`);
+  return res.json();
+}
+
 export async function approvePendingFact(idToken: string, tenantId: string, pendingFactId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/tenants/${tenantId}/pending_facts/${pendingFactId}/approve`, {
     method: "POST",
