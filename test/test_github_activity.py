@@ -35,7 +35,15 @@ def test_fetch_recent_pull_requests_maps_the_expected_fields(monkeypatch):
     result = github_activity.fetch_recent_pull_requests("owner-uid", "tenant-1")
 
     assert result == [
-        {"number": 1, "title": "Fix bug", "body": "Because X", "state": "open", "updated_at": "t", "url": "u"}
+        {
+            "number": 1,
+            "title": "Fix bug",
+            "body": "Because X",
+            "state": "open",
+            "merged_at": None,
+            "updated_at": "t",
+            "url": "u",
+        }
     ]
 
 
@@ -139,3 +147,64 @@ def test_get_github_status_strips_the_body_from_every_item(monkeypatch):
     }
     assert "body" not in result["pull_requests"][0]
     assert "body" not in result["issues"][0]
+
+
+def _pr(number, title="A PR", merged_at=None, updated_at="2026-09-20T10:00:00Z"):
+    return {
+        "number": number,
+        "title": title,
+        "body": "secret instructions",
+        "state": "closed",
+        "merged_at": merged_at,
+        "updated_at": updated_at,
+        "html_url": f"u{number}",
+    }
+
+
+def _serving_history(monkeypatch, pulls, issues):
+    seen = []
+
+    def fake_get(url, params, headers, timeout):
+        seen.append((url, params))
+        rows = pulls if url.endswith("/pulls") else issues
+        return FakeResponse(rows[: params["per_page"]])
+
+    monkeypatch.setattr(github_activity.requests, "get", fake_get)
+    return seen
+
+
+def test_get_github_history_asks_for_closed_items_and_returns_compact_lines_without_bodies(monkeypatch):
+    seen = _serving_history(
+        monkeypatch,
+        pulls=[_pr(1, "Add caching", merged_at="2026-09-21T09:00:00Z"), _pr(2, "Abandoned idea")],
+        issues=[{**_pr(5, "Login fails"), "state": "closed"}, {**_pr(6, "Not an issue"), "pull_request": {}}],
+    )
+
+    result = github_activity.get_github_history("owner-uid", "tenant-1")
+
+    assert all(params["state"] == "closed" for _, params in seen)
+    assert result == {
+        "pull_requests": ["#1 · merged · 2026-09-21 · Add caching", "#2 · closed · 2026-09-20 · Abandoned idea"],
+        "issues": ["#5 · closed · 2026-09-20 · Login fails"],
+        "truncated": False,
+    }
+    assert "secret instructions" not in str(result)
+
+
+def test_get_github_history_is_capped_and_says_when_there_is_more(monkeypatch):
+    seen = _serving_history(monkeypatch, pulls=[_pr(n) for n in range(1, 40)], issues=[])
+
+    result = github_activity.get_github_history("owner-uid", "tenant-1")
+
+    assert len(result["pull_requests"]) == github_activity.HISTORY_LIMIT
+    assert result["truncated"] is True
+    # One more than shown, only to learn whether there is more.
+    assert seen[0][1]["per_page"] == github_activity.HISTORY_LIMIT + 1
+
+
+def test_get_github_history_cuts_a_long_title(monkeypatch):
+    _serving_history(monkeypatch, pulls=[_pr(1, "x" * 300)], issues=[])
+
+    (line,) = github_activity.get_github_history("owner-uid", "tenant-1")["pull_requests"]
+
+    assert line.endswith("…") and len(line) < 130

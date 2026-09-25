@@ -4,6 +4,7 @@ import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from src.facts import create_fact
+from src.log import log
 
 
 def _process_push_message(body: bytes) -> int:
@@ -31,10 +32,10 @@ def _process_push_message(body: bytes) -> int:
         # Pub/Sub's existing retry/DLQ policy eventually routes it to
         # the dead-letter topic instead of just dropping it — same
         # intent as the old pull-based nack() path (APPCE-30).
-        print(f"Malformed push message, returning 400: {body!r}")
+        log("WARNING", "malformed_push_message", body=repr(body))
         return 400
 
-    print(f"Wrote fact for tenant '{payload['tenant_id']}'")
+    log("INFO", "fact_written", tenant_id=payload["tenant_id"])
     return 200
 
 
@@ -58,7 +59,7 @@ class _Handler(BaseHTTPRequestHandler):
 def run():
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(("0.0.0.0", port), _Handler)
-    print(f"Listening on 0.0.0.0:{port} for Pub/Sub push messages...", flush=True)
+    log("INFO", "subscriber_listening", port=port)
     server.serve_forever()
 
 

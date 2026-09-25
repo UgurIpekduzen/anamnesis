@@ -188,3 +188,37 @@
   font-size: 1.05em;
   margin: 12px 0 6px;
 }
+
+.chat-proposal-change {
+  margin: 0.25rem 0 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.chat-proposal-old {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+.chat-proposal-error {
+  color: var(--error, #c0392b);
+  margin: 0 0 0.5rem;
+}
+
+.chat-proposal-outcome {
+  opacity: 0.7;
+  font-size: 0.9em;
+}
+
+.chat-proposal-label {
+  opacity: 0.6;
+}
+
+.chat-confirm-similar {
+  margin: 0.5rem 0;
+  font-size: 0.9em;
+}
+
+.chat-confirm-similar ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+}

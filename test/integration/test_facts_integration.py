@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 
-from src.facts import create_fact, delete_fact, get_tenant_facts, update_fact
+from src.facts import create_fact, delete_fact, get_fact, get_tenant_facts, update_fact
 from src.firestore_client import get_client
 from src.tenants import add_tenant, delete_tenant
 
@@ -82,6 +82,25 @@ def test_delete_fact_removes_it(tenant_id):
     delete_fact(tenant_id, fact_id, OWNER_UID)
 
     assert get_tenant_facts(tenant_id, OWNER_UID) == []
+
+
+def test_get_fact_returns_one_fact(tenant_id):
+    create_fact(tenant_id, content="Uses PostgreSQL", category="architecture")
+    fact_id = get_tenant_facts(tenant_id, OWNER_UID)[0]["fact_id"]
+
+    fact = get_fact(tenant_id, fact_id, OWNER_UID)
+
+    assert (fact["fact_id"], fact["content"], fact["category"]) == (fact_id, "Uses PostgreSQL", "architecture")
+
+
+def test_get_fact_raises_lookup_error_for_a_missing_fact_and_permission_error_for_a_non_owner(tenant_id):
+    create_fact(tenant_id, content="x", category="bug")
+    fact_id = get_tenant_facts(tenant_id, OWNER_UID)[0]["fact_id"]
+
+    with pytest.raises(LookupError):
+        get_fact(tenant_id, "no-such-fact", OWNER_UID)
+    with pytest.raises(PermissionError):
+        get_fact(tenant_id, fact_id, "someone-else@example.com")
 
 
 def test_get_tenant_facts_rejects_a_non_owner(tenant_id):

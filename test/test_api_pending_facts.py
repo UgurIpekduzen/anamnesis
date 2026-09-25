@@ -1,14 +1,7 @@
-import os
+import pytest
+from starlette.testclient import TestClient
 
-# api.deps reads these at import time.
-os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
-os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
-
-import pytest  # noqa: E402
-from starlette.testclient import TestClient  # noqa: E402
-
-import api.main as api_main  # noqa: E402
-from api.deps import get_current_owner_uid  # noqa: E402
+import api.main as api_main
 
 OWNER = "test@example.com"
 PENDING = [
@@ -24,7 +17,7 @@ PENDING = [
 
 
 @pytest.fixture
-def api(monkeypatch):
+def api(monkeypatch, signed_in_owner):
     approved = []
     rejected = []
 
@@ -34,12 +27,10 @@ def api(monkeypatch):
     def fake_reject(tenant_id, pending_fact_id, owner_uid):
         rejected.append((tenant_id, pending_fact_id, owner_uid))
 
-    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
     monkeypatch.setattr(api_main, "list_pending_facts", lambda tenant_id, owner_uid: list(PENDING))
     monkeypatch.setattr(api_main, "approve_pending_fact", fake_approve)
     monkeypatch.setattr(api_main, "reject_pending_fact", fake_reject)
     yield TestClient(api_main.app), approved, rejected
-    api_main.app.dependency_overrides.clear()
 
 
 def test_get_returns_the_pending_facts_for_the_project(api):

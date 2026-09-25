@@ -1,20 +1,13 @@
-import os
+import pytest
+from starlette.testclient import TestClient
 
-# api.deps reads these at import time.
-os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
-os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
-
-import pytest  # noqa: E402
-from starlette.testclient import TestClient  # noqa: E402
-
-import api.main as api_main  # noqa: E402
-from api.deps import get_current_owner_uid  # noqa: E402
+import api.main as api_main
 
 OWNER = "test@example.com"
 
 
 @pytest.fixture
-def api(monkeypatch):
+def api(monkeypatch, signed_in_owner):
     added = []
     renamed = []
     deleted = []
@@ -24,9 +17,7 @@ def api(monkeypatch):
         api_main, "rename_tenant", lambda tenant_id, name, owner_uid: renamed.append((tenant_id, name, owner_uid))
     )
     monkeypatch.setattr(api_main, "delete_tenant", lambda tenant_id, owner_uid: deleted.append((tenant_id, owner_uid)))
-    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
     yield TestClient(api_main.app), added, renamed, deleted
-    api_main.app.dependency_overrides.clear()
 
 
 def test_post_creates_a_tenant_for_the_authenticated_user(api):
@@ -94,3 +85,125 @@ def test_tenant_crud_requires_authentication():
     assert client.post("/tenants", json={"name": "x"}).status_code == 401
     assert client.patch("/tenants/proj-1", json={"name": "x"}).status_code == 401
     assert client.delete("/tenants/proj-1").status_code == 401
+
+
+# --- Which GitHub repo / Jira project a project is linked to (APPCE-107)
+
+
+@pytest.fixture
+def links(monkeypatch, signed_in_owner):
+    calls = []
+    monkeypatch.setattr(
+        api_main, "set_github_repo", lambda tenant_id, repo, owner_uid: calls.append(("set_repo", tenant_id, repo, owner_uid))
+    )
+    monkeypatch.setattr(api_main, "clear_github_repo", lambda tenant_id, owner_uid: calls.append(("clear_repo", tenant_id, owner_uid)))
+    monkeypatch.setattr(
+        api_main, "set_jira_project_key", lambda tenant_id, key, owner_uid: calls.append(("set_key", tenant_id, key, owner_uid))
+    )
+    monkeypatch.setattr(api_main, "clear_jira_project_key", lambda tenant_id, owner_uid: calls.append(("clear_key", tenant_id, owner_uid)))
+    return TestClient(api_main.app), calls
+
+
+def test_put_links_a_github_repo_for_the_authenticated_user(links):
+    client, calls = links
+
+    response = client.put("/tenants/proj/github_repo", json={"github_repo": "owner/repo"})
+
+    assert response.status_code == 200
+    assert response.json() == {"github_repo": "owner/repo"}
+    assert calls == [("set_repo", "proj", "owner/repo", OWNER)]
+
+
+def test_delete_unlinks_the_github_repo(links):
+    client, calls = links
+
+    response = client.delete("/tenants/proj/github_repo")
+
+    assert response.status_code == 200
+    assert response.json() == {"github_repo": None}
+    assert calls == [("clear_repo", "proj", OWNER)]
+
+
+def test_put_links_a_jira_project_key(links):
+    client, calls = links
+
+    response = client.put("/tenants/proj/jira_project_key", json={"jira_project_key": "APPCE"})
+
+    assert response.status_code == 200
+    assert response.json() == {"jira_project_key": "APPCE"}
+    assert calls == [("set_key", "proj", "APPCE", OWNER)]
+
+
+def test_delete_unlinks_the_jira_project_key(links):
+    client, calls = links
+
+    assert client.delete("/tenants/proj/jira_project_key").json() == {"jira_project_key": None}
+    assert calls == [("clear_key", "proj", OWNER)]
+
+
+@pytest.mark.parametrize(
+    "path, body",
+    [
+        ("/tenants/proj/github_repo", {"github_repo": "not a repo"}),
+        ("/tenants/proj/github_repo", {"github_repo": "https://github.com/owner/repo"}),
+        ("/tenants/proj/jira_project_key", {"jira_project_key": "appce"}),
+        ("/tenants/proj/jira_project_key", {"jira_project_key": 'X" OR project != "'}),
+    ],
+)
+def test_an_invalid_value_is_a_400_with_the_reason_and_nothing_is_saved(monkeypatch, signed_in_owner, path, body):
+    # The real validators run here: they reject before anything touches Firestore.
+    def no_database(*args, **kwargs):
+        raise AssertionError("an invalid value must not reach the database")
+
+    monkeypatch.setattr("src.tenants.get_client", no_database)
+
+    response = TestClient(api_main.app).put(path, json=body)
+
+    assert response.status_code == 400
+    assert response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "method, path, body",
+    [
+        ("put", "/tenants/proj/github_repo", {"github_repo": "owner/repo"}),
+        ("delete", "/tenants/proj/github_repo", None),
+        ("put", "/tenants/proj/jira_project_key", {"jira_project_key": "APPCE"}),
+        ("delete", "/tenants/proj/jira_project_key", None),
+    ],
+)
+def test_someone_elses_or_a_missing_project_is_a_404(monkeypatch, signed_in_owner, method, path, body):
+    def not_yours(*args, **kwargs):
+        raise PermissionError("No project")
+
+    for name in ("set_github_repo", "clear_github_repo", "set_jira_project_key", "clear_jira_project_key"):
+        monkeypatch.setattr(api_main, name, not_yours)
+
+    response = getattr(TestClient(api_main.app), method)(path, **({"json": body} if body else {}))
+
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "path, body",
+    [
+        ("/tenants/proj/github_repo", {"github_repo": ""}),
+        ("/tenants/proj/github_repo", {"github_repo": "owner/repo", "extra": 1}),
+        ("/tenants/proj/github_repo", {}),
+        ("/tenants/proj/jira_project_key", {"jira_project_key": 5}),
+    ],
+)
+def test_a_malformed_body_is_rejected(links, path, body):
+    client, calls = links
+
+    assert client.put(path, json=body).status_code == 422
+    assert calls == []
+
+
+def test_linking_requires_authentication(links):
+    client, calls = links
+    api_main.app.dependency_overrides.clear()
+
+    assert client.put("/tenants/proj/github_repo", json={"github_repo": "owner/repo"}).status_code == 401
+    assert client.delete("/tenants/proj/jira_project_key").status_code == 401
+    assert calls == []

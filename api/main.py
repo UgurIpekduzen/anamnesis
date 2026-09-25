@@ -16,13 +16,30 @@ from api.internal_auth import verify_scheduler_token
 from src.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
 from src.categories import ensure_categories_seeded
 from src.chat_history import append_turn, clear_turns, load_recent_turns
-from src.facts import get_tenant_facts
+from src.facts import delete_fact, get_fact, get_tenant_facts, update_fact
 from src.github_client import validate_github_token
 from src.github_connections import delete_github_connection, has_github_connection, save_github_token
 from src.jira_client import validate_jira_credentials
-from src.jira_connections import delete_jira_connection, has_jira_connection, save_jira_credentials
+from src.jira_connections import (
+    delete_jira_connection,
+    get_jira_base_url,
+    has_jira_connection,
+    save_jira_credentials,
+)
+from src.similar_facts import find_similar_facts
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
-from src.tenants import add_tenant, delete_tenant, get_owned_tenant, list_tenants, rename_tenant
+from src.log import log
+from src.tenants import (
+    add_tenant,
+    clear_github_repo,
+    clear_jira_project_key,
+    delete_tenant,
+    get_owned_tenant,
+    list_tenants,
+    rename_tenant,
+    set_github_repo,
+    set_jira_project_key,
+)
 from src.usage import DAILY_MESSAGE_HARD_LIMIT, DailyLimitExceeded, get_today_count, next_reset_at, record_message
 
 # Token-cost guards (see APPCE-59). A message stays in the session history
@@ -81,7 +98,14 @@ async def log_request_duration(request: Request, call_next):
     response = await call_next(request)
     if request.method != "OPTIONS":
         elapsed_ms = (time.perf_counter() - started) * 1000
-        print(f"{request.method} {request.url.path} -> {response.status_code} in {elapsed_ms:.0f} ms")
+        log(
+            "INFO",
+            "request",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            duration_ms=round(elapsed_ms),
+        )
     return response
 
 
@@ -125,6 +149,15 @@ def create_tenant(body: TenantCreate, owner_uid: str = Depends(get_current_owner
     return {"tenant_id": tenant_id}
 
 
+class FactUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Omitted means unchanged, same as update_fact — but an empty body would
+    # change nothing, so it is refused below.
+    content: str | None = Field(default=None, strict=True, min_length=1, max_length=2000)
+    category: str | None = Field(default=None, strict=True, min_length=1, max_length=50)
+
+
 class TenantRename(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -151,9 +184,97 @@ def remove_tenant(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid
     return {"status": "deleted"}
 
 
+# Which GitHub repo and Jira project a project is linked to is set here, in
+# the UI, and not by the chat agent: these values decide whose repo gets polled
+# with the user's token and what goes into a Jira query, and the agent reads
+# text other people wrote (APPCE-107).
+class GithubRepoUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    github_repo: str = Field(strict=True, min_length=1, max_length=140)
+
+
+class JiraProjectKeyUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    jira_project_key: str = Field(strict=True, min_length=1, max_length=60)
+
+
+@app.put("/tenants/{tenant_id}/github_repo")
+def update_github_repo(
+    tenant_id: str, body: GithubRepoUpdate, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    try:
+        set_github_repo(tenant_id, body.github_repo, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"github_repo": body.github_repo}
+
+
+@app.delete("/tenants/{tenant_id}/github_repo")
+def remove_github_repo(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    try:
+        clear_github_repo(tenant_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"github_repo": None}
+
+
+@app.put("/tenants/{tenant_id}/jira_project_key")
+def update_jira_project_key(
+    tenant_id: str, body: JiraProjectKeyUpdate, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    try:
+        set_jira_project_key(tenant_id, body.jira_project_key, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"jira_project_key": body.jira_project_key}
+
+
+@app.delete("/tenants/{tenant_id}/jira_project_key")
+def remove_jira_project_key(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    try:
+        clear_jira_project_key(tenant_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"jira_project_key": None}
+
+
 @app.get("/tenants/{tenant_id}/facts")
 def get_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
     return get_tenant_facts(tenant_id, owner_uid)
+
+
+# What a chat proposal card's button calls (APPCE-107): the model only ever
+# proposes an edit or a delete, and the user's click is what makes it.
+@app.patch("/tenants/{tenant_id}/facts/{fact_id}")
+def edit_fact(
+    tenant_id: str, fact_id: str, body: FactUpdate, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    if body.content is None and body.category is None:
+        raise HTTPException(status_code=422, detail="Give a content or a category to change")
+    try:
+        get_fact(tenant_id, fact_id, owner_uid)
+        update_fact(tenant_id, fact_id, owner_uid, content=body.content, category=body.category)
+    except (PermissionError, LookupError):
+        raise HTTPException(status_code=404, detail="Fact not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"status": "updated"}
+
+
+@app.delete("/tenants/{tenant_id}/facts/{fact_id}")
+def remove_fact(tenant_id: str, fact_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    try:
+        get_fact(tenant_id, fact_id, owner_uid)
+        delete_fact(tenant_id, fact_id, owner_uid)
+    except (PermissionError, LookupError):
+        raise HTTPException(status_code=404, detail="Fact not found")
+    return {"status": "deleted"}
 
 
 # Lazily-importing wrappers (APPCE-50, same pattern as get_runner/
@@ -345,7 +466,10 @@ class JiraConnectionUpdate(BaseModel):
 
 @app.get("/jira/connection")
 def read_jira_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    return {"connected": has_jira_connection(owner_uid)}
+    connected = has_jira_connection(owner_uid)
+    # The workspace address (not the token) lets the UI link a project's
+    # Jira key; there is nothing to link when nothing is connected.
+    return {"connected": connected, "base_url": get_jira_base_url(owner_uid) if connected else None}
 
 
 @app.put("/jira/connection")
@@ -395,7 +519,7 @@ async def _best_effort(func, *args, what: str) -> None:
     try:
         await asyncio.to_thread(func, *args)
     except Exception as exc:
-        print(f"Couldn't {what}: {exc!r}")
+        log("WARNING", "best_effort_failed", what=what, error=repr(exc))
 
 
 # ADK's own name for the synthetic function call it generates when a
@@ -444,6 +568,23 @@ def _confirmation_request(event) -> dict | None:
                 "args": original.get("args"),
             }
     return None
+
+
+async def _similar_saved_facts(tenant_id: str, owner_uid: str, content) -> list[dict]:
+    """Facts already saved that say (nearly) what a fact awaiting approval
+    says, so the confirmation can warn about a duplicate (APPCE-111).
+
+    Best effort, like the other side jobs of a turn: a failed lookup means
+    no warning, never a failed confirmation.
+    """
+    if not isinstance(content, str):
+        return []
+    try:
+        facts = await asyncio.to_thread(get_tenant_facts, tenant_id, owner_uid)
+    except Exception as exc:
+        log("WARNING", "best_effort_failed", what="similar facts", error=repr(exc))
+        return []
+    return find_similar_facts(content, facts)
 
 
 async def _authenticate(websocket: WebSocket) -> str | None:
@@ -544,7 +685,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
             lambda: load_recent_turns(tenant_id, owner_uid, get_settings(owner_uid)["history_turns"]),
         )
     except Exception as exc:
-        print(f"Couldn't restore chat memory: {exc!r}")
+        log("WARNING", "chat_memory_restore_failed", error=repr(exc))
 
     # Set while a require_confirmation=True tool (APPCE-91) is waiting on
     # the user's approve/reject — the id of ADK's own synthetic
@@ -635,7 +776,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
                     )
                     continue
                 except Exception as exc:
-                    print(f"Couldn't record message usage: {exc!r}")
+                    log("WARNING", "usage_record_failed", error=repr(exc))
                 # No "[Project: X]" prefix needed — the runner's Agent is
                 # already scoped to this one tenant (see api/runner.py).
                 message = types.Content(role="user", parts=[types.Part(text=question)])
@@ -668,7 +809,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
                 # Includes ADK's LlmCallsLimitExceededError. Surface a
                 # friendly error and keep the connection alive instead of
                 # letting the socket die mid-question.
-                print(f"Agent call failed: {exc!r}")
+                log("ERROR", "agent_call_failed", error=repr(exc))
                 await websocket.send_json(
                     {
                         "type": "error",
@@ -679,6 +820,10 @@ async def chat(websocket: WebSocket, tenant_id: str):
                 continue
 
             if confirmation:
+                if confirmation["tool_name"] == "publish_fact":
+                    confirmation["similar"] = await _similar_saved_facts(
+                        tenant_id, owner_uid, (confirmation["args"] or {}).get("content")
+                    )
                 pending_confirmation_id = confirmation["id"]
                 pending_question = question
                 await websocket.send_json(confirmation)

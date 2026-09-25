@@ -1,6 +1,5 @@
 // How a tool's arguments and result are shown in the Trace tab. Pure (no
-// React) so the shape decisions are plain, checkable logic. Mirrors what the
-// Streamlit UI did in app/chat.py (_render_args / _render_result).
+// React) so the shape decisions are plain, checkable logic.
 
 // The main ARGUMENTS/RESULT area never falls back to a raw JSON block — a
 // nested value still fits a cell via cellText's JSON.stringify, so the

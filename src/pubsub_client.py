@@ -1,9 +1,10 @@
 import os
 
-from dotenv import load_dotenv
 from google.cloud import pubsub_v1
 
-load_dotenv(os.environ.get("DOTENV_PATH", ".env"))
+from src.env import load_env
+
+load_env()
 
 
 def _project_id() -> str:

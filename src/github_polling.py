@@ -1,8 +1,8 @@
-import json
-from datetime import datetime, timezone
+from datetime import datetime
 
 from src.github_activity import fetch_recent_issues, fetch_recent_pull_requests
 from src.github_fact_extraction import extract_facts
+from src.log import log
 from src.pending_facts import create_pending_fact, has_pending_fact_for_source
 from src.tenants import get_owned_tenant, list_tenants_with_github_repo, mark_github_polled
 
@@ -63,7 +63,7 @@ def poll_tenant_github_activity(
                 created += 1
 
     if skipped_over_cap:
-        print(f"GitHub poll: tenant {tenant_id} hit the {max_extractions}-extraction cap, dropped {skipped_over_cap} item(s)")
+        log("WARNING", "github_poll_cap_hit", tenant_id=tenant_id, cap=max_extractions, dropped=skipped_over_cap)
 
     mark_github_polled(tenant_id, owner_uid)
     return created
@@ -99,6 +99,12 @@ def poll_all_tenants() -> dict:
     # One structured line per run so Cloud Logging can filter on it (and a
     # log-based alert can fire on a non-empty `errors`, see APPCE-101). The
     # error strings stay out of it in case they echo credentials.
-    print(json.dumps({"event": "github_poll", "polled": polled, "created": created, "error_count": len(errors),
-                      "failed_tenants": [e["tenant_id"] for e in errors]}))
+    log(
+        "ERROR" if errors else "INFO",
+        "github_poll",
+        polled=polled,
+        created=created,
+        error_count=len(errors),
+        failed_tenants=[e["tenant_id"] for e in errors],
+    )
     return result

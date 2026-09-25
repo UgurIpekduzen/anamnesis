@@ -87,6 +87,39 @@ function TenantSelector({ idToken, tenants, selectedId, onSelect, error, onRetry
 
   return (
     <div className="tenant-selector">
+      {/* New project sits above the selector; its form opens in the same place. */}
+      {adding ? (
+        <div className="tenant-row">
+          <input
+            autoFocus
+            placeholder="Project name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submitAdd()}
+            disabled={busy}
+          />
+          <button onClick={submitAdd} disabled={busy || !newName.trim()}>
+            Add
+          </button>
+          <button
+            onClick={() => {
+              setAdding(false);
+              setNewName("");
+              setActionError(null);
+            }}
+            disabled={busy}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        !renaming && (
+          <button className="tenant-add" onClick={() => setAdding(true)} disabled={busy}>
+            + New project
+          </button>
+        )
+      )}
+
       {tenants.length === 0 && !adding ? (
         <p>No projects found.</p>
       ) : (
@@ -124,31 +157,7 @@ function TenantSelector({ idToken, tenants, selectedId, onSelect, error, onRetry
         </div>
       )}
 
-      {adding ? (
-        <div className="tenant-row">
-          <input
-            autoFocus
-            placeholder="Project name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submitAdd()}
-            disabled={busy}
-          />
-          <button onClick={submitAdd} disabled={busy || !newName.trim()}>
-            Add
-          </button>
-          <button
-            onClick={() => {
-              setAdding(false);
-              setNewName("");
-              setActionError(null);
-            }}
-            disabled={busy}
-          >
-            Cancel
-          </button>
-        </div>
-      ) : renaming ? (
+      {renaming && (
         <div className="tenant-row">
           <input
             autoFocus
@@ -164,10 +173,6 @@ function TenantSelector({ idToken, tenants, selectedId, onSelect, error, onRetry
             Cancel
           </button>
         </div>
-      ) : (
-        <button className="tenant-add" onClick={() => setAdding(true)} disabled={busy}>
-          + New project
-        </button>
       )}
 
       {actionError && <p className="tenant-action-error">{actionError}</p>}

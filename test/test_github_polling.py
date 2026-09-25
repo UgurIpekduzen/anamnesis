@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timezone
 
 import pytest
@@ -141,14 +140,21 @@ def test_running_the_same_poll_twice_does_not_stage_duplicates(wired, monkeypatc
     assert wired["extract_calls"] == ["t1"]
 
 
-def test_extractions_stop_at_the_cap_and_the_poll_is_still_marked_done(wired, capsys):
+def test_extractions_stop_at_the_cap_and_the_poll_is_still_marked_done(wired, capsys, log_lines):
     wired["prs"] = [_pr(n, title=f"t{n}") for n in range(1, 6)]
 
     github_polling.poll_tenant_github_activity("owner", "tenant-1", max_extractions=3)
 
     assert wired["extract_calls"] == ["t1", "t2", "t3"]
     assert wired["marked"] == ["tenant-1"]
-    assert "dropped 2 item(s)" in capsys.readouterr().out
+    (entry,) = log_lines(capsys.readouterr().out)
+    assert entry == {
+        "severity": "WARNING",
+        "event": "github_poll_cap_hit",
+        "tenant_id": "tenant-1",
+        "cap": 3,
+        "dropped": 2,
+    }
 
 
 def test_the_cap_is_shared_between_pull_requests_and_issues(wired):
@@ -237,7 +243,7 @@ def test_one_tenants_failure_does_not_stop_the_others(all_wired):
     assert all_wired["polled"] == [("owner-a", "boom"), ("owner-b", "t2")]
 
 
-def test_poll_all_tenants_logs_one_structured_summary_line(all_wired, capsys):
+def test_poll_all_tenants_logs_one_structured_summary_line(all_wired, capsys, log_lines):
     all_wired["tenants"] = [
         {"owner_uid": "owner-a", "tenant_id": "boom"},
         {"owner_uid": "owner-b", "tenant_id": "t2"},
@@ -245,8 +251,15 @@ def test_poll_all_tenants_logs_one_structured_summary_line(all_wired, capsys):
 
     github_polling.poll_all_tenants()
 
-    line = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
-    assert line == {"event": "github_poll", "polled": 1, "created": 3, "error_count": 1, "failed_tenants": ["boom"]}
+    # A failed tenant makes it an ERROR, so a log-based alert can fire on it.
+    assert log_lines(capsys.readouterr().out)[-1] == {
+        "severity": "ERROR",
+        "event": "github_poll",
+        "polled": 1,
+        "created": 3,
+        "error_count": 1,
+        "failed_tenants": ["boom"],
+    }
 
 
 def test_the_summary_line_never_includes_error_text(all_wired, monkeypatch, capsys):
@@ -263,8 +276,14 @@ def test_the_summary_line_never_includes_error_text(all_wired, monkeypatch, caps
     assert "ghp_SECRET123" in result["errors"][0]["error"]
 
 
-def test_the_summary_line_is_logged_even_when_there_is_nothing_to_poll(all_wired, capsys):
+def test_the_summary_line_is_logged_even_when_there_is_nothing_to_poll(all_wired, capsys, log_lines):
     github_polling.poll_all_tenants()
 
-    line = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
-    assert line == {"event": "github_poll", "polled": 0, "created": 0, "error_count": 0, "failed_tenants": []}
+    assert log_lines(capsys.readouterr().out)[-1] == {
+        "severity": "INFO",
+        "event": "github_poll",
+        "polled": 0,
+        "created": 0,
+        "error_count": 0,
+        "failed_tenants": [],
+    }

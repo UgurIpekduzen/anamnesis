@@ -9,7 +9,8 @@ export interface Tenant {
   tenant_id: string;
   name: string;
   jira_project_key: string | null;
-  git_repo_path: string | null;
+  // "owner/name" of the linked GitHub repo (APPCE-83), or null.
+  github_repo: string | null;
 }
 
 export interface Fact {
@@ -60,6 +61,33 @@ export async function getTenantFacts(idToken: string, tenantId: string): Promise
   });
   if (!res.ok) throw new Error(`getTenantFacts failed: ${res.status}`);
   return res.json();
+}
+
+// What a chat proposal card's button calls (APPCE-107). A 400 carries the
+// reason (e.g. an unknown category) — surface it.
+export async function updateFact(
+  idToken: string,
+  tenantId: string,
+  factId: string,
+  changes: { content?: string; category?: string },
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(tenantId)}/facts/${encodeURIComponent(factId)}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(changes),
+  });
+  if (!res.ok) {
+    const detail = res.status === 400 ? (await res.json().catch(() => null))?.detail : null;
+    throw new Error(detail || `updateFact failed: ${res.status}`);
+  }
+}
+
+export async function deleteFact(idToken: string, tenantId: string, factId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(tenantId)}/facts/${encodeURIComponent(factId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`deleteFact failed: ${res.status}`);
 }
 
 export interface PendingFact {
@@ -164,6 +192,26 @@ export async function resetSettings(idToken: string): Promise<SettingsResponse> 
   return res.json();
 }
 
+// Which GitHub repo / Jira project a project is linked to (APPCE-107). A
+// value links or changes it, null unlinks it. A 400 carries the reason the
+// value was refused (not an owner/name repo, not a Jira key ...) — surface it.
+export async function setTenantLink(
+  idToken: string,
+  tenantId: string,
+  field: "github_repo" | "jira_project_key",
+  value: string | null,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(tenantId)}/${field}`, {
+    method: value === null ? "DELETE" : "PUT",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: value === null ? undefined : JSON.stringify({ [field]: value }),
+  });
+  if (!res.ok) {
+    const detail = res.status === 400 ? (await res.json().catch(() => null))?.detail : null;
+    throw new Error(detail || `setTenantLink failed: ${res.status}`);
+  }
+}
+
 export interface GithubConnection {
   connected: boolean;
 }
@@ -202,6 +250,9 @@ export async function disconnectGithub(idToken: string): Promise<GithubConnectio
 
 export interface JiraConnection {
   connected: boolean;
+  // The workspace address, only sent by GET while connected (APPCE-105);
+  // it lets the UI link a project's Jira key.
+  base_url?: string | null;
 }
 
 export async function getJiraConnection(idToken: string): Promise<JiraConnection> {
@@ -242,7 +293,7 @@ export async function disconnectJira(idToken: string): Promise<JiraConnection> {
   return res.json();
 }
 
-export interface SavedTurn {
+interface SavedTurn {
   question: string;
   answer: string;
   created_at: string;

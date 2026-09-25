@@ -1,13 +1,7 @@
-import os
+import pytest
+from fastapi import HTTPException
 
-# api.internal_auth reads these at import time.
-os.environ.setdefault("GITHUB_POLLER_SERVICE_ACCOUNT_EMAIL", "poller@test-project.iam.gserviceaccount.com")
-os.environ.setdefault("GITHUB_POLLER_AUDIENCE", "https://anamnesis-app.example/internal/poll-github")
-
-import pytest  # noqa: E402
-from fastapi import HTTPException  # noqa: E402
-
-import api.internal_auth as internal_auth  # noqa: E402
+import api.internal_auth as internal_auth
 
 SCHEDULER_EMAIL = "poller@test-project.iam.gserviceaccount.com"
 

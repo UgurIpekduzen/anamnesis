@@ -16,11 +16,11 @@ function play(question: string, startedAt: number, steps: Step[]): TraceTurn {
 }
 
 const TENANTS = [
-  { tenant_id: "bd2026", name: "BD2026", jira_project_key: "BD2026", git_repo_path: null },
-  { tenant_id: "finio", name: "Finio", jira_project_key: "AKFP", git_repo_path: null },
-  { tenant_id: "recruiter_ai", name: "Recruiter.AI", jira_project_key: "RAI", git_repo_path: null },
-  { tenant_id: "tety", name: "TETY", jira_project_key: "TETY", git_repo_path: null },
-  { tenant_id: "tmdb_hit_classifier", name: "TMDB Hit Classifier", jira_project_key: "ADVBK", git_repo_path: null },
+  { tenant_id: "bd2026", name: "BD2026", jira_project_key: "BD2026" },
+  { tenant_id: "finio", name: "Finio", jira_project_key: "AKFP" },
+  { tenant_id: "recruiter_ai", name: "Recruiter.AI", jira_project_key: "RAI" },
+  { tenant_id: "tety", name: "TETY", jira_project_key: "TETY" },
+  { tenant_id: "tmdb_hit_classifier", name: "TMDB Hit Classifier", jira_project_key: "ADVBK" },
 ];
 
 const FACT_TEXTS = [
@@ -72,8 +72,8 @@ export const FIXTURE_TURNS: TraceTurn[] = [
     [4100, { type: "answered" }],
   ]),
 
-  play("Jira durumunu ve git yolunu güncelle.", T0 + 240_000, [
-    [20, { type: "tool_call", id: "d1", name: "update_project", args: { tenant_id: "bd2026", settings: { jira_project_key: "BD2026", git_repo_path: null, labels: ["a", "b"] } } }],
+  play("Jira anahtarını güncelle.", T0 + 240_000, [
+    [20, { type: "tool_call", id: "d1", name: "update_project", args: { tenant_id: "bd2026", settings: { jira_project_key: "BD2026", labels: ["a", "b"] } } }],
     [380, { type: "tool_result", id: "d1", name: "update_project", result: { result: { status: "ok", updated: ["jira_project_key"], at: "2026-09-22T10:04:00.123456+00:00" } } }],
     [1900, { type: "answered" }],
   ]),

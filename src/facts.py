@@ -45,7 +45,7 @@ def get_tenant_facts(tenant_id: str, owner_uid: str, limit: int | None = None) -
 
     Returns:
         A list of fact dicts with "fact_id" (use this exact value when
-        calling update_fact/delete_fact), "content", "category", "source"
+        proposing an update or a delete of that fact), "content", "category", "source"
         ("chat" or "github" — absent on facts written before APPCE-81
         added it, in which case this is None), and "created_at".
     """
@@ -75,6 +75,28 @@ def get_tenant_facts(tenant_id: str, owner_uid: str, limit: int | None = None) -
         }
         for doc in query.stream()
     ]
+
+
+def get_fact(tenant_id: str, fact_id: str, owner_uid: str) -> dict:
+    """Retrieve one fact, enforcing that its project belongs to owner_uid.
+
+    Raises:
+        PermissionError: the project isn't this user's (see get_owned_tenant).
+        LookupError: the project has no fact with this id.
+    """
+    get_owned_tenant(tenant_id, owner_uid)
+    client = get_client()
+    doc = client.collection("tenants").document(tenant_id).collection("facts").document(fact_id).get()
+    if not doc.exists:
+        raise LookupError(f"No fact '{fact_id}' in this project.")
+    data = doc.to_dict()
+    return {
+        "fact_id": doc.id,
+        "content": data.get("content"),
+        "category": data.get("category"),
+        "source": data.get("source"),
+        "created_at": data.get("created_at"),
+    }
 
 
 def update_fact(
