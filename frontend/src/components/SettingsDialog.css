@@ -123,18 +123,8 @@
   gap: 8px;
 }
 
-.settings-reset {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-muted);
-  padding-left: 0;
-}
-
-.settings-reset:hover:not(:disabled) {
-  color: var(--text);
-  background: transparent;
-}
-
+/* A regular outlined button like Cancel, so it can be found; it used to be
+   plain text that looked like a label. */
 .settings-reset:disabled {
   opacity: 0.4;
   cursor: default;
