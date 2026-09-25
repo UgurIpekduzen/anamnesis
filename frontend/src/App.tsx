@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import "./App.css";
-import { listTenants, type Tenant } from "./api";
 import AccountMenu from "./components/AccountMenu";
 import Auth from "./components/Auth";
 import Chat from "./components/Chat";
@@ -16,6 +15,7 @@ import { describePromptMoment, initGoogleAuth, whenGoogleReady } from "./googleA
 import { useConnections } from "./hooks/useConnections";
 import { useRefreshKey } from "./hooks/useRefreshKey";
 import { useResizableSidebar } from "./hooks/useResizableSidebar";
+import { useTenants } from "./hooks/useTenants";
 import { tokenSubject } from "./tokenIdentity";
 import { traceReducer, type ChatEvent } from "./trace";
 
@@ -34,19 +34,10 @@ const FACTS_RETRY_DELAYS_MS = [1500, 4000, 8000];
 
 function App() {
   const [idToken, setIdToken] = useState<string | null>(null);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [factsRefreshKey, bumpFacts] = useRefreshKey();
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("facts");
   const [traceTurns, dispatchTrace] = useReducer(traceReducer, []);
-  const [tenantsError, setTenantsError] = useState(false);
-  const [tenantsReloadKey, reloadTenants] = useRefreshKey();
   const [connectionsReloadKey, reloadConnections] = useRefreshKey();
-  // Set by TenantSelector right before a reload it triggered itself (e.g.
-  // just created a project) — picked up once the fresh list lands, since
-  // the list fetch below is async and would otherwise overwrite a
-  // synchronous selection with its own fetched[0] fallback.
-  const pendingTenantSelectRef = useRef<string | null>(null);
   const [usageRefreshKey, bumpUsage] = useRefreshKey();
   const [pendingFactsRefreshKey, bumpPendingFacts] = useRefreshKey();
   const [pendingFactsCount, setPendingFactsCount] = useState(0);
@@ -60,64 +51,22 @@ function App() {
   // The token is refreshed silently about every 50 minutes; the account it
   // belongs to is what decides whether the project list is stale.
   const userId = useMemo(() => tokenSubject(idToken), [idToken]);
-  const selectedTenant = tenants.find((t) => t.tenant_id === selectedTenantId) ?? null;
   const idTokenRef = useRef(idToken);
   idTokenRef.current = idToken;
   const { githubConnected, jira: jiraConnection } = useConnections(idTokenRef, userId, connectionsReloadKey);
+  const {
+    tenants,
+    selectedTenantId,
+    selectTenant,
+    error: tenantsError,
+    retry: retryTenants,
+    changed: tenantsChanged,
+    refreshQuietly: refreshTenantsQuietly,
+  } = useTenants(idTokenRef, userId);
+  const selectedTenant = tenants.find((t) => t.tenant_id === selectedTenantId) ?? null;
 
-  // Counts project-list requests so a late answer to an older one is dropped
-  // (a quiet refresh must never overwrite a newer list or another account's).
-  const tenantsRequestRef = useRef(0);
   // Pending re-fetches of the facts list after a fact was published.
   const factsRetryTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-
-  // Re-read the project list without touching the selection, unlike the
-  // effect below (which resets everything). Used after the assistant links a
-  // GitHub repo or Jira key, so the project card shows it (APPCE-105).
-  function refreshTenantsQuietly() {
-    const token = idTokenRef.current;
-    if (!token) return;
-    const request = ++tenantsRequestRef.current;
-    listTenants(token)
-      .then((fetched) => {
-        if (request === tenantsRequestRef.current) setTenants(fetched);
-      })
-      .catch(() => {});
-  }
-
-  useEffect(() => {
-    if (!userId || !idTokenRef.current) return;
-    tenantsRequestRef.current++;
-    // Clear immediately (not just on the fetch resolving) so Chat/Facts
-    // — gated on selectedTenantId — briefly unmount instead of running
-    // a moment longer against the previous account's stale tenant_id
-    // while the new account's list is still loading (matters most for
-    // "Change account", which swaps idToken without a full page reset).
-    // Keyed on the account, not the token: a plain token refresh must not
-    // reset the selected project or throw away the Trace (APPCE-65).
-    setTenants([]);
-    setSelectedTenantId(null);
-    setTenantsError(false);
-
-    // Ignore a response that lands after the token changed (or after a
-    // retry) — it belongs to a request nobody is waiting on anymore.
-    let cancelled = false;
-    listTenants(idTokenRef.current)
-      .then((fetched) => {
-        if (cancelled) return;
-        setTenants(fetched);
-        const pending = pendingTenantSelectRef.current;
-        pendingTenantSelectRef.current = null;
-        const preferred = pending && fetched.some((t) => t.tenant_id === pending) ? pending : fetched[0]?.tenant_id;
-        setSelectedTenantId(preferred ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTenantsError(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, tenantsReloadKey]);
 
   useEffect(() => {
     return whenGoogleReady(() => {
@@ -247,13 +196,10 @@ function App() {
           idToken={idToken}
           tenants={tenants}
           selectedId={selectedTenantId}
-          onSelect={setSelectedTenantId}
+          onSelect={selectTenant}
           error={tenantsError}
-          onRetry={() => reloadTenants()}
-          onChanged={(newlySelectedId) => {
-            pendingTenantSelectRef.current = newlySelectedId ?? null;
-            reloadTenants();
-          }}
+          onRetry={retryTenants}
+          onChanged={tenantsChanged}
         />
         {selectedTenant && !tenantsError && (
           <ProjectLinks
