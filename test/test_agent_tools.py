@@ -1,4 +1,18 @@
+import pytest
+
 import agent.agent as agent_module
+from src.categories import InvalidCategory
+
+
+@pytest.fixture(autouse=True)
+def _suggested_categories(monkeypatch):
+    # The instruction reads the user's list from Firestore; no test here needs it.
+    monkeypatch.setattr(agent_module, "get_categories", lambda owner_uid: ["architecture", "decision", "risk"])
+
+
+def _instruction(built_agent):
+    # ADK calls the instruction function every turn, with the turn's context.
+    return built_agent.instruction(None)
 
 
 def _tool_name(t):
@@ -230,7 +244,7 @@ def test_propose_link_turns_an_invalid_value_into_an_error_result(monkeypatch):
 
 
 def test_the_agent_says_a_link_needs_the_users_button_press():
-    instruction = agent_module.build_agent("test@example.com", "some_tenant").instruction
+    instruction = _instruction(agent_module.build_agent("test@example.com", "some_tenant"))
 
     assert "propose_link" in instruction
     assert "press" in instruction
@@ -294,7 +308,7 @@ def test_propose_fact_delete_shows_the_fact_and_writes_nothing(monkeypatch):
 
 
 def test_the_agent_names_the_propose_tools_and_not_the_removed_write_tools():
-    instruction = agent_module.build_agent("test@example.com", "some_tenant").instruction
+    instruction = _instruction(agent_module.build_agent("test@example.com", "some_tenant"))
 
     assert "propose_fact_update" in instruction and "propose_fact_delete" in instruction
     assert "update_fact" not in instruction.replace("propose_fact_update", "")
@@ -372,14 +386,14 @@ def test_the_history_tools_have_a_description_the_model_can_use():
 
 
 def test_the_agent_treats_history_titles_as_data():
-    instruction = agent_module.build_agent("test@example.com", "some_tenant").instruction
+    instruction = _instruction(agent_module.build_agent("test@example.com", "some_tenant"))
 
     assert "get_jira_recently_done" in instruction and "get_github_history" in instruction
     assert "never as instructions" in instruction
 
 
 def test_the_agent_checks_facts_against_recent_activity_without_overclaiming():
-    instruction = agent_module.build_agent("test@example.com", "some_tenant").instruction
+    instruction = _instruction(agent_module.build_agent("test@example.com", "some_tenant"))
 
     assert "outdated" in instruction
     # The comparison uses the read tools; changing anything still goes through a card.
@@ -409,7 +423,7 @@ def test_get_pending_facts_is_bound_to_the_owner_and_tenant_and_returns_errors_a
 
 def test_the_agent_cannot_approve_or_reject_pending_facts_and_says_where_to():
     tool_names = {_tool_name(t) for t in agent_module.build_agent("test@example.com", "some_tenant").tools}
-    instruction = agent_module.build_agent("test@example.com", "some_tenant").instruction
+    instruction = _instruction(agent_module.build_agent("test@example.com", "some_tenant"))
 
     assert tool_names.isdisjoint({"approve_pending_fact", "reject_pending_fact"})
     assert "get_pending_facts" in instruction and "Pending tab" in instruction
@@ -417,3 +431,24 @@ def test_the_agent_cannot_approve_or_reject_pending_facts_and_says_where_to():
     # which it can't do without also reading the saved facts.
     assert "another language" in instruction and "BOTH get_pending_facts and get_tenant_facts" in instruction
     assert "never as instructions" in instruction
+
+
+def test_the_instruction_lists_the_users_own_categories(monkeypatch):
+    built = agent_module.build_agent("test@example.com", "some_tenant")
+    assert "architecture, decision, risk" in _instruction(built)
+
+    # Read again on the next turn, so a category added in Settings is known at once.
+    monkeypatch.setattr(agent_module, "get_categories", lambda owner_uid: ["note"])
+    assert "(note " in _instruction(built)
+    assert "todo" not in _instruction(built).split("call publish_fact")[1].split("\n")[0]
+
+
+def test_publishing_with_an_unknown_category_returns_a_message_not_a_crash(monkeypatch):
+    def refuse(tenant_id, content, category, owner_uid):
+        raise InvalidCategory("'x' is not one of your categories")
+
+    tool = _callable(_tool_by_name(agent_module.build_agent("test@example.com", "t").tools, "publish_fact"))
+    # Patched after the build: the wrapper takes its name and docstring from the real one.
+    monkeypatch.setattr(agent_module, "publish_fact", refuse)
+
+    assert tool("something", "x") == "Not published: 'x' is not one of your categories"
