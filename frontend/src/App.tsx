@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import "./App.css";
-import { getGithubConnection, getJiraConnection, listTenants, type JiraConnection, type Tenant } from "./api";
+import { listTenants, type Tenant } from "./api";
 import AccountMenu from "./components/AccountMenu";
 import Auth from "./components/Auth";
 import Chat from "./components/Chat";
@@ -13,17 +13,13 @@ import TenantSelector from "./components/TenantSelector";
 import TracePanel from "./components/TracePanel";
 import UsageCounter from "./components/UsageCounter";
 import { describePromptMoment, initGoogleAuth, whenGoogleReady } from "./googleAuth";
+import { useConnections } from "./hooks/useConnections";
+import { useRefreshKey } from "./hooks/useRefreshKey";
+import { useResizableSidebar } from "./hooks/useResizableSidebar";
 import { tokenSubject } from "./tokenIdentity";
 import { traceReducer, type ChatEvent } from "./trace";
 
 type SidebarTab = "facts" | "pending" | "trace";
-
-const MIN_SIDEBAR_WIDTH = 200;
-// The sidebar can be dragged as wide as the window allows, but the chat
-// keeps at least this much room — otherwise the drag handle could leave the
-// screen and the sidebar couldn't be dragged back (APPCE-73). App.css caps
-// it the same way if the window is made smaller afterwards.
-const MIN_MAIN_WIDTH = 320;
 
 // Re-prompts in the background well before a token's ~1 hour lifetime
 // runs out, so the user is (usually) never asked to sign in again
@@ -40,26 +36,21 @@ function App() {
   const [idToken, setIdToken] = useState<string | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
-  const [factsRefreshKey, setFactsRefreshKey] = useState(0);
+  const [factsRefreshKey, bumpFacts] = useRefreshKey();
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("facts");
   const [traceTurns, dispatchTrace] = useReducer(traceReducer, []);
   const [tenantsError, setTenantsError] = useState(false);
-  const [tenantsReloadKey, setTenantsReloadKey] = useState(0);
-  // Whether the user's GitHub/Jira accounts are connected (APPCE-105) —
-  // null until known. Re-read whenever Settings closes, where they change.
-  const [githubConnected, setGithubConnected] = useState<boolean | null>(null);
-  const [jiraConnection, setJiraConnection] = useState<JiraConnection | null>(null);
-  const [connectionsReloadKey, setConnectionsReloadKey] = useState(0);
+  const [tenantsReloadKey, reloadTenants] = useRefreshKey();
+  const [connectionsReloadKey, reloadConnections] = useRefreshKey();
   // Set by TenantSelector right before a reload it triggered itself (e.g.
   // just created a project) — picked up once the fresh list lands, since
   // the list fetch below is async and would otherwise overwrite a
   // synchronous selection with its own fetched[0] fallback.
   const pendingTenantSelectRef = useRef<string | null>(null);
-  const [usageRefreshKey, setUsageRefreshKey] = useState(0);
-  const [pendingFactsRefreshKey, setPendingFactsRefreshKey] = useState(0);
+  const [usageRefreshKey, bumpUsage] = useRefreshKey();
+  const [pendingFactsRefreshKey, bumpPendingFacts] = useRefreshKey();
   const [pendingFactsCount, setPendingFactsCount] = useState(0);
-  const [sidebarWidth, setSidebarWidth] = useState(280);
-  const isResizing = useRef(false);
+  const sidebar = useResizableSidebar();
   const [googleReady, setGoogleReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Set when the chat socket is rejected outright (APPCE-69) — shown on
@@ -72,6 +63,7 @@ function App() {
   const selectedTenant = tenants.find((t) => t.tenant_id === selectedTenantId) ?? null;
   const idTokenRef = useRef(idToken);
   idTokenRef.current = idToken;
+  const { githubConnected, jira: jiraConnection } = useConnections(idTokenRef, userId, connectionsReloadKey);
 
   // Counts project-list requests so a late answer to an older one is dropped
   // (a quiet refresh must never overwrite a newer list or another account's).
@@ -128,22 +120,6 @@ function App() {
   }, [userId, tenantsReloadKey]);
 
   useEffect(() => {
-    if (!userId || !idTokenRef.current) return;
-    let cancelled = false;
-    // Two independent lookups: one failing must not hide the other. A
-    // failure leaves the status unknown (no warning), not "disconnected".
-    getGithubConnection(idTokenRef.current)
-      .then((c) => !cancelled && setGithubConnected(c.connected))
-      .catch(() => !cancelled && setGithubConnected(null));
-    getJiraConnection(idTokenRef.current)
-      .then((c) => !cancelled && setJiraConnection(c))
-      .catch(() => !cancelled && setJiraConnection(null));
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, connectionsReloadKey]);
-
-  useEffect(() => {
     return whenGoogleReady(() => {
       initGoogleAuth((token) => {
         setSessionExpired(false);
@@ -167,24 +143,6 @@ function App() {
     });
   }, []);
 
-  useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
-      if (!isResizing.current) return;
-      const maxWidth = window.innerWidth - MIN_MAIN_WIDTH;
-      const clamped = Math.max(MIN_SIDEBAR_WIDTH, Math.min(e.clientX, maxWidth));
-      setSidebarWidth(clamped);
-    }
-    function onMouseUp() {
-      isResizing.current = false;
-    }
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-  }, []);
-
   // Everything Chat reports funnels through here: the usage counter and
   // the facts list refresh off it, and the Trace tab is built from it.
   function handleChatEvent(event: ChatEvent) {
@@ -193,7 +151,7 @@ function App() {
     // alongside the model call, so the count read right after sending can
     // still be the old one (APPCE-72).
     if (event.type === "sent" || event.type === "answered" || event.type === "failed") {
-      setUsageRefreshKey((k) => k + 1);
+      bumpUsage();
     }
     // A fact the agent just recorded lands asynchronously (Pub/Sub), so a
     // single refetch when the turn ends can beat it. Ask again a few times
@@ -201,11 +159,11 @@ function App() {
     if (event.type === "tool_result" && event.name === "publish_fact") {
       factsRetryTimersRef.current.forEach(clearTimeout);
       factsRetryTimersRef.current = FACTS_RETRY_DELAYS_MS.map((delay) =>
-        setTimeout(() => setFactsRefreshKey((k) => k + 1), delay),
+        setTimeout(() => bumpFacts(), delay),
       );
     }
     if (event.type === "answered") {
-      setFactsRefreshKey((k) => k + 1);
+      bumpFacts();
       // The assistant may just have linked a repo or a Jira key.
       refreshTenantsQuietly();
     }
@@ -275,15 +233,15 @@ function App() {
           onClose={() => {
             setSettingsOpen(false);
             // Connecting or disconnecting an account happens in Settings.
-            setConnectionsReloadKey((k) => k + 1);
+            reloadConnections();
           }}
           // The warning threshold lives in Settings, so the counter in the
           // sidebar has to refetch to pick up a new one.
-          onSaved={() => setUsageRefreshKey((k) => k + 1)}
+          onSaved={() => bumpUsage()}
         />
       )}
 
-      <aside className="sidebar" style={{ width: sidebarWidth }}>
+      <aside className="sidebar" style={{ width: sidebar.width }}>
         <UsageCounter idToken={idToken} refreshKey={usageRefreshKey} />
         <TenantSelector
           idToken={idToken}
@@ -291,10 +249,10 @@ function App() {
           selectedId={selectedTenantId}
           onSelect={setSelectedTenantId}
           error={tenantsError}
-          onRetry={() => setTenantsReloadKey((k) => k + 1)}
+          onRetry={() => reloadTenants()}
           onChanged={(newlySelectedId) => {
             pendingTenantSelectRef.current = newlySelectedId ?? null;
-            setTenantsReloadKey((k) => k + 1);
+            reloadTenants();
           }}
         />
         {selectedTenant && !tenantsError && (
@@ -335,8 +293,8 @@ function App() {
               title={sidebarTab === "facts" ? "Refresh facts" : "Refresh pending facts"}
               onClick={() =>
                 sidebarTab === "facts"
-                  ? setFactsRefreshKey((k) => k + 1)
-                  : setPendingFactsRefreshKey((k) => k + 1)
+                  ? bumpFacts()
+                  : bumpPendingFacts()
               }
               disabled={!selectedTenantId}
             >
@@ -360,7 +318,7 @@ function App() {
                 tenantId={selectedTenantId}
                 refreshKey={pendingFactsRefreshKey}
                 onCountChange={setPendingFactsCount}
-                onApproved={() => setFactsRefreshKey((k) => k + 1)}
+                onApproved={() => bumpFacts()}
               />
             ) : (
               <p className="sidebar-empty">Select a project to see facts awaiting review.</p>
@@ -375,12 +333,7 @@ function App() {
         </div>
       </aside>
 
-      <div
-        className="resize-handle"
-        onMouseDown={() => {
-          isResizing.current = true;
-        }}
-      />
+      <div className="resize-handle" onMouseDown={sidebar.startResize} />
 
       <main className="main">
         <div className="main-inner">
@@ -395,7 +348,7 @@ function App() {
             onAuthFailed={handleAuthFailed}
             onApplied={() => {
               refreshTenantsQuietly();
-              setFactsRefreshKey((k) => k + 1);
+              bumpFacts();
             }}
           />
         </div>
