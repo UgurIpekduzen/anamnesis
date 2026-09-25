@@ -1,24 +1,9 @@
 import { useEffect, useState } from "react";
 
-import {
-  addAllowedEmail,
-  connectGithub,
-  connectJira,
-  disconnectGithub,
-  disconnectJira,
-  getAllowedEmails,
-  getGithubConnection,
-  getJiraConnection,
-  getSettings,
-  removeAllowedEmail,
-  resetSettings,
-  updateSettings,
-  type AllowedEmails,
-  type GithubConnection,
-  type JiraConnection,
-  type SettingsResponse,
-  type SettingsValues,
-} from "../api";
+import { getSettings, resetSettings, updateSettings, type SettingsResponse, type SettingsValues } from "../api";
+import AccessSection from "./settings/AccessSection";
+import GithubSection from "./settings/GithubSection";
+import JiraSection from "./settings/JiraSection";
 import "./SettingsDialog.css";
 
 interface Props {
@@ -53,25 +38,6 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [github, setGithub] = useState<GithubConnection | null>(null);
-  const [githubToken, setGithubToken] = useState("");
-  const [githubError, setGithubError] = useState<string | null>(null);
-  const [githubBusy, setGithubBusy] = useState(false);
-
-  const [jira, setJira] = useState<JiraConnection | null>(null);
-  const [jiraEmail, setJiraEmail] = useState("");
-  const [jiraToken, setJiraToken] = useState("");
-  const [jiraBaseUrl, setJiraBaseUrl] = useState("");
-  const [jiraError, setJiraError] = useState<string | null>(null);
-  const [jiraBusy, setJiraBusy] = useState(false);
-
-  // null: not an owner (or still loading) — the whole section stays
-  // hidden, since a non-owner can't use it anyway (APPCE-94).
-  const [allowedEmails, setAllowedEmails] = useState<AllowedEmails | null>(null);
-  const [newEmail, setNewEmail] = useState("");
-  const [accessError, setAccessError] = useState<string | null>(null);
-  const [accessBusy, setAccessBusy] = useState(false);
-
   function show(settings: SettingsResponse) {
     setLoaded(settings);
     setForm({
@@ -85,99 +51,6 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
       .then(show)
       .catch(() => setError("Couldn't load your settings."));
   }, [idToken]);
-
-  useEffect(() => {
-    getGithubConnection(idToken)
-      .then(setGithub)
-      .catch(() => setGithubError("Couldn't load your GitHub connection."));
-  }, [idToken]);
-
-  async function connect() {
-    setGithubBusy(true);
-    setGithubError(null);
-    try {
-      setGithub(await connectGithub(idToken, githubToken.trim()));
-      setGithubToken("");
-    } catch (e) {
-      setGithubError(e instanceof Error ? e.message : "Couldn't connect GitHub.");
-    }
-    setGithubBusy(false);
-  }
-
-  async function disconnect() {
-    setGithubBusy(true);
-    setGithubError(null);
-    try {
-      setGithub(await disconnectGithub(idToken));
-    } catch {
-      setGithubError("Couldn't disconnect GitHub. Please try again.");
-    }
-    setGithubBusy(false);
-  }
-
-  useEffect(() => {
-    getJiraConnection(idToken)
-      .then(setJira)
-      .catch(() => setJiraError("Couldn't load your Jira connection."));
-  }, [idToken]);
-
-  async function connectJiraAccount() {
-    setJiraBusy(true);
-    setJiraError(null);
-    try {
-      setJira(await connectJira(idToken, jiraEmail.trim(), jiraToken.trim(), jiraBaseUrl.trim()));
-      setJiraEmail("");
-      setJiraToken("");
-      setJiraBaseUrl("");
-    } catch (e) {
-      setJiraError(e instanceof Error ? e.message : "Couldn't connect Jira.");
-    }
-    setJiraBusy(false);
-  }
-
-  async function disconnectJiraAccount() {
-    setJiraBusy(true);
-    setJiraError(null);
-    try {
-      setJira(await disconnectJira(idToken));
-    } catch {
-      setJiraError("Couldn't disconnect Jira. Please try again.");
-    }
-    setJiraBusy(false);
-  }
-
-  useEffect(() => {
-    // A 403 (not an owner) resolves to null, not a caught error — most
-    // users simply never see this section, that's not a failure to report.
-    getAllowedEmails(idToken)
-      .then(setAllowedEmails)
-      .catch(() => setAccessError("Couldn't load account access."));
-  }, [idToken]);
-
-  async function addEmail() {
-    setAccessBusy(true);
-    setAccessError(null);
-    try {
-      const { extra_emails } = await addAllowedEmail(idToken, newEmail.trim());
-      setAllowedEmails((prev) => (prev ? { ...prev, extra_emails } : prev));
-      setNewEmail("");
-    } catch (e) {
-      setAccessError(e instanceof Error ? e.message : "Couldn't add that email.");
-    }
-    setAccessBusy(false);
-  }
-
-  async function removeEmail(email: string) {
-    setAccessBusy(true);
-    setAccessError(null);
-    try {
-      const { extra_emails } = await removeAllowedEmail(idToken, email);
-      setAllowedEmails((prev) => (prev ? { ...prev, extra_emails } : prev));
-    } catch {
-      setAccessError("Couldn't remove that email. Please try again.");
-    }
-    setAccessBusy(false);
-  }
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -272,156 +145,9 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
 
         {error && <p className="settings-error">{error}</p>}
 
-        <div className="settings-field">
-          <div className="settings-label">
-            GitHub
-            <span className="settings-info-wrapper">
-              <a
-                className="settings-info"
-                href="https://github.com/settings/tokens?type=beta"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                ⓘ
-              </a>
-              <div className="settings-tooltip">
-                <strong>Create a fine-grained token:</strong>
-                <ul>
-                  <li>Select only the repos you want</li>
-                  <li>Grant read-only access: Contents, Metadata, Pull requests, Issues</li>
-                </ul>
-              </div>
-            </span>
-          </div>
-          {github?.connected ? (
-            <>
-              <p className="settings-hint">Connected.</p>
-              <button onClick={disconnect} disabled={githubBusy}>
-                {githubBusy ? "Disconnecting…" : "Disconnect"}
-              </button>
-            </>
-          ) : (
-            <>
-              <input
-                type="password"
-                placeholder="Fine-grained token (e.g. github_pat_11AB...)"
-                value={githubToken}
-                onChange={(e) => setGithubToken(e.target.value)}
-                aria-invalid={!!githubError}
-              />
-              <small className={githubError ? "settings-hint invalid" : "settings-hint"}>
-                {githubError ||
-                  "Only fine-grained personal access tokens (github_pat_...) are accepted. Create one with read-only access to just the repos you want — never a classic token."}
-              </small>
-              <button onClick={connect} disabled={!githubToken.trim() || githubBusy}>
-                {githubBusy ? "Connecting…" : "Connect"}
-              </button>
-            </>
-          )}
-        </div>
-
-        <div className="settings-field">
-          <div className="settings-label">
-            Jira
-            <span className="settings-info-wrapper">
-              <a
-                className="settings-info"
-                href="https://id.atlassian.com/manage-profile/security/api-tokens"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                ⓘ
-              </a>
-              <div className="settings-tooltip">
-                <strong>Connect your Atlassian account:</strong>
-                <ul>
-                  <li>Create an API token</li>
-                  <li>Use the email address you sign in with</li>
-                  <li>Enter your workspace's URL</li>
-                </ul>
-              </div>
-            </span>
-          </div>
-          {jira?.connected ? (
-            <>
-              <p className="settings-hint">Connected.</p>
-              <button onClick={disconnectJiraAccount} disabled={jiraBusy}>
-                {jiraBusy ? "Disconnecting…" : "Disconnect"}
-              </button>
-            </>
-          ) : (
-            <>
-              <input
-                placeholder="Account email (e.g. you@example.com)"
-                value={jiraEmail}
-                onChange={(e) => setJiraEmail(e.target.value)}
-                aria-invalid={!!jiraError}
-              />
-              <input
-                type="password"
-                placeholder="API token (e.g. ATATT3xFfGF0...)"
-                value={jiraToken}
-                onChange={(e) => setJiraToken(e.target.value)}
-                aria-invalid={!!jiraError}
-              />
-              <input
-                placeholder="Workspace URL (e.g. https://your-workspace.atlassian.net)"
-                value={jiraBaseUrl}
-                onChange={(e) => setJiraBaseUrl(e.target.value)}
-                aria-invalid={!!jiraError}
-              />
-              <small className={jiraError ? "settings-hint invalid" : "settings-hint"}>
-                {jiraError ||
-                  "Create a token at id.atlassian.com/manage-profile/security/api-tokens."}
-              </small>
-              <button
-                onClick={connectJiraAccount}
-                disabled={!jiraEmail.trim() || !jiraToken.trim() || !jiraBaseUrl.trim() || jiraBusy}
-              >
-                {jiraBusy ? "Connecting…" : "Connect"}
-              </button>
-            </>
-          )}
-        </div>
-
-        {allowedEmails && (
-          <div className="settings-field">
-            <div className="settings-label">Access</div>
-            <small className="settings-hint">
-              Anyone below can sign in to their own, fully separate projects — never yours.
-            </small>
-            <ul className="settings-access-list">
-              {allowedEmails.owner_emails.map((email) => (
-                <li key={email}>
-                  {email} <span className="settings-hint">(owner)</span>
-                </li>
-              ))}
-              {allowedEmails.extra_emails.map((email) => (
-                <li key={email}>
-                  {email}
-                  <button
-                    className="settings-access-remove"
-                    onClick={() => removeEmail(email)}
-                    disabled={accessBusy}
-                    aria-label={`Remove ${email}`}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <input
-              placeholder="Email to grant access to"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              aria-invalid={!!accessError}
-            />
-            {accessError && <small className="settings-hint invalid">{accessError}</small>}
-            <button onClick={addEmail} disabled={!newEmail.trim() || accessBusy}>
-              {accessBusy ? "Adding…" : "Add"}
-            </button>
-          </div>
-        )}
+        <GithubSection idToken={idToken} />
+        <JiraSection idToken={idToken} />
+        <AccessSection idToken={idToken} />
 
         <div className="settings-actions">
           <button className="settings-reset" onClick={reset} disabled={!loaded || atDefaults || saving}>
