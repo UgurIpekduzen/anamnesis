@@ -373,3 +373,13 @@ def test_the_agent_treats_history_titles_as_data():
 
     assert "get_jira_recently_done" in instruction and "get_github_history" in instruction
     assert "never as instructions" in instruction
+
+
+def test_the_agent_checks_facts_against_recent_activity_without_overclaiming():
+    instruction = agent_module.build_agent("test@example.com", "some_tenant").instruction
+
+    assert "outdated" in instruction
+    # The comparison uses the read tools; changing anything still goes through a card.
+    assert "get_jira_recently_done" in instruction and "propose_fact_update" in instruction
+    assert "unverified" in instruction and "nothing conflicts" in instruction
+    assert "never by its fact_id" in instruction
