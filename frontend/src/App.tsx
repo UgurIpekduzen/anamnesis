@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import "./App.css";
-import { getGithubConnection, getJiraConnection, listTenants, type JiraConnection, type Tenant } from "./api";
 import AccountMenu from "./components/AccountMenu";
 import Auth from "./components/Auth";
 import Chat from "./components/Chat";
@@ -13,17 +12,14 @@ import TenantSelector from "./components/TenantSelector";
 import TracePanel from "./components/TracePanel";
 import UsageCounter from "./components/UsageCounter";
 import { describePromptMoment, initGoogleAuth, whenGoogleReady } from "./googleAuth";
+import { useConnections } from "./hooks/useConnections";
+import { useRefreshKey } from "./hooks/useRefreshKey";
+import { useResizableSidebar } from "./hooks/useResizableSidebar";
+import { useTenants } from "./hooks/useTenants";
 import { tokenSubject } from "./tokenIdentity";
 import { traceReducer, type ChatEvent } from "./trace";
 
 type SidebarTab = "facts" | "pending" | "trace";
-
-const MIN_SIDEBAR_WIDTH = 200;
-// The sidebar can be dragged as wide as the window allows, but the chat
-// keeps at least this much room — otherwise the drag handle could leave the
-// screen and the sidebar couldn't be dragged back (APPCE-73). App.css caps
-// it the same way if the window is made smaller afterwards.
-const MIN_MAIN_WIDTH = 320;
 
 // Re-prompts in the background well before a token's ~1 hour lifetime
 // runs out, so the user is (usually) never asked to sign in again
@@ -36,117 +32,66 @@ const SILENT_REFRESH_INTERVAL_MS = 50 * 60 * 1000;
 // through Pub/Sub, so it usually lands within a couple of seconds.
 const FACTS_RETRY_DELAYS_MS = [1500, 4000, 8000];
 
+// The notice for the sign-in screen has to survive the page reload
+// handleAccountNotAllowed does, so it is parked here for a moment.
+const SIGN_IN_NOTICE_KEY = "anamnesis.signInNotice";
+const LAST_RELOAD_KEY = "anamnesis.accountNotAllowedReloadAt";
+// A reload that lands on the same refused account again must not reload
+// again, or the page would loop.
+const RELOAD_LOOP_WINDOW_MS = 30_000;
+const ACCOUNT_NOT_ALLOWED_NOTICE =
+  "This account isn't invited to Anamnesis yet. Ask the owner to add it, or sign in with a different account.";
+
+function takeParkedNotice(): string | null {
+  try {
+    const notice = sessionStorage.getItem(SIGN_IN_NOTICE_KEY);
+    sessionStorage.removeItem(SIGN_IN_NOTICE_KEY);
+    return notice;
+  } catch {
+    return null; // storage can be blocked; the notice is a courtesy
+  }
+}
+
 function App() {
   const [idToken, setIdToken] = useState<string | null>(null);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
-  const [factsRefreshKey, setFactsRefreshKey] = useState(0);
+  const [factsRefreshKey, bumpFacts] = useRefreshKey();
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("facts");
   const [traceTurns, dispatchTrace] = useReducer(traceReducer, []);
-  const [tenantsError, setTenantsError] = useState(false);
-  const [tenantsReloadKey, setTenantsReloadKey] = useState(0);
-  // Whether the user's GitHub/Jira accounts are connected (APPCE-105) —
-  // null until known. Re-read whenever Settings closes, where they change.
-  const [githubConnected, setGithubConnected] = useState<boolean | null>(null);
-  const [jiraConnection, setJiraConnection] = useState<JiraConnection | null>(null);
-  const [connectionsReloadKey, setConnectionsReloadKey] = useState(0);
-  // Set by TenantSelector right before a reload it triggered itself (e.g.
-  // just created a project) — picked up once the fresh list lands, since
-  // the list fetch below is async and would otherwise overwrite a
-  // synchronous selection with its own fetched[0] fallback.
-  const pendingTenantSelectRef = useRef<string | null>(null);
-  const [usageRefreshKey, setUsageRefreshKey] = useState(0);
-  const [pendingFactsRefreshKey, setPendingFactsRefreshKey] = useState(0);
+  const [connectionsReloadKey, reloadConnections] = useRefreshKey();
+  const [usageRefreshKey, bumpUsage] = useRefreshKey();
+  const [pendingFactsRefreshKey, bumpPendingFacts] = useRefreshKey();
   const [pendingFactsCount, setPendingFactsCount] = useState(0);
-  const [sidebarWidth, setSidebarWidth] = useState(280);
-  const isResizing = useRef(false);
+  const sidebar = useResizableSidebar();
   const [googleReady, setGoogleReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Set when the chat socket is rejected outright (APPCE-69) — shown on
-  // the sign-in screen so the user knows why they landed back there.
-  const [sessionExpired, setSessionExpired] = useState(false);
+  // Why the user landed back on the sign-in screen (the chat socket was
+  // rejected, APPCE-69, or the account isn't allowed in, APPCE-114).
+  const [signInNotice, setSignInNotice] = useState<string | null>(takeParkedNotice);
 
   // The token is refreshed silently about every 50 minutes; the account it
   // belongs to is what decides whether the project list is stale.
   const userId = useMemo(() => tokenSubject(idToken), [idToken]);
-  const selectedTenant = tenants.find((t) => t.tenant_id === selectedTenantId) ?? null;
   const idTokenRef = useRef(idToken);
   idTokenRef.current = idToken;
+  const { githubConnected, jira: jiraConnection } = useConnections(idTokenRef, userId, connectionsReloadKey);
+  const {
+    tenants,
+    selectedTenantId,
+    selectTenant,
+    error: tenantsError,
+    retry: retryTenants,
+    changed: tenantsChanged,
+    refreshQuietly: refreshTenantsQuietly,
+  } = useTenants(idTokenRef, userId, handleAccountNotAllowed);
+  const selectedTenant = tenants.find((t) => t.tenant_id === selectedTenantId) ?? null;
 
-  // Counts project-list requests so a late answer to an older one is dropped
-  // (a quiet refresh must never overwrite a newer list or another account's).
-  const tenantsRequestRef = useRef(0);
   // Pending re-fetches of the facts list after a fact was published.
   const factsRetryTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-
-  // Re-read the project list without touching the selection, unlike the
-  // effect below (which resets everything). Used after the assistant links a
-  // GitHub repo or Jira key, so the project card shows it (APPCE-105).
-  function refreshTenantsQuietly() {
-    const token = idTokenRef.current;
-    if (!token) return;
-    const request = ++tenantsRequestRef.current;
-    listTenants(token)
-      .then((fetched) => {
-        if (request === tenantsRequestRef.current) setTenants(fetched);
-      })
-      .catch(() => {});
-  }
-
-  useEffect(() => {
-    if (!userId || !idTokenRef.current) return;
-    tenantsRequestRef.current++;
-    // Clear immediately (not just on the fetch resolving) so Chat/Facts
-    // — gated on selectedTenantId — briefly unmount instead of running
-    // a moment longer against the previous account's stale tenant_id
-    // while the new account's list is still loading (matters most for
-    // "Change account", which swaps idToken without a full page reset).
-    // Keyed on the account, not the token: a plain token refresh must not
-    // reset the selected project or throw away the Trace (APPCE-65).
-    setTenants([]);
-    setSelectedTenantId(null);
-    setTenantsError(false);
-
-    // Ignore a response that lands after the token changed (or after a
-    // retry) — it belongs to a request nobody is waiting on anymore.
-    let cancelled = false;
-    listTenants(idTokenRef.current)
-      .then((fetched) => {
-        if (cancelled) return;
-        setTenants(fetched);
-        const pending = pendingTenantSelectRef.current;
-        pendingTenantSelectRef.current = null;
-        const preferred = pending && fetched.some((t) => t.tenant_id === pending) ? pending : fetched[0]?.tenant_id;
-        setSelectedTenantId(preferred ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTenantsError(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, tenantsReloadKey]);
-
-  useEffect(() => {
-    if (!userId || !idTokenRef.current) return;
-    let cancelled = false;
-    // Two independent lookups: one failing must not hide the other. A
-    // failure leaves the status unknown (no warning), not "disconnected".
-    getGithubConnection(idTokenRef.current)
-      .then((c) => !cancelled && setGithubConnected(c.connected))
-      .catch(() => !cancelled && setGithubConnected(null));
-    getJiraConnection(idTokenRef.current)
-      .then((c) => !cancelled && setJiraConnection(c))
-      .catch(() => !cancelled && setJiraConnection(null));
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, connectionsReloadKey]);
 
   useEffect(() => {
     return whenGoogleReady(() => {
       initGoogleAuth((token) => {
-        setSessionExpired(false);
+        setSignInNotice(null);
         setIdToken(token);
       });
       // Auth.tsx waits for this before calling renderButton — GIS
@@ -167,24 +112,6 @@ function App() {
     });
   }, []);
 
-  useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
-      if (!isResizing.current) return;
-      const maxWidth = window.innerWidth - MIN_MAIN_WIDTH;
-      const clamped = Math.max(MIN_SIDEBAR_WIDTH, Math.min(e.clientX, maxWidth));
-      setSidebarWidth(clamped);
-    }
-    function onMouseUp() {
-      isResizing.current = false;
-    }
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-  }, []);
-
   // Everything Chat reports funnels through here: the usage counter and
   // the facts list refresh off it, and the Trace tab is built from it.
   function handleChatEvent(event: ChatEvent) {
@@ -193,7 +120,7 @@ function App() {
     // alongside the model call, so the count read right after sending can
     // still be the old one (APPCE-72).
     if (event.type === "sent" || event.type === "answered" || event.type === "failed") {
-      setUsageRefreshKey((k) => k + 1);
+      bumpUsage();
     }
     // A fact the agent just recorded lands asynchronously (Pub/Sub), so a
     // single refetch when the turn ends can beat it. Ask again a few times
@@ -201,11 +128,11 @@ function App() {
     if (event.type === "tool_result" && event.name === "publish_fact") {
       factsRetryTimersRef.current.forEach(clearTimeout);
       factsRetryTimersRef.current = FACTS_RETRY_DELAYS_MS.map((delay) =>
-        setTimeout(() => setFactsRefreshKey((k) => k + 1), delay),
+        setTimeout(() => bumpFacts(), delay),
       );
     }
     if (event.type === "answered") {
-      setFactsRefreshKey((k) => k + 1);
+      bumpFacts();
       // The assistant may just have linked a repo or a Jira key.
       refreshTenantsQuietly();
     }
@@ -234,8 +161,34 @@ function App() {
   // refresh (App-level effect above) can silently sign the user back in,
   // it should be allowed to.
   function handleAuthFailed() {
-    setSessionExpired(true);
+    setSignInNotice("Your session ended. Please sign in again.");
     setIdToken(null);
+  }
+
+  // The server refuses this account outright (not on the allowlist). Unlike
+  // handleAuthFailed, auto-select must go: it would silently sign the same
+  // account straight back in, and the user could never pick another one.
+  // The page is reloaded too: after this, Google's sign-in button stopped
+  // reacting to clicks until the page was refreshed, so start it fresh.
+  function handleAccountNotAllowed() {
+    window.google?.accounts.id.disableAutoSelect();
+    let reloadedJustNow = false;
+    try {
+      reloadedJustNow = Date.now() - Number(sessionStorage.getItem(LAST_RELOAD_KEY) ?? 0) < RELOAD_LOOP_WINDOW_MS;
+      if (!reloadedJustNow) {
+        sessionStorage.setItem(LAST_RELOAD_KEY, String(Date.now()));
+        sessionStorage.setItem(SIGN_IN_NOTICE_KEY, ACCOUNT_NOT_ALLOWED_NOTICE);
+      }
+    } catch {
+      // Without storage a reload would lose the explanation: just show it.
+      reloadedJustNow = true;
+    }
+    if (reloadedJustNow) {
+      setSignInNotice(ACCOUNT_NOT_ALLOWED_NOTICE);
+      setIdToken(null);
+    } else {
+      window.location.reload();
+    }
   }
 
   // Opens Google's account picker directly over the current screen —
@@ -253,7 +206,7 @@ function App() {
         <div className="signin-gate">
           <h1>Anamnesis</h1>
           <p>Personal Project Context Engine</p>
-          {sessionExpired && <p className="session-expired">Your session ended. Please sign in again.</p>}
+          {signInNotice && <p className="session-expired">{signInNotice}</p>}
           <Auth ready={googleReady} />
         </div>
       </div>
@@ -275,27 +228,24 @@ function App() {
           onClose={() => {
             setSettingsOpen(false);
             // Connecting or disconnecting an account happens in Settings.
-            setConnectionsReloadKey((k) => k + 1);
+            reloadConnections();
           }}
           // The warning threshold lives in Settings, so the counter in the
           // sidebar has to refetch to pick up a new one.
-          onSaved={() => setUsageRefreshKey((k) => k + 1)}
+          onSaved={() => bumpUsage()}
         />
       )}
 
-      <aside className="sidebar" style={{ width: sidebarWidth }}>
+      <aside className="sidebar" style={{ width: sidebar.width }}>
         <UsageCounter idToken={idToken} refreshKey={usageRefreshKey} />
         <TenantSelector
           idToken={idToken}
           tenants={tenants}
           selectedId={selectedTenantId}
-          onSelect={setSelectedTenantId}
+          onSelect={selectTenant}
           error={tenantsError}
-          onRetry={() => setTenantsReloadKey((k) => k + 1)}
-          onChanged={(newlySelectedId) => {
-            pendingTenantSelectRef.current = newlySelectedId ?? null;
-            setTenantsReloadKey((k) => k + 1);
-          }}
+          onRetry={retryTenants}
+          onChanged={tenantsChanged}
         />
         {selectedTenant && !tenantsError && (
           <ProjectLinks
@@ -335,8 +285,8 @@ function App() {
               title={sidebarTab === "facts" ? "Refresh facts" : "Refresh pending facts"}
               onClick={() =>
                 sidebarTab === "facts"
-                  ? setFactsRefreshKey((k) => k + 1)
-                  : setPendingFactsRefreshKey((k) => k + 1)
+                  ? bumpFacts()
+                  : bumpPendingFacts()
               }
               disabled={!selectedTenantId}
             >
@@ -360,7 +310,7 @@ function App() {
                 tenantId={selectedTenantId}
                 refreshKey={pendingFactsRefreshKey}
                 onCountChange={setPendingFactsCount}
-                onApproved={() => setFactsRefreshKey((k) => k + 1)}
+                onApproved={() => bumpFacts()}
               />
             ) : (
               <p className="sidebar-empty">Select a project to see facts awaiting review.</p>
@@ -375,12 +325,7 @@ function App() {
         </div>
       </aside>
 
-      <div
-        className="resize-handle"
-        onMouseDown={() => {
-          isResizing.current = true;
-        }}
-      />
+      <div className="resize-handle" onMouseDown={sidebar.startResize} />
 
       <main className="main">
         <div className="main-inner">
@@ -395,7 +340,7 @@ function App() {
             onAuthFailed={handleAuthFailed}
             onApplied={() => {
               refreshTenantsQuietly();
-              setFactsRefreshKey((k) => k + 1);
+              bumpFacts();
             }}
           />
         </div>
