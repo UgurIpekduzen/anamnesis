@@ -1,12 +1,21 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 
-import { listTenants, type Tenant } from "../api";
+import { ForbiddenError, listTenants, type Tenant } from "../api";
 import { useRefreshKey } from "./useRefreshKey";
 
 // The signed-in user's projects and which one is selected. `userId` is the
 // account (not the token, which is refreshed silently about hourly): the list
 // is reloaded, and the selection reset, only when the account changes.
-export function useTenants(idTokenRef: MutableRefObject<string | null>, userId: string | null) {
+//
+// `onForbidden` is called when the server says this account isn't allowed in
+// at all (APPCE-114): showing "couldn't load" with a Retry would be wrong.
+export function useTenants(
+  idTokenRef: MutableRefObject<string | null>,
+  userId: string | null,
+  onForbidden: () => void,
+) {
+  const onForbiddenRef = useRef(onForbidden);
+  onForbiddenRef.current = onForbidden;
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -60,8 +69,10 @@ export function useTenants(idTokenRef: MutableRefObject<string | null>, userId: 
         const preferred = pending && fetched.some((t) => t.tenant_id === pending) ? pending : fetched[0]?.tenant_id;
         setSelectedTenantId(preferred ?? null);
       })
-      .catch(() => {
-        if (!cancelled) setError(true);
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof ForbiddenError) onForbiddenRef.current();
+        else setError(true);
       });
     return () => {
       cancelled = true;

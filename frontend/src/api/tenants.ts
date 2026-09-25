@@ -1,4 +1,4 @@
-import { API_BASE } from "./client";
+import { API_BASE, ForbiddenError } from "./client";
 
 export interface Tenant {
   tenant_id: string;
@@ -12,6 +12,7 @@ export async function listTenants(idToken: string): Promise<Tenant[]> {
   const res = await fetch(`${API_BASE}/tenants`, {
     headers: { Authorization: `Bearer ${idToken}` },
   });
+  if (res.status === 403) throw new ForbiddenError("This account isn't allowed to use Anamnesis.");
   if (!res.ok) throw new Error(`listTenants failed: ${res.status}`);
   return res.json();
 }

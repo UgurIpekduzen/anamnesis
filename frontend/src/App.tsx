@@ -32,6 +32,26 @@ const SILENT_REFRESH_INTERVAL_MS = 50 * 60 * 1000;
 // through Pub/Sub, so it usually lands within a couple of seconds.
 const FACTS_RETRY_DELAYS_MS = [1500, 4000, 8000];
 
+// The notice for the sign-in screen has to survive the page reload
+// handleAccountNotAllowed does, so it is parked here for a moment.
+const SIGN_IN_NOTICE_KEY = "anamnesis.signInNotice";
+const LAST_RELOAD_KEY = "anamnesis.accountNotAllowedReloadAt";
+// A reload that lands on the same refused account again must not reload
+// again, or the page would loop.
+const RELOAD_LOOP_WINDOW_MS = 30_000;
+const ACCOUNT_NOT_ALLOWED_NOTICE =
+  "This account isn't invited to Anamnesis yet. Ask the owner to add it, or sign in with a different account.";
+
+function takeParkedNotice(): string | null {
+  try {
+    const notice = sessionStorage.getItem(SIGN_IN_NOTICE_KEY);
+    sessionStorage.removeItem(SIGN_IN_NOTICE_KEY);
+    return notice;
+  } catch {
+    return null; // storage can be blocked; the notice is a courtesy
+  }
+}
+
 function App() {
   const [idToken, setIdToken] = useState<string | null>(null);
   const [factsRefreshKey, bumpFacts] = useRefreshKey();
@@ -44,9 +64,9 @@ function App() {
   const sidebar = useResizableSidebar();
   const [googleReady, setGoogleReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Set when the chat socket is rejected outright (APPCE-69) — shown on
-  // the sign-in screen so the user knows why they landed back there.
-  const [sessionExpired, setSessionExpired] = useState(false);
+  // Why the user landed back on the sign-in screen (the chat socket was
+  // rejected, APPCE-69, or the account isn't allowed in, APPCE-114).
+  const [signInNotice, setSignInNotice] = useState<string | null>(takeParkedNotice);
 
   // The token is refreshed silently about every 50 minutes; the account it
   // belongs to is what decides whether the project list is stale.
@@ -62,7 +82,7 @@ function App() {
     retry: retryTenants,
     changed: tenantsChanged,
     refreshQuietly: refreshTenantsQuietly,
-  } = useTenants(idTokenRef, userId);
+  } = useTenants(idTokenRef, userId, handleAccountNotAllowed);
   const selectedTenant = tenants.find((t) => t.tenant_id === selectedTenantId) ?? null;
 
   // Pending re-fetches of the facts list after a fact was published.
@@ -71,7 +91,7 @@ function App() {
   useEffect(() => {
     return whenGoogleReady(() => {
       initGoogleAuth((token) => {
-        setSessionExpired(false);
+        setSignInNotice(null);
         setIdToken(token);
       });
       // Auth.tsx waits for this before calling renderButton — GIS
@@ -141,8 +161,34 @@ function App() {
   // refresh (App-level effect above) can silently sign the user back in,
   // it should be allowed to.
   function handleAuthFailed() {
-    setSessionExpired(true);
+    setSignInNotice("Your session ended. Please sign in again.");
     setIdToken(null);
+  }
+
+  // The server refuses this account outright (not on the allowlist). Unlike
+  // handleAuthFailed, auto-select must go: it would silently sign the same
+  // account straight back in, and the user could never pick another one.
+  // The page is reloaded too: after this, Google's sign-in button stopped
+  // reacting to clicks until the page was refreshed, so start it fresh.
+  function handleAccountNotAllowed() {
+    window.google?.accounts.id.disableAutoSelect();
+    let reloadedJustNow = false;
+    try {
+      reloadedJustNow = Date.now() - Number(sessionStorage.getItem(LAST_RELOAD_KEY) ?? 0) < RELOAD_LOOP_WINDOW_MS;
+      if (!reloadedJustNow) {
+        sessionStorage.setItem(LAST_RELOAD_KEY, String(Date.now()));
+        sessionStorage.setItem(SIGN_IN_NOTICE_KEY, ACCOUNT_NOT_ALLOWED_NOTICE);
+      }
+    } catch {
+      // Without storage a reload would lose the explanation: just show it.
+      reloadedJustNow = true;
+    }
+    if (reloadedJustNow) {
+      setSignInNotice(ACCOUNT_NOT_ALLOWED_NOTICE);
+      setIdToken(null);
+    } else {
+      window.location.reload();
+    }
   }
 
   // Opens Google's account picker directly over the current screen —
@@ -160,7 +206,7 @@ function App() {
         <div className="signin-gate">
           <h1>Anamnesis</h1>
           <p>Personal Project Context Engine</p>
-          {sessionExpired && <p className="session-expired">Your session ended. Please sign in again.</p>}
+          {signInNotice && <p className="session-expired">{signInNotice}</p>}
           <Auth ready={googleReady} />
         </div>
       </div>
