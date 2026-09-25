@@ -9,7 +9,6 @@ export interface Tenant {
   tenant_id: string;
   name: string;
   jira_project_key: string | null;
-  git_repo_path: string | null;
   // "owner/name" of the linked GitHub repo (APPCE-83), or null.
   github_repo: string | null;
 }

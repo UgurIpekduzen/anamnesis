@@ -178,24 +178,6 @@ def mark_github_polled(tenant_id: str, owner_uid: str) -> None:
     )
 
 
-def set_git_repo_path(tenant_id: str, git_repo_path: str, owner_uid: str) -> None:
-    """Attach a local git repo path to an existing tenant, used by
-    git_activity_sync.py to summarize recent commit activity (see
-    APPCE-28, APPCE-34).
-
-    This is machine-specific (see APPCE-34): storing it on the tenant
-    document means it only makes sense on the machine whose filesystem
-    it refers to — if you sync this project across multiple machines,
-    set it separately on each, or leave it unset where the repo doesn't
-    exist locally.
-    """
-    get_owned_tenant(tenant_id, owner_uid)
-    client = get_client()
-    client.collection("tenants").document(tenant_id).update(
-        {"git_repo_path": git_repo_path}
-    )
-
-
 def list_tenants_with_github_repo() -> list[dict]:
     """Every tenant (across all owners) with a linked GitHub repo.
 
@@ -224,9 +206,8 @@ def list_tenants(owner_uid: str) -> list[dict]:
     Returns:
         A list of dicts with "tenant_id" (use this exact value when calling
         get_tenant_facts), "name" (human-readable project name),
-        "jira_project_key" (None if not set), "git_repo_path" (None if
-        not set), and "github_repo" (None if not set — not every tenant
-        necessarily has any of these).
+        "jira_project_key" (None if not set) and "github_repo" (None if
+        not set — not every tenant necessarily has either).
     """
     client = get_client()
     query = client.collection("tenants").where(
@@ -237,7 +218,6 @@ def list_tenants(owner_uid: str) -> list[dict]:
             "tenant_id": doc.id,
             "name": data.get("name"),
             "jira_project_key": data.get("jira_project_key"),
-            "git_repo_path": data.get("git_repo_path"),
             "github_repo": data.get("github_repo"),
         }
         for doc in query.stream()

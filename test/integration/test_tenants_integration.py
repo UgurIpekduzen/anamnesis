@@ -11,7 +11,6 @@ from src.tenants import (
     delete_tenant,
     list_tenants,
     rename_tenant,
-    set_git_repo_path,
     set_github_repo,
     set_jira_project_key,
 )
@@ -53,16 +52,14 @@ def test_delete_tenant_removes_it_from_the_list(tenant_name):
     assert not any(t["tenant_id"] == tenant_id for t in tenants)
 
 
-def test_set_jira_project_key_and_git_repo_path(tenant_name):
+def test_set_jira_project_key(tenant_name):
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         set_jira_project_key(tenant_id, "APPCE", OWNER_UID)
-        set_git_repo_path(tenant_id, "/home/user/repos/anamnesis", OWNER_UID)
 
         tenants = list_tenants(OWNER_UID)
         tenant = next(t for t in tenants if t["tenant_id"] == tenant_id)
         assert tenant["jira_project_key"] == "APPCE"
-        assert tenant["git_repo_path"] == "/home/user/repos/anamnesis"
     finally:
         delete_tenant(tenant_id, OWNER_UID)
 
