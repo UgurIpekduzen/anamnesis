@@ -23,6 +23,8 @@ tasks:
       - docker compose run --rm terraform fmt
 
   tf:validate:
+    aliases: [tv]
+    desc: Check that the Terraform files are syntactically valid (no plan, no GCP calls)
     cmds:
       - docker compose run --rm terraform validate
 
