@@ -180,7 +180,7 @@ def test_the_agent_cannot_link_a_project_to_a_repo_or_a_jira_project_itself():
     assert tool_names.isdisjoint({"set_github_repo", "set_jira_project_key", "set_git_repo_path"})
 
 
-def test_the_only_tools_that_write_are_the_three_fact_tools_and_each_asks_first():
+def test_the_only_tool_that_writes_is_publish_fact_and_it_asks_first():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
 
     # A FunctionTool is what require_confirmation=True wraps a tool in
@@ -188,8 +188,15 @@ def test_the_only_tools_that_write_are_the_three_fact_tools_and_each_asks_first(
     confirming = {_tool_name(t) for t in tool_agent.tools if hasattr(t, "func")}
     plain = {_tool_name(t) for t in tool_agent.tools if not hasattr(t, "func")}
 
-    assert confirming == {"publish_fact", "update_fact", "delete_fact"}
-    assert plain == {"get_tenant_facts", "get_github_status", "get_jira_status", "propose_link"}
+    assert confirming == {"publish_fact"}
+    assert plain == {
+        "get_tenant_facts",
+        "get_github_status",
+        "get_jira_status",
+        "propose_link",
+        "propose_fact_update",
+        "propose_fact_delete",
+    }
 
 
 def _propose_link(monkeypatch, kind, value, current=None):
@@ -225,3 +232,65 @@ def test_the_agent_says_a_link_needs_the_users_button_press():
     assert "propose_link" in instruction
     assert "press" in instruction
     assert "set_" not in instruction  # it must not name a tool it no longer has
+
+
+FACT = {"fact_id": "f1", "content": "Uses PostgreSQL", "category": "architecture"}
+
+
+def _fact_tool(monkeypatch, name, fact=FACT):
+    def no_database(*args, **kwargs):
+        raise AssertionError("a proposal must not write anything")
+
+    monkeypatch.setattr("src.facts.get_client", no_database)
+
+    def fake_get_fact(tenant_id, fact_id, owner_uid):
+        if fact is None or fact_id != fact["fact_id"]:
+            raise LookupError(f"No fact '{fact_id}' in this project.")
+        return fact
+
+    monkeypatch.setattr(agent_module, "get_fact", fake_get_fact)
+    monkeypatch.setattr(agent_module, "validate_category", lambda c: None if c in {"bug", "decision"} else _bad(c))
+    return _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, name)
+
+
+def _bad(category):
+    raise ValueError(f"Invalid category '{category}'")
+
+
+def test_propose_fact_update_shows_the_old_and_the_new_and_keeps_what_was_not_changed(monkeypatch):
+    tool = _fact_tool(monkeypatch, "propose_fact_update")
+
+    assert tool("f1", content="Uses MySQL") == {
+        "proposal": "fact_update",
+        "fact_id": "f1",
+        "old": {"content": "Uses PostgreSQL", "category": "architecture"},
+        "new": {"content": "Uses MySQL", "category": "architecture"},
+    }
+    assert tool("f1", category="decision")["new"] == {"content": "Uses PostgreSQL", "category": "decision"}
+
+
+def test_propose_fact_update_turns_a_bad_request_into_an_error_result(monkeypatch):
+    tool = _fact_tool(monkeypatch, "propose_fact_update")
+
+    assert "error" in tool("f1")  # nothing to change
+    assert "error" in tool("f1", category="nope")
+    assert "error" in tool("missing", content="x")
+
+
+def test_propose_fact_delete_shows_the_fact_and_writes_nothing(monkeypatch):
+    tool = _fact_tool(monkeypatch, "propose_fact_delete")
+
+    assert tool("f1") == {
+        "proposal": "fact_delete",
+        "fact_id": "f1",
+        "old": {"content": "Uses PostgreSQL", "category": "architecture"},
+    }
+    assert "error" in tool("missing")
+
+
+def test_the_agent_names_the_propose_tools_and_not_the_removed_write_tools():
+    instruction = agent_module.build_agent("test@example.com", "some_tenant").instruction
+
+    assert "propose_fact_update" in instruction and "propose_fact_delete" in instruction
+    assert "update_fact" not in instruction.replace("propose_fact_update", "")
+    assert "delete_fact" not in instruction.replace("propose_fact_delete", "")

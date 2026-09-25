@@ -45,7 +45,7 @@ def get_tenant_facts(tenant_id: str, owner_uid: str, limit: int | None = None) -
 
     Returns:
         A list of fact dicts with "fact_id" (use this exact value when
-        calling update_fact/delete_fact), "content", "category", "source"
+        proposing an update or a delete of that fact), "content", "category", "source"
         ("chat" or "github" — absent on facts written before APPCE-81
         added it, in which case this is None), and "created_at".
     """

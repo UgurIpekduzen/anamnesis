@@ -64,6 +64,33 @@ export async function getTenantFacts(idToken: string, tenantId: string): Promise
   return res.json();
 }
 
+// What a chat proposal card's button calls (APPCE-107). A 400 carries the
+// reason (e.g. an unknown category) — surface it.
+export async function updateFact(
+  idToken: string,
+  tenantId: string,
+  factId: string,
+  changes: { content?: string; category?: string },
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(tenantId)}/facts/${encodeURIComponent(factId)}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(changes),
+  });
+  if (!res.ok) {
+    const detail = res.status === 400 ? (await res.json().catch(() => null))?.detail : null;
+    throw new Error(detail || `updateFact failed: ${res.status}`);
+  }
+}
+
+export async function deleteFact(idToken: string, tenantId: string, factId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(tenantId)}/facts/${encodeURIComponent(factId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`deleteFact failed: ${res.status}`);
+}
+
 export interface PendingFact {
   pending_fact_id: string;
   content: string;

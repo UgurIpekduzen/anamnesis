@@ -196,6 +196,7 @@
 
 .chat-proposal-old {
   opacity: 0.6;
+  text-decoration: line-through;
 }
 
 .chat-proposal-error {
@@ -206,4 +207,8 @@
 .chat-proposal-outcome {
   opacity: 0.7;
   font-size: 0.9em;
+}
+
+.chat-proposal-label {
+  opacity: 0.6;
 }

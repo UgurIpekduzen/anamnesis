@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
-import { chatSocketUrl, getChatHistory, setTenantLink } from "../api";
+import { chatSocketUrl, deleteFact, getChatHistory, setTenantLink, updateFact } from "../api";
 import type { ChatEvent } from "../trace";
 import { describeArgs } from "../traceView";
 import ConfirmDialog from "./ConfirmDialog";
@@ -11,8 +11,6 @@ import "./Chat.css";
 // tool wrapped with require_confirmation=True in agent/agent.py.
 const CONFIRM_TOOL_LABELS: Record<string, string> = {
   publish_fact: "Save this fact",
-  update_fact: "Update this fact",
-  delete_fact: "Delete this fact",
 };
 
 // Mirrors the backend's MAX_MESSAGE_CHARS default (api/main.py) purely as
@@ -40,28 +38,88 @@ interface Props {
   // is the app's cue to stop reconnecting quietly and ask the user to sign
   // in again instead (APPCE-69).
   onAuthFailed?: () => void;
-  // A proposal card's button changed the project (linked a repo or key), so
-  // the project list — and the card that shows the links — must be refetched.
-  onLinked?: () => void;
+  // A proposal card's button changed the project (linked a repo or key,
+  // edited or deleted a fact), so the project list and the facts must be
+  // refetched.
+  onApplied?: () => void;
 }
 
-// What the model's propose_link tool returns (agent/agent.py): nothing has
-// been saved — the button on the card is what links.
-interface LinkProposal {
-  kind: "github_repo" | "jira_project_key";
-  value: string;
-  current: string | null;
+interface FactText {
+  content: string;
+  category: string;
+}
+
+// What the model's propose_* tools return (agent/agent.py): nothing has been
+// changed — the button on the card is what does it.
+type Proposal =
+  | { proposal: "link"; kind: "github_repo" | "jira_project_key"; value: string; current: string | null }
+  | { proposal: "fact_update"; fact_id: string; old: FactText; new: FactText }
+  | { proposal: "fact_delete"; fact_id: string; old: FactText };
+
+interface ProposalCard {
+  proposal: Proposal;
   status: "open" | "applying" | "done" | "dismissed";
   error?: string;
 }
 
 const LINK_LABELS = { github_repo: "GitHub repo", jira_project_key: "Jira project" } as const;
+const PROPOSAL_TOOLS = ["propose_link", "propose_fact_update", "propose_fact_delete"];
+
+function proposalTitle(p: Proposal): string {
+  if (p.proposal === "link") return `${p.current ? "Change" : "Link"} the ${LINK_LABELS[p.kind]}?`;
+  return p.proposal === "fact_update" ? "Update this fact?" : "Delete this fact?";
+}
+
+function proposalButton(p: Proposal): string {
+  if (p.proposal === "link") return p.current ? "Change" : "Link";
+  return p.proposal === "fact_update" ? "Update" : "Delete";
+}
+
+function proposalDone(p: Proposal): string {
+  if (p.proposal === "link") return "Linked.";
+  return p.proposal === "fact_update" ? "Updated." : "Deleted.";
+}
+
+// Old text struck through when it changed, so the difference is visible at a glance.
+function FactLine({ label, before, after }: { label: string; before: string; after?: string }) {
+  const changed = after !== undefined && after !== before;
+  return (
+    <div className="chat-proposal-change">
+      <span className="chat-proposal-label">{label}</span>{" "}
+      {changed ? (
+        <>
+          <span className="chat-proposal-old">{before}</span> → <strong>{after}</strong>
+        </>
+      ) : (
+        before
+      )}
+    </div>
+  );
+}
+
+function ProposalBody({ proposal: p }: { proposal: Proposal }) {
+  if (p.proposal === "link") {
+    return (
+      <div className="chat-proposal-change">
+        {p.current && <span className="chat-proposal-old">{p.current} → </span>}
+        <strong>{p.value}</strong>
+      </div>
+    );
+  }
+  const after = p.proposal === "fact_update" ? p.new : undefined;
+  return (
+    <>
+      <FactLine label="Text" before={p.old.content} after={after?.content} />
+      <FactLine label="Category" before={p.old.category} after={after?.category} />
+    </>
+  );
+}
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   isError?: boolean;
-  proposal?: LinkProposal;
+  card?: ProposalCard;
 }
 
 interface PendingConfirmation {
@@ -69,7 +127,7 @@ interface PendingConfirmation {
   args: unknown;
 }
 
-function Chat({ idToken, tenantId, onEvent, onAuthFailed, onLinked }: Props) {
+function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
@@ -165,12 +223,8 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onLinked }: Props) {
           if (socketRef.current !== socket) return;
           attempt = 0;
           setConnected(true);
-        } else if (data.type === "tool_result" && data.name === "propose_link" && data.result?.proposal === "link") {
-          const { kind, value, current } = data.result;
-          setMessages((prev) => [
-            ...prev,
-            { role: "assistant", content: "", proposal: { kind, value, current, status: "open" } },
-          ]);
+        } else if (data.type === "tool_result" && PROPOSAL_TOOLS.includes(data.name) && data.result?.proposal) {
+          setMessages((prev) => [...prev, { role: "assistant", content: "", card: { proposal: data.result, status: "open" } }]);
         } else if (data.type === "tool_call" || data.type === "tool_result") {
           onEventRef.current?.(
             data.type === "tool_call"
@@ -259,21 +313,24 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onLinked }: Props) {
     socketRef.current.send(JSON.stringify({ type: "confirm_response", confirmed }));
   }
 
-  function updateProposal(index: number, changes: Partial<LinkProposal>) {
+  function updateCard(index: number, changes: Partial<ProposalCard>) {
     setMessages((prev) =>
-      prev.map((msg, i) => (i === index && msg.proposal ? { ...msg, proposal: { ...msg.proposal, ...changes } } : msg)),
+      prev.map((msg, i) => (i === index && msg.card ? { ...msg, card: { ...msg.card, ...changes } } : msg)),
     );
   }
 
-  async function applyProposal(index: number, proposal: LinkProposal) {
+  async function applyProposal(index: number, p: Proposal) {
     if (!tenantId) return;
-    updateProposal(index, { status: "applying", error: undefined });
+    updateCard(index, { status: "applying", error: undefined });
     try {
-      await setTenantLink(idTokenRef.current, tenantId, proposal.kind, proposal.value);
-      updateProposal(index, { status: "done" });
-      onLinked?.();
+      const token = idTokenRef.current;
+      if (p.proposal === "link") await setTenantLink(token, tenantId, p.kind, p.value);
+      else if (p.proposal === "fact_update") await updateFact(token, tenantId, p.fact_id, p.new);
+      else await deleteFact(token, tenantId, p.fact_id);
+      updateCard(index, { status: "done" });
+      onApplied?.();
     } catch (err) {
-      updateProposal(index, { status: "open", error: err instanceof Error ? err.message : "Couldn't link it." });
+      updateCard(index, { status: "open", error: err instanceof Error ? err.message : "Couldn't do that." });
     }
   }
 
@@ -296,31 +353,26 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onLinked }: Props) {
     <div className="chat">
       <div className="chat-messages">
         {messages.map((msg, i) =>
-          msg.proposal ? (
+          msg.card ? (
             <div key={i} className="chat-confirm chat-proposal">
-              <div className="chat-confirm-title">
-                {msg.proposal.current ? "Change" : "Link"} the {LINK_LABELS[msg.proposal.kind]}?
-              </div>
-              <div className="chat-proposal-change">
-                {msg.proposal.current && <span className="chat-proposal-old">{msg.proposal.current} → </span>}
-                <strong>{msg.proposal.value}</strong>
-              </div>
-              {msg.proposal.error && <p className="chat-proposal-error">{msg.proposal.error}</p>}
-              {msg.proposal.status === "done" ? (
-                <div className="chat-proposal-outcome">Linked.</div>
-              ) : msg.proposal.status === "dismissed" ? (
+              <div className="chat-confirm-title">{proposalTitle(msg.card.proposal)}</div>
+              <ProposalBody proposal={msg.card.proposal} />
+              {msg.card.error && <p className="chat-proposal-error">{msg.card.error}</p>}
+              {msg.card.status === "done" ? (
+                <div className="chat-proposal-outcome">{proposalDone(msg.card.proposal)}</div>
+              ) : msg.card.status === "dismissed" ? (
                 <div className="chat-proposal-outcome">Dismissed.</div>
               ) : (
                 <div className="chat-confirm-actions">
-                  <button onClick={() => updateProposal(i, { status: "dismissed" })} disabled={msg.proposal.status === "applying"}>
+                  <button onClick={() => updateCard(i, { status: "dismissed" })} disabled={msg.card.status === "applying"}>
                     Dismiss
                   </button>
                   <button
                     className="chat-confirm-approve"
-                    onClick={() => applyProposal(i, msg.proposal!)}
-                    disabled={msg.proposal.status === "applying"}
+                    onClick={() => applyProposal(i, msg.card!.proposal)}
+                    disabled={msg.card.status === "applying"}
                   >
-                    {msg.proposal.current ? "Change" : "Link"}
+                    {proposalButton(msg.card.proposal)}
                   </button>
                 </div>
               )}

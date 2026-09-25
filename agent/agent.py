@@ -4,7 +4,8 @@ from google.adk.agents.llm_agent import Agent
 from google.adk.tools.function_tool import FunctionTool
 
 from agent.history import make_history_limiter
-from src.facts import delete_fact, get_tenant_facts, update_fact
+from src.categories import validate_category
+from src.facts import get_fact, get_tenant_facts
 from src.github_activity import get_github_status
 from src.jira_client import get_jira_status, validate_project_key
 from src.jira_connections import get_jira_credentials
@@ -42,12 +43,6 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
 
     def _publish_fact(content: str, category: str) -> str:
         return publish_fact(tenant_id, content, category, owner_uid)
-
-    def _update_fact(fact_id: str, content: str | None = None, category: str | None = None) -> None:
-        update_fact(tenant_id, fact_id, owner_uid, content=content, category=category)
-
-    def _delete_fact(fact_id: str) -> None:
-        delete_fact(tenant_id, fact_id, owner_uid)
 
     def _get_github_status() -> dict:
         # ADK doesn't turn a raised exception into a tool result the model
@@ -109,6 +104,61 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         current = get_owned_tenant(tenant_id, owner_uid).get(kind)
         return {"proposal": "link", "kind": kind, "value": value, "current": current}
 
+    def _propose_fact_update(fact_id: str, content: str | None = None, category: str | None = None) -> dict:
+        """Suggest changing a saved fact's content and/or category.
+
+        Nothing is changed: this only shows the user a card with the old and
+        the new text, and the change is made when they press its button.
+
+        Args:
+            fact_id: The fact_id from get_tenant_facts, exactly as returned.
+            content: The new text, if it should change.
+            category: The new category, if it should change.
+
+        Returns:
+            The proposal, or {"error": "..."} if there is no such fact or
+            the category isn't one of the allowed ones.
+        """
+        if content is None and category is None:
+            return {"error": "Give the new content or the new category."}
+        try:
+            if category is not None:
+                validate_category(category)
+            fact = get_fact(tenant_id, fact_id, owner_uid)
+        except (ValueError, LookupError) as e:
+            return {"error": str(e)}
+        return {
+            "proposal": "fact_update",
+            "fact_id": fact_id,
+            "old": {"content": fact["content"], "category": fact["category"]},
+            "new": {
+                "content": fact["content"] if content is None else content,
+                "category": fact["category"] if category is None else category,
+            },
+        }
+
+    def _propose_fact_delete(fact_id: str) -> dict:
+        """Suggest deleting a saved fact.
+
+        Nothing is deleted: this only shows the user a card with the fact,
+        and it is deleted when they press its button.
+
+        Args:
+            fact_id: The fact_id from get_tenant_facts, exactly as returned.
+
+        Returns:
+            The proposal, or {"error": "..."} if there is no such fact.
+        """
+        try:
+            fact = get_fact(tenant_id, fact_id, owner_uid)
+        except LookupError as e:
+            return {"error": str(e)}
+        return {
+            "proposal": "fact_delete",
+            "fact_id": fact_id,
+            "old": {"content": fact["content"], "category": fact["category"]},
+        }
+
     # Reuse each src.* function's own docstring so ADK's tool schema
     # (built from name + docstring) stays accurate without duplicating
     # the description here. _get_jira_status keeps its own — its contract
@@ -116,8 +166,6 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
     for wrapper, original in [
         (_get_tenant_facts, get_tenant_facts),
         (_publish_fact, publish_fact),
-        (_update_fact, update_fact),
-        (_delete_fact, delete_fact),
         (_get_github_status, get_github_status),
     ]:
         wrapper.__name__ = original.__name__
@@ -127,6 +175,8 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
     # describes its actual contract (no params), unlike get_jira_status'.
     _get_jira_status.__name__ = get_jira_status.__name__
     _propose_link.__name__ = "propose_link"
+    _propose_fact_update.__name__ = "propose_fact_update"
+    _propose_fact_delete.__name__ = "propose_fact_delete"
 
     # The model has to know the list can be cut short, or it would treat
     # a truncated list as the project's complete history.
@@ -170,12 +220,12 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
             'When the user asks you to edit or correct a saved note/fact, '
             'call get_tenant_facts to find the matching fact_id (ask the user '
             'to clarify if more than one fact could match), then call '
-            'update_fact with that fact_id and only the field(s) that '
-            'changed.\n'
-            'When the user asks you to delete or remove a saved note/fact, '
-            'find the matching fact_id via get_tenant_facts, show the user '
-            'its content, confirm before calling delete_fact — this is '
-            'irreversible.\n'
+            'propose_fact_update with that fact_id and only the field(s) that '
+            'changed. When the user asks you to delete or remove one, find '
+            'the matching fact_id the same way and call propose_fact_delete. '
+            'Both only show the user a card with the old and new text; the '
+            'change is made when they press its button, so say they need to '
+            'press it — never say it is already changed or deleted.\n'
             'When the user asks about open tickets, tasks, or issues, call '
             'get_jira_status — this is live Jira data, not stored facts. If '
             'it returns an error because there is no linked Jira project or '
@@ -210,8 +260,8 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         ),
         tools=[
             _get_tenant_facts,
-            # Wrapped with require_confirmation=True (APPCE-91): these
-            # write/mutate state, and the instruction's "ask the user
+            # Wrapped with require_confirmation=True (APPCE-91): this
+            # writes state, and the instruction's "ask the user
             # first" rule alone isn't enough — a live prompt-injection
             # test (APPCE-92) got a naturally-phrased request embedded in
             # a GitHub issue title to call publish_fact with zero actual
@@ -219,13 +269,13 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
             # explicit approve/reject from the client before running the
             # real function (see api/main.py's chat handler).
             FunctionTool(_publish_fact, require_confirmation=True),
-            FunctionTool(_update_fact, require_confirmation=True),
-            FunctionTool(_delete_fact, require_confirmation=True),
             _get_github_status,
             _get_jira_status,
             # No side effects (APPCE-107): the result is only a proposal
             # the chat UI draws as a card. The link is made by the user
             # pressing its button, which calls the validated REST endpoint.
             _propose_link,
+            _propose_fact_update,
+            _propose_fact_delete,
         ],
     )
