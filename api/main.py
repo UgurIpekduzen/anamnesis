@@ -10,9 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.deps import get_current_owner_uid, require_owner, verify_token
-from api.routers import categories, internal, settings
-from src.accounts.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
+from api.deps import get_current_owner_uid, verify_token
+from api.routers import admin, categories, internal, settings
 from src.facts.categories import InvalidCategory
 from src.projects.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts.facts import delete_fact, get_fact, get_tenant_facts, update_fact
@@ -133,6 +132,7 @@ async def log_request_duration(request: Request, call_next):
 app.include_router(internal.router)
 app.include_router(categories.router)
 app.include_router(settings.router)
+app.include_router(admin.router)
 
 
 @app.get("/tenants")
@@ -384,37 +384,6 @@ def get_history(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid))
         return load_recent_turns(tenant_id, owner_uid, CHAT_HISTORY_DISPLAY_TURNS)
     except PermissionError:
         raise HTTPException(status_code=404, detail="Project not found")
-
-
-# Who can sign in at all beyond the Terraform-configured owner(s) — only an
-# owner can view/change this (require_owner), since anyone else granting
-# access would defeat the allowlist (APPCE-94). A non-owner never even sees
-# this section exists: the frontend just doesn't render it without a
-# successful GET.
-@app.get("/admin/allowed_emails")
-def get_allowed_emails(owner_uid: str = Depends(require_owner)) -> dict:
-    return {"owner_emails": sorted(OWNER_EMAILS), "extra_emails": sorted(get_extra_allowed_emails())}
-
-
-class AllowedEmailCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    email: str = Field(strict=True, min_length=1, max_length=320)
-
-
-@app.post("/admin/allowed_emails")
-def add_allowed_email_endpoint(body: AllowedEmailCreate, owner_uid: str = Depends(require_owner)) -> dict:
-    try:
-        add_allowed_email(body.email)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return {"extra_emails": sorted(get_extra_allowed_emails())}
-
-
-@app.delete("/admin/allowed_emails/{email}")
-def remove_allowed_email_endpoint(email: str, owner_uid: str = Depends(require_owner)) -> dict:
-    remove_allowed_email(email)
-    return {"extra_emails": sorted(get_extra_allowed_emails())}
 
 
 class GithubConnectionUpdate(BaseModel):
