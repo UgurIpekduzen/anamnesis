@@ -2,6 +2,7 @@ import pytest
 from starlette.testclient import TestClient
 
 import api.main as api_main
+from api.routers import categories
 
 OWNER = "test@example.com"
 
@@ -15,10 +16,10 @@ def api(monkeypatch, signed_in_owner):
 
         stored[owner_uid] = check_category_names(categories)
 
-    monkeypatch.setattr(api_main, "save_categories", save)
-    monkeypatch.setattr(api_main, "reset_categories", lambda owner_uid: stored.pop(owner_uid, None))
+    monkeypatch.setattr(categories, "save_categories", save)
+    monkeypatch.setattr(categories, "reset_categories", lambda owner_uid: stored.pop(owner_uid, None))
     monkeypatch.setattr(
-        api_main,
+        categories,
         "get_category_settings",
         lambda owner_uid: {
             "categories": stored.get(owner_uid, ["architecture", "note"]),

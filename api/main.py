@@ -11,14 +11,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, require_owner, verify_token
-from api.routers import internal
+from api.routers import categories, internal
 from src.accounts.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
-from src.facts.categories import (
-    InvalidCategory,
-    get_category_settings,
-    reset_categories,
-    save_categories,
-)
+from src.facts.categories import InvalidCategory
 from src.projects.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts.facts import delete_fact, get_fact, get_tenant_facts, update_fact
 from src.integrations.github.client import validate_github_token
@@ -136,6 +131,7 @@ async def log_request_duration(request: Request, call_next):
 
 
 app.include_router(internal.router)
+app.include_router(categories.router)
 
 
 @app.get("/tenants")
@@ -168,15 +164,6 @@ class FactUpdate(BaseModel):
     # change nothing, so it is refused below.
     content: str | None = Field(default=None, strict=True, min_length=1, max_length=2000)
     category: str | None = Field(default=None, strict=True, min_length=1, max_length=50)
-
-
-class CategoriesUpdate(BaseModel):
-    # forbid: an unknown field is a client bug. The list itself is checked in
-    # src/facts/categories.py (length, names, duplicates); the cap here only keeps an
-    # absurd request from being parsed at all.
-    model_config = ConfigDict(extra="forbid")
-
-    categories: list[str] = Field(max_length=50)
 
 
 class TenantRename(BaseModel):
@@ -462,28 +449,6 @@ def _settings_response(settings: dict) -> dict:
         "limits": {name: {"min": low, "max": high} for name, (low, high) in BOUNDS.items()},
         "defaults": dict(DEFAULTS),
     }
-
-
-# The user's own categories (APPCE-116): the suggested list until they change it.
-@app.get("/categories")
-def read_categories(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    return get_category_settings(owner_uid)
-
-
-@app.put("/categories")
-def update_categories(body: CategoriesUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    # owner_uid comes from the verified token, never the body.
-    try:
-        save_categories(owner_uid, body.categories)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    return get_category_settings(owner_uid)
-
-
-@app.delete("/categories")
-def delete_categories(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    reset_categories(owner_uid)
-    return get_category_settings(owner_uid)
 
 
 @app.get("/settings")
