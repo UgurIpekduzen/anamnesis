@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, require_owner, verify_token
-from api.routers import categories, internal
+from api.routers import categories, internal, settings
 from src.accounts.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
 from src.facts.categories import InvalidCategory
 from src.projects.chat_history import append_turn, clear_turns, load_recent_turns
@@ -27,7 +27,7 @@ from src.integrations.jira.connections import (
 )
 from src.facts.similar_facts import find_similar_facts
 from src.integrations.status import get_project_github_status, get_project_jira_status
-from src.accounts.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
+from src.accounts.settings import get_settings
 from src.core.log import log
 from src.projects.tenants import (
     TenantNameTaken,
@@ -41,7 +41,7 @@ from src.projects.tenants import (
     set_github_repo,
     set_jira_project_key,
 )
-from src.accounts.usage import DAILY_MESSAGE_HARD_LIMIT, DailyLimitExceeded, get_today_count, next_reset_at, record_message
+from src.accounts.usage import DailyLimitExceeded, record_message
 
 # Token-cost guards (see APPCE-59). A message stays in the session history
 # and is resent on every model call of the following turns, so an
@@ -132,6 +132,7 @@ async def log_request_duration(request: Request, call_next):
 
 app.include_router(internal.router)
 app.include_router(categories.router)
+app.include_router(settings.router)
 
 
 @app.get("/tenants")
@@ -385,16 +386,6 @@ def get_history(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid))
         raise HTTPException(status_code=404, detail="Project not found")
 
 
-@app.get("/usage")
-def get_usage(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    return {
-        "count": get_today_count(owner_uid),
-        "threshold": get_settings(owner_uid)["daily_message_warning_threshold"],
-        "limit": DAILY_MESSAGE_HARD_LIMIT,
-        "resets_at": next_reset_at().isoformat(),
-    }
-
-
 # Who can sign in at all beyond the Terraform-configured owner(s) — only an
 # owner can view/change this (require_owner), since anyone else granting
 # access would defeat the allowlist (APPCE-94). A non-owner never even sees
@@ -424,48 +415,6 @@ def add_allowed_email_endpoint(body: AllowedEmailCreate, owner_uid: str = Depend
 def remove_allowed_email_endpoint(email: str, owner_uid: str = Depends(require_owner)) -> dict:
     remove_allowed_email(email)
     return {"extra_emails": sorted(get_extra_allowed_emails())}
-
-
-class SettingsUpdate(BaseModel):
-    # forbid: an unknown field is a client bug (or an attempt to write
-    # arbitrary keys into the user's Firestore doc) — reject, don't ignore.
-    # strict: "5" or true must not be quietly coerced into a valid int.
-    model_config = ConfigDict(extra="forbid")
-
-    history_turns: int = Field(strict=True, ge=BOUNDS["history_turns"][0], le=BOUNDS["history_turns"][1])
-    daily_message_warning_threshold: int = Field(
-        strict=True,
-        ge=BOUNDS["daily_message_warning_threshold"][0],
-        le=BOUNDS["daily_message_warning_threshold"][1],
-    )
-
-
-def _settings_response(settings: dict) -> dict:
-    # The bounds and defaults ride along so the UI can render min/max and
-    # know what "reset" means from the one source of truth instead of
-    # hardcoding its own copies.
-    return {
-        **settings,
-        "limits": {name: {"min": low, "max": high} for name, (low, high) in BOUNDS.items()},
-        "defaults": dict(DEFAULTS),
-    }
-
-
-@app.get("/settings")
-def read_settings(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    return _settings_response(get_settings(owner_uid))
-
-
-@app.put("/settings")
-def update_settings(body: SettingsUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    # owner_uid comes from the verified token, never the body — a user can
-    # only ever write their own settings.
-    return _settings_response(save_settings(owner_uid, body.model_dump()))
-
-
-@app.delete("/settings")
-def delete_settings(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    return _settings_response(reset_settings(owner_uid))
 
 
 class GithubConnectionUpdate(BaseModel):
