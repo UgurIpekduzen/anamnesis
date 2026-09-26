@@ -29,4 +29,11 @@ COPY --from=frontend-build /frontend/dist/ frontend_dist/
 
 ENV PYTHONUNBUFFERED=1
 
+# Not root (APPCE-119): the app only reads its own files and talks to Google
+# APIs with the service account Cloud Run gives it, so a flaw in it should
+# not start with root in the container. /app stays root-owned and read-only
+# for this user.
+RUN useradd --system --no-create-home --uid 10001 app
+USER app
+
 CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
