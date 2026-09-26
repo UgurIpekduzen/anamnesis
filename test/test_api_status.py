@@ -2,13 +2,14 @@ import pytest
 from starlette.testclient import TestClient
 
 import api.main as api_main
+from api.routers import status as status_router
 
 
 @pytest.fixture
 def api(monkeypatch, signed_in_owner):
-    monkeypatch.setattr(api_main, "get_project_jira_status", lambda tenant_id, owner_uid: {"state": "not_linked"})
+    monkeypatch.setattr(status_router, "get_project_jira_status", lambda tenant_id, owner_uid: {"state": "not_linked"})
     monkeypatch.setattr(
-        api_main, "get_project_github_status", lambda tenant_id, owner_uid: {"state": "not_connected"}
+        status_router, "get_project_github_status", lambda tenant_id, owner_uid: {"state": "not_connected"}
     )
     return TestClient(api_main.app)
 
@@ -23,7 +24,7 @@ def test_someone_elses_project_is_a_404(api, monkeypatch, name):
     def not_yours(tenant_id, owner_uid):
         raise PermissionError()
 
-    monkeypatch.setattr(api_main, f"get_project_{name}", not_yours)
+    monkeypatch.setattr(status_router, f"get_project_{name}", not_yours)
 
     assert api.get(f"/tenants/proj/{name}").status_code == 404
 

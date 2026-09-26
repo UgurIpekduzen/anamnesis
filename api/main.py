@@ -10,12 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from api.deps import get_current_owner_uid, verify_token
-from api.routers import admin, categories, connections, facts, internal, settings, tenants
+from api.routers import admin, categories, connections, facts, internal, settings, status, tenants
 from src.facts.categories import InvalidCategory
 from src.projects.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts.facts import get_tenant_facts
 from src.facts.similar_facts import find_similar_facts
-from src.integrations.status import get_project_github_status, get_project_jira_status
 from src.accounts.settings import get_settings
 from src.core.log import log
 from src.projects.tenants import get_owned_tenant
@@ -115,24 +114,7 @@ app.include_router(admin.router)
 app.include_router(connections.router)
 app.include_router(tenants.router)
 app.include_router(facts.router)
-
-
-# The Status panel (APPCE-110): what is open in the project's Jira project and
-# GitHub repo, read live with the user's own credentials, no model involved.
-@app.get("/tenants/{tenant_id}/jira_status")
-def get_jira_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    try:
-        return get_project_jira_status(tenant_id, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-
-@app.get("/tenants/{tenant_id}/github_status")
-def get_github_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    try:
-        return get_project_github_status(tenant_id, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
+app.include_router(status.router)
 
 
 # Lazily-importing wrappers (APPCE-50, same pattern as get_runner/
