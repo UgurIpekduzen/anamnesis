@@ -2,6 +2,7 @@ import pytest
 from starlette.testclient import TestClient
 
 import api.main as api_main
+from api.routers import facts as facts_router
 
 OWNER = "test@example.com"
 
@@ -9,16 +10,16 @@ OWNER = "test@example.com"
 @pytest.fixture
 def api(monkeypatch, signed_in_owner):
     calls = []
-    monkeypatch.setattr(api_main, "get_fact", lambda tenant_id, fact_id, owner_uid: {"fact_id": fact_id})
+    monkeypatch.setattr(facts_router, "get_fact", lambda tenant_id, fact_id, owner_uid: {"fact_id": fact_id})
     monkeypatch.setattr(
-        api_main,
+        facts_router,
         "update_fact",
         lambda tenant_id, fact_id, owner_uid, content=None, category=None: calls.append(
             ("update", tenant_id, fact_id, owner_uid, content, category)
         ),
     )
     monkeypatch.setattr(
-        api_main, "delete_fact", lambda tenant_id, fact_id, owner_uid: calls.append(("delete", tenant_id, fact_id, owner_uid))
+        facts_router, "delete_fact", lambda tenant_id, fact_id, owner_uid: calls.append(("delete", tenant_id, fact_id, owner_uid))
     )
     return TestClient(api_main.app), calls
 
@@ -54,7 +55,7 @@ def test_patch_with_an_unknown_category_is_a_400_with_the_reason(api, monkeypatc
     def refuse(*args, **kwargs):
         raise ValueError("Invalid category 'nope'")
 
-    monkeypatch.setattr(api_main, "update_fact", refuse)
+    monkeypatch.setattr(facts_router, "update_fact", refuse)
 
     response = client.patch("/tenants/proj/facts/f1", json={"category": "nope"})
 
@@ -79,7 +80,7 @@ def test_someone_elses_project_or_a_missing_fact_is_a_404_and_nothing_changes(ap
     def missing(*args, **kwargs):
         raise error
 
-    monkeypatch.setattr(api_main, "get_fact", missing)
+    monkeypatch.setattr(facts_router, "get_fact", missing)
 
     assert client.patch("/tenants/proj/facts/f1", json={"content": "x"}).status_code == 404
     assert client.delete("/tenants/proj/facts/f1").status_code == 404
