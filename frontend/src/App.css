@@ -6,9 +6,10 @@
 
 .sidebar {
   flex-shrink: 0;
-  /* Same limits as the drag logic in App.tsx (MIN_SIDEBAR_WIDTH, and room
-     left for the chat), so shrinking the window can't push the chat away. */
-  min-width: 200px;
+  /* Same limits as the drag logic in hooks/useResizableSidebar.ts (its
+     minimum, and room left for the chat), so shrinking the window can't
+     push the chat away. */
+  min-width: 260px;
   max-width: calc(100vw - 324px); /* 320px for the chat + the 4px handle */
   background: var(--bg-elevated);
   padding: 20px 16px;
@@ -44,16 +45,17 @@
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   border-bottom: 1px solid var(--border);
 }
 
 .tabs .tab {
-  /* Shrinkable: four tabs with count badges are wider than a narrow sidebar,
-     and the refresh button next to them must never be pushed out of view. */
-  flex: 1 1 auto;
-  min-width: 0;
+  /* Never shrinks below its text (they overlapped when it could); when the
+     sidebar is too narrow for all of them the row wraps instead. */
+  flex: 1 0 auto;
+  white-space: nowrap;
   padding: 6px 4px;
   border: none;
   border-radius: 0;
@@ -68,6 +70,7 @@
 
 .tabs .icon-button {
   flex-shrink: 0;
+  margin-left: auto;
   padding: 4px 8px;
 }
 

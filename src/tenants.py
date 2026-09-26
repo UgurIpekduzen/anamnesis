@@ -1,6 +1,7 @@
 import re
 from datetime import datetime, timezone
 
+from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore
 
 from src.firestore_client import get_client
@@ -40,6 +41,11 @@ def get_owned_tenant(tenant_id: str, owner_uid: str) -> dict:
     return doc.to_dict()
 
 
+class TenantNameTaken(ValueError):
+    """The project id derived from a name is already in use. The id is shared
+    by every user, so this can't say whose project it is (APPCE-117)."""
+
+
 def add_tenant(name: str, owner_uid: str) -> str:
     """Register a new project (tenant), owned by owner_uid.
 
@@ -50,17 +56,26 @@ def add_tenant(name: str, owner_uid: str) -> str:
 
     Returns:
         The generated tenant_id, e.g. "My Project" -> "my_project".
+
+    Raises:
+        TenantNameTaken: a project with this id exists already — whoever's it
+            is. The document is created, never written over: the id is one
+            namespace for all users, and a write over it would hand the
+            existing project (and everything under it) to the caller.
     """
     tenant_id = _slugify(name)
     client = get_client()
-    client.collection("tenants").document(tenant_id).set(
-        {
-            "name": name,
-            "status": "active",
-            "owner_uid": owner_uid,
-            "created_at": datetime.now(timezone.utc),
-        }
-    )
+    try:
+        client.collection("tenants").document(tenant_id).create(
+            {
+                "name": name,
+                "status": "active",
+                "owner_uid": owner_uid,
+                "created_at": datetime.now(timezone.utc),
+            }
+        )
+    except AlreadyExists as exc:
+        raise TenantNameTaken("That project name isn't available.") from exc
     return tenant_id
 
 

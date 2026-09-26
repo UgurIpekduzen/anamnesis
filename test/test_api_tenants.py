@@ -30,6 +30,21 @@ def test_post_creates_a_tenant_for_the_authenticated_user(api):
     assert added == [("New Project", OWNER)]
 
 
+def test_post_answers_409_when_the_name_is_taken(api, monkeypatch):
+    client, _, _, _ = api
+
+    def taken(name, owner_uid):
+        raise api_main.TenantNameTaken("That project name isn't available.")
+
+    monkeypatch.setattr(api_main, "add_tenant", taken)
+
+    response = client.post("/tenants", json={"name": "Taken"})
+
+    assert response.status_code == 409
+    # Nothing about whose project it is.
+    assert response.json() == {"detail": "That project name isn't available. Try another name."}
+
+
 @pytest.mark.parametrize("payload", [{}, {"name": ""}, {"name": "x" * 201}, {"name": "ok", "owner_uid": "someone-else"}])
 def test_post_rejects_invalid_payloads_and_creates_nothing(api, payload):
     client, added, _, _ = api

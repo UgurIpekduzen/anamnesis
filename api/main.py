@@ -35,6 +35,7 @@ from src.status import get_project_github_status, get_project_jira_status
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.log import log
 from src.tenants import (
+    TenantNameTaken,
     add_tenant,
     clear_github_repo,
     clear_jira_project_key,
@@ -79,6 +80,36 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# What the page loads: its own files, plus Google sign-in (script, its iframe,
+# its styles and requests). Report-Only for now (APPCE-119): a browser reports
+# what the policy would block without blocking it, so sign-in can't break by
+# surprise. Enforce it once the browser console shows no violations.
+_CONTENT_SECURITY_POLICY = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self' https://accounts.google.com/gsi/client",
+        "frame-src https://accounts.google.com/gsi/",
+        "connect-src 'self' https://accounts.google.com/gsi/",
+        "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
+        # The profile photo comes from Google.
+        "img-src 'self' data: https://*.googleusercontent.com",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "object-src 'none'",
+    ]
+)
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy-Report-Only"] = _CONTENT_SECURITY_POLICY
+    return response
 
 
 @app.middleware("http")
@@ -140,7 +171,11 @@ class TenantCreate(BaseModel):
 def create_tenant(body: TenantCreate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
     # Project lifecycle (create/rename/delete) is deliberately UI-only, not
     # a chat tool — see agent/agent.py's build_agent docstring for why.
-    tenant_id = add_tenant(body.name, owner_uid)
+    try:
+        tenant_id = add_tenant(body.name, owner_uid)
+    except TenantNameTaken as exc:
+        # The same answer whoever owns the existing project (APPCE-117).
+        raise HTTPException(status_code=409, detail=f"{exc} Try another name.")
     return {"tenant_id": tenant_id}
 
 
@@ -541,7 +576,7 @@ def update_jira_connection(body: JiraConnectionUpdate, owner_uid: str = Depends(
         validate_jira_credentials(body.email, body.token, body.base_url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    save_jira_credentials(owner_uid, body.email, body.token, body.base_url)
+    save_jira_credentials(owner_uid, body.email, body.token, body.base_url.strip())
     return {"connected": True}
 
 

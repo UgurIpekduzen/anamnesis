@@ -143,6 +143,32 @@ tasks:
     cmds:
       - docker compose down firestore-emulator pubsub-emulator
 
+  db:dump:
+    desc: Back up the REAL Firestore database to backups/firestore-<time>.json (read-only; the file holds real data and is git-ignored)
+    cmds:
+      - mkdir -p backups
+      - docker compose build -q api
+      - docker compose run --rm -v "$PWD/backups:/app/backups" api python -m src.db_backup dump backups/firestore-$(date +%Y%m%d-%H%M%S).json
+
+  db:load:
+    desc: Load a dump into the Firestore EMULATOR (never the real database) — task db:load -- backups/<file>.json
+    cmds:
+      - docker compose up -d firestore-emulator
+      - docker compose build -q api
+      - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.db_backup load {{.CLI_ARGS}}
+
+  db:restore:
+    desc: Show what writing a dump into the REAL database would change; write it only with -- backups/<file>.json --confirm-project <project id>
+    cmds:
+      - docker compose build -q api
+      - docker compose run --rm -v "$PWD/backups:/app/backups" api python -m src.db_backup restore {{.CLI_ARGS}}
+
+  db:wipe:
+    desc: Count what wiping the REAL database would delete; delete only with -- --confirm-project <project id>
+    cmds:
+      - docker compose build -q api
+      - docker compose run --rm api python -m src.db_backup wipe {{.CLI_ARGS}}
+
   subscriber:up:
     desc: Run the dev subscriber (against the dockerized emulators) in the background
     cmds:
