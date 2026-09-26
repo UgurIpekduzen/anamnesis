@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, require_owner, verify_token
-from api.internal_auth import verify_scheduler_token
+from api.routers import internal
 from src.accounts.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
 from src.facts.categories import (
     InvalidCategory,
@@ -135,25 +135,7 @@ async def log_request_duration(request: Request, call_next):
     return response
 
 
-@app.get("/health")
-def health() -> dict:
-    return {"status": "ok"}
-
-
-def poll_all_tenants() -> dict:
-    # Deferred: pulls in the GitHub fact-extraction LLM call chain, which
-    # only /internal/poll-github needs — same reasoning as the lazy
-    # ADK/Pub-Sub imports elsewhere in this file (APPCE-50). A real
-    # module-level name (not a local import inside the endpoint) so tests
-    # can monkeypatch.setattr(api_main, "poll_all_tenants", ...).
-    from src.integrations.github.polling import poll_all_tenants as _poll_all_tenants
-
-    return _poll_all_tenants()
-
-
-@app.post("/internal/poll-github")
-def poll_github(_: None = Depends(verify_scheduler_token)) -> dict:
-    return poll_all_tenants()
+app.include_router(internal.router)
 
 
 @app.get("/tenants")
