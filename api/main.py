@@ -11,19 +11,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, verify_token
-from api.routers import admin, categories, internal, settings
+from api.routers import admin, categories, connections, internal, settings
 from src.facts.categories import InvalidCategory
 from src.projects.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts.facts import delete_fact, get_fact, get_tenant_facts, update_fact
-from src.integrations.github.client import validate_github_token
-from src.integrations.github.connections import delete_github_connection, has_github_connection, save_github_token
-from src.integrations.jira.client import validate_jira_credentials
-from src.integrations.jira.connections import (
-    delete_jira_connection,
-    get_jira_base_url,
-    has_jira_connection,
-    save_jira_credentials,
-)
 from src.facts.similar_facts import find_similar_facts
 from src.integrations.status import get_project_github_status, get_project_jira_status
 from src.accounts.settings import get_settings
@@ -133,6 +124,7 @@ app.include_router(internal.router)
 app.include_router(categories.router)
 app.include_router(settings.router)
 app.include_router(admin.router)
+app.include_router(connections.router)
 
 
 @app.get("/tenants")
@@ -384,71 +376,6 @@ def get_history(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid))
         return load_recent_turns(tenant_id, owner_uid, CHAT_HISTORY_DISPLAY_TURNS)
     except PermissionError:
         raise HTTPException(status_code=404, detail="Project not found")
-
-
-class GithubConnectionUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    token: str = Field(strict=True, min_length=1, max_length=255)
-
-
-@app.get("/github/connection")
-def read_github_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    return {"connected": has_github_connection(owner_uid)}
-
-
-@app.put("/github/connection")
-def update_github_connection(
-    body: GithubConnectionUpdate, owner_uid: str = Depends(get_current_owner_uid)
-) -> dict:
-    # Validated before it ever reaches Firestore — an invalid/wrong-kind
-    # token must not get encrypted and stored, only to fail on first use.
-    try:
-        validate_github_token(body.token)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    save_github_token(owner_uid, body.token)
-    return {"connected": True}
-
-
-@app.delete("/github/connection")
-def remove_github_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    delete_github_connection(owner_uid)
-    return {"connected": False}
-
-
-class JiraConnectionUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    email: str = Field(strict=True, min_length=1, max_length=255)
-    token: str = Field(strict=True, min_length=1, max_length=255)
-    base_url: str = Field(strict=True, min_length=1, max_length=255)
-
-
-@app.get("/jira/connection")
-def read_jira_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    connected = has_jira_connection(owner_uid)
-    # The workspace address (not the token) lets the UI link a project's
-    # Jira key; there is nothing to link when nothing is connected.
-    return {"connected": connected, "base_url": get_jira_base_url(owner_uid) if connected else None}
-
-
-@app.put("/jira/connection")
-def update_jira_connection(body: JiraConnectionUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    # Validated before it ever reaches Firestore — bad credentials must
-    # not get encrypted and stored, only to fail on first use.
-    try:
-        validate_jira_credentials(body.email, body.token, body.base_url)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    save_jira_credentials(owner_uid, body.email, body.token, body.base_url.strip())
-    return {"connected": True}
-
-
-@app.delete("/jira/connection")
-def remove_jira_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    delete_jira_connection(owner_uid)
-    return {"connected": False}
 
 
 _DONE = object()
