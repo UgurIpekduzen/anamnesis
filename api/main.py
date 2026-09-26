@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 import time
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -16,7 +15,6 @@ from api.internal_auth import verify_scheduler_token
 from src.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
 from src.categories import (
     InvalidCategory,
-    ensure_categories_seeded,
     get_category_settings,
     reset_categories,
     save_categories,
@@ -68,16 +66,7 @@ CHAT_HISTORY_DISPLAY_TURNS = int(os.environ.get("CHAT_HISTORY_DISPLAY_TURNS", 50
 AUTH_TIMEOUT_SECONDS = float(os.environ.get("WS_AUTH_TIMEOUT_SECONDS", 10))
 MAX_AUTH_FRAME_CHARS = 8192
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Without this, a fresh deployment's Firestore has no config/categories
-    # document and every publish_fact call fails loudly (APPCE-93). No-op
-    # once the document exists — never overwrites customized categories.
-    ensure_categories_seeded()
-    yield
-
-
-app = FastAPI(title="Anamnesis API", lifespan=lifespan)
+app = FastAPI(title="Anamnesis API")
 
 # Local dev only — the Vite dev server's own origin. Harmless in
 # production (APPCE-56): the built frontend is served from this same
