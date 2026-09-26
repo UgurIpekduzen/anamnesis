@@ -83,9 +83,9 @@ app.add_middleware(
 
 
 # What the page loads: its own files, plus Google sign-in (script, its iframe,
-# its styles and requests). Report-Only for now (APPCE-119): a browser reports
-# what the policy would block without blocking it, so sign-in can't break by
-# surprise. Enforce it once the browser console shows no violations.
+# its styles and requests). It ran report-only first (APPCE-119) and the live
+# app showed no violation, so it is enforced. If a new page needs another
+# source, add it here; the browser console names what was refused.
 _CONTENT_SECURITY_POLICY = "; ".join(
     [
         "default-src 'self'",
@@ -108,7 +108,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Content-Security-Policy-Report-Only"] = _CONTENT_SECURITY_POLICY
+    response.headers["Content-Security-Policy"] = _CONTENT_SECURITY_POLICY
     return response
 
 
