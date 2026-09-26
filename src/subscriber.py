@@ -6,6 +6,10 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from src.facts import create_fact
 from src.log import log
 
+# A push carries one fact (at most 2000 characters, base64 in a JSON envelope),
+# so a body this large is not a delivery. Read nothing past it (APPCE-119).
+MAX_BODY_BYTES = 64 * 1024
+
 
 def _process_push_message(body: bytes) -> int:
     """Handle one Pub/Sub push request body.
@@ -32,7 +36,9 @@ def _process_push_message(body: bytes) -> int:
         # Pub/Sub's existing retry/DLQ policy eventually routes it to
         # the dead-letter topic instead of just dropping it — same
         # intent as the old pull-based nack() path (APPCE-30).
-        log("WARNING", "malformed_push_message", body=repr(body))
+        # The size only, never the body: it holds a fact's text, and logs are
+        # kept and read more widely than the facts themselves.
+        log("WARNING", "malformed_push_message", size=len(body))
         return 400
 
     log("INFO", "fact_written", tenant_id=payload["tenant_id"])
@@ -46,10 +52,21 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length)
-        status = _process_push_message(body)
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+            if length < 0:
+                raise ValueError
+        except ValueError:
+            self._respond(400)
+            return
+        if length > MAX_BODY_BYTES:
+            self._respond(413)
+            return
+        self._respond(_process_push_message(self.rfile.read(length)))
+
+    def _respond(self, status):
         self.send_response(status)
+        self.send_header("Content-Length", "0")
         self.end_headers()
 
     def log_message(self, *args):
