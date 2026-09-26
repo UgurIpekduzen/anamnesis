@@ -50,8 +50,11 @@
 }
 
 .tabs .tab {
-  flex: 1;
-  padding: 6px 8px;
+  /* Shrinkable: four tabs with count badges are wider than a narrow sidebar,
+     and the refresh button next to them must never be pushed out of view. */
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 4px;
   border: none;
   border-radius: 0;
   border-bottom: 2px solid transparent;
@@ -64,12 +67,13 @@
 }
 
 .tabs .icon-button {
+  flex-shrink: 0;
   padding: 4px 8px;
 }
 
 .tab-badge {
-  margin-left: 6px;
-  padding: 1px 6px;
+  margin-left: 4px;
+  padding: 1px 5px;
   border-radius: 8px;
   background: var(--bg-card);
   color: var(--text-muted);
