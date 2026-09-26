@@ -2,9 +2,9 @@ import uuid
 
 import pytest
 
-from src.facts import create_fact, delete_fact, get_fact, get_tenant_facts, update_fact
-from src.firestore_client import get_client
-from src.tenants import add_tenant, delete_tenant
+from src.facts.facts import create_fact, delete_fact, get_fact, get_tenant_facts, update_fact
+from src.core.firestore_client import get_client
+from src.projects.tenants import add_tenant, delete_tenant
 
 OWNER_UID = "test-owner@example.com"
 

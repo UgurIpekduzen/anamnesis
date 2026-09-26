@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from src.github_activity import fetch_recent_issues, fetch_recent_pull_requests
-from src.github_fact_extraction import extract_facts
-from src.log import log
-from src.pending_facts import create_pending_fact, has_pending_fact_for_source
-from src.tenants import get_owned_tenant, list_tenants_with_github_repo, mark_github_polled
+from src.integrations.github.activity import fetch_recent_issues, fetch_recent_pull_requests
+from src.integrations.github.fact_extraction import extract_facts
+from src.core.log import log
+from src.facts.pending_facts import create_pending_fact, has_pending_fact_for_source
+from src.projects.tenants import get_owned_tenant, list_tenants_with_github_repo, mark_github_polled
 
 # Upper bound on LLM extractions per tenant per poll (APPCE-101). Normal use
 # is far below it: a fetch returns at most 2 x DEFAULT_LIMIT items.

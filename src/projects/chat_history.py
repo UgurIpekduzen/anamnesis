@@ -3,8 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 from google.cloud import firestore
 
-from src.firestore_client import get_client
-from src.tenants import CHAT_TURNS_COLLECTION, get_owned_tenant
+from src.core.firestore_client import get_client
+from src.projects.tenants import CHAT_TURNS_COLLECTION, get_owned_tenant
 
 # Saved conversation turns (APPCE-60): one document per *finished* turn,
 # holding just the question and the final answer as text. Tool calls and

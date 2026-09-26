@@ -3,7 +3,7 @@ import time
 
 from google.cloud import firestore
 
-from src.firestore_client import get_client
+from src.core.firestore_client import get_client
 
 # The owner set (from Terraform's owner_email, APPCE-56) is always allowed
 # and can never be removed via the API below — it's what keeps this
@@ -27,7 +27,7 @@ def _doc_ref(client: firestore.Client):
 def get_extra_allowed_emails(force_refresh: bool = False) -> set[str]:
     """Emails granted access at runtime, beyond the Terraform-configured owner(s).
 
-    Unlike src.categories' config doc, a missing document here just means
+    Unlike src.facts.categories' config doc, a missing document here just means
     no extra emails have been added yet — not a broken deployment — so
     this returns an empty set instead of raising.
     """

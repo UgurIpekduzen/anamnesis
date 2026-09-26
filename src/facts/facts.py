@@ -2,15 +2,15 @@ from datetime import datetime, timezone
 
 from google.cloud import firestore
 
-from src.categories import validate_category_for, validate_category_name
-from src.firestore_client import get_client
-from src.tenants import get_owned_tenant
+from src.facts.categories import validate_category_for, validate_category_name
+from src.core.firestore_client import get_client
+from src.projects.tenants import get_owned_tenant
 
 
 def create_fact(tenant_id: str, content: str, category: str, source: str = "chat") -> None:
     """Write a fact to Firestore. Called by the Pub/Sub subscriber, not
     directly by callers that want the event-driven write path — use
-    src.publisher.publish_fact for that instead.
+    src.facts.publisher.publish_fact for that instead.
 
     Args:
         tenant_id: The project identifier, e.g. "my_project".

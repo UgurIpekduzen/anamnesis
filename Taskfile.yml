@@ -149,7 +149,7 @@ tasks:
       - docker compose up -d firestore-emulator pubsub-emulator
       - until curl -s -o /dev/null localhost:8085 && curl -s -o /dev/null localhost:8080; do sleep 1; done
       # The emulator subscription pushes to the dev subscriber, like Cloud Pub/Sub does in production.
-      - docker compose run --rm -e PUBSUB_EMULATOR_HOST=pubsub-emulator:8085 -e GCP_PROJECT_ID=anamnesis-local -e PUSH_ENDPOINT=http://subscriber:8080 uv run python setup_pubsub.py
+      - docker compose run --rm -e PUBSUB_EMULATOR_HOST=pubsub-emulator:8085 -e GCP_PROJECT_ID=anamnesis-local -e PUSH_ENDPOINT=http://subscriber:8080 uv run python -m src.tools.setup_pubsub
       - docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build api subscriber
       - 'echo "Running on the emulators. They start empty: task db:load -- backups/<file>.json (again after every restart of the emulator)."'
 
@@ -164,14 +164,14 @@ tasks:
     cmds:
       - mkdir -p backups
       - docker compose build -q api
-      - docker compose run --rm -v "$PWD/backups:/app/backups" api python -m src.db_backup dump backups/firestore-$(date +%Y%m%d-%H%M%S).json
+      - docker compose run --rm -v "$PWD/backups:/app/backups" api python -m src.tools.db_backup dump backups/firestore-$(date +%Y%m%d-%H%M%S).json
 
   db:load:
     desc: Load a dump into the Firestore EMULATOR (never the real database) — task db:load -- backups/<file>.json
     cmds:
       - docker compose up -d firestore-emulator
       - docker compose build -q api
-      - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.db_backup load {{.CLI_ARGS}}
+      - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.tools.db_backup load {{.CLI_ARGS}}
 
   db:verify:
     desc: Compare the EMULATOR's data with a dump, document by document (read-only) — task db:verify -- backups/<file>.json
@@ -179,7 +179,7 @@ tasks:
       # A stopped emulator would be started empty and reported as "everything missing": refuse instead.
       - docker compose ps --status running -q firestore-emulator | grep -q . || { echo "The Firestore emulator isn't running (task local:up)."; exit 1; }
       - docker compose build -q api
-      - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.db_backup verify {{.CLI_ARGS}}
+      - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.tools.db_backup verify {{.CLI_ARGS}}
 
   local:dump:
     desc: Save the EMULATOR's data to backups/local-<time>.json (it is lost when the emulator stops) — load it back with task db:load
@@ -188,19 +188,19 @@ tasks:
       - docker compose ps --status running -q firestore-emulator | grep -q . || { echo "The Firestore emulator isn't running (task local:up)."; exit 1; }
       - mkdir -p backups
       - docker compose build -q api
-      - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.db_backup dump backups/local-$(date +%Y%m%d-%H%M%S).json
+      - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.tools.db_backup dump backups/local-$(date +%Y%m%d-%H%M%S).json
 
   db:restore:
     desc: Show what writing a dump into the REAL database would change; write it only with -- backups/<file>.json --confirm-project <project id>
     cmds:
       - docker compose build -q api
-      - docker compose run --rm -v "$PWD/backups:/app/backups" api python -m src.db_backup restore {{.CLI_ARGS}}
+      - docker compose run --rm -v "$PWD/backups:/app/backups" api python -m src.tools.db_backup restore {{.CLI_ARGS}}
 
   db:wipe:
     desc: Count what wiping the REAL database would delete; delete only with -- --confirm-project <project id>
     cmds:
       - docker compose build -q api
-      - docker compose run --rm api python -m src.db_backup wipe {{.CLI_ARGS}}
+      - docker compose run --rm api python -m src.tools.db_backup wipe {{.CLI_ARGS}}
 
   subscriber:up:
     desc: Run the dev subscriber (against the dockerized emulators) in the background
@@ -354,7 +354,7 @@ tasks:
       - docker compose build api
       - |
         KEYS=$(docker compose run --rm -T gcloud secrets versions access latest --secret={{.KEY_SECRET}} | tr -d '\r\n')
-        docker compose run --rm -e GITHUB_TOKEN_ENCRYPTION_KEY="$KEYS" api python -m src.key_rotation reencrypt
+        docker compose run --rm -e GITHUB_TOKEN_ENCRYPTION_KEY="$KEYS" api python -m src.tools.key_rotation reencrypt
 
   secrets:github-key:retire:
     desc: Finish a rotation — keep only the newest key and disable the older secret versions. Refuses if any stored token still needs an older key (run reencrypt first). SECRET=<name> targets another secret, for a rehearsal only.
@@ -369,7 +369,7 @@ tasks:
         esac
         PRIMARY=${KEYS%%,*}
         docker compose build api
-        docker compose run --rm -e GITHUB_TOKEN_ENCRYPTION_KEY="$PRIMARY" api python -m src.key_rotation check \
+        docker compose run --rm -e GITHUB_TOKEN_ENCRYPTION_KEY="$PRIMARY" api python -m src.tools.key_rotation check \
           || { echo "Some tokens still need an older key — run reencrypt first. Nothing was changed." >&2; exit 1; }
         printf '%s' "$PRIMARY" | docker compose run --rm -T gcloud secrets versions add {{.SECRET}} --data-file=-
         # Versions list newest first: skip the one just added, disable the rest.
@@ -384,7 +384,7 @@ tasks:
       - docker compose build api
       - |
         KEYS=$(docker compose run --rm -T gcloud secrets versions access latest --secret={{.KEY_SECRET}} | tr -d '\r\n')
-        docker compose run --rm -e GITHUB_TOKEN_ENCRYPTION_KEY="$KEYS" api python -m src.key_rotation check
+        docker compose run --rm -e GITHUB_TOKEN_ENCRYPTION_KEY="$KEYS" api python -m src.tools.key_rotation check
 
   secrets:github-key:init:
     desc: One-time setup — generate a Fernet key and store it as the GitHub token encryption secret. Safe to re-run; skips if a version already exists (overwriting it would break already-encrypted tokens).

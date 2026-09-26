@@ -170,7 +170,7 @@ def test_an_invalid_value_is_a_400_with_the_reason_and_nothing_is_saved(monkeypa
     def no_database(*args, **kwargs):
         raise AssertionError("an invalid value must not reach the database")
 
-    monkeypatch.setattr("src.tenants.get_client", no_database)
+    monkeypatch.setattr("src.projects.tenants.get_client", no_database)
 
     response = TestClient(api_main.app).put(path, json=body)
 

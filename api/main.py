@@ -12,29 +12,29 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, require_owner, verify_token
 from api.internal_auth import verify_scheduler_token
-from src.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
-from src.categories import (
+from src.accounts.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
+from src.facts.categories import (
     InvalidCategory,
     get_category_settings,
     reset_categories,
     save_categories,
 )
-from src.chat_history import append_turn, clear_turns, load_recent_turns
-from src.facts import delete_fact, get_fact, get_tenant_facts, update_fact
-from src.github_client import validate_github_token
-from src.github_connections import delete_github_connection, has_github_connection, save_github_token
-from src.jira_client import validate_jira_credentials
-from src.jira_connections import (
+from src.projects.chat_history import append_turn, clear_turns, load_recent_turns
+from src.facts.facts import delete_fact, get_fact, get_tenant_facts, update_fact
+from src.integrations.github.client import validate_github_token
+from src.integrations.github.connections import delete_github_connection, has_github_connection, save_github_token
+from src.integrations.jira.client import validate_jira_credentials
+from src.integrations.jira.connections import (
     delete_jira_connection,
     get_jira_base_url,
     has_jira_connection,
     save_jira_credentials,
 )
-from src.similar_facts import find_similar_facts
-from src.status import get_project_github_status, get_project_jira_status
-from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
-from src.log import log
-from src.tenants import (
+from src.facts.similar_facts import find_similar_facts
+from src.integrations.status import get_project_github_status, get_project_jira_status
+from src.accounts.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
+from src.core.log import log
+from src.projects.tenants import (
     TenantNameTaken,
     add_tenant,
     clear_github_repo,
@@ -46,7 +46,7 @@ from src.tenants import (
     set_github_repo,
     set_jira_project_key,
 )
-from src.usage import DAILY_MESSAGE_HARD_LIMIT, DailyLimitExceeded, get_today_count, next_reset_at, record_message
+from src.accounts.usage import DAILY_MESSAGE_HARD_LIMIT, DailyLimitExceeded, get_today_count, next_reset_at, record_message
 
 # Token-cost guards (see APPCE-59). A message stays in the session history
 # and is resent on every model call of the following turns, so an
@@ -146,7 +146,7 @@ def poll_all_tenants() -> dict:
     # ADK/Pub-Sub imports elsewhere in this file (APPCE-50). A real
     # module-level name (not a local import inside the endpoint) so tests
     # can monkeypatch.setattr(api_main, "poll_all_tenants", ...).
-    from src.github_polling import poll_all_tenants as _poll_all_tenants
+    from src.integrations.github.polling import poll_all_tenants as _poll_all_tenants
 
     return _poll_all_tenants()
 
@@ -190,7 +190,7 @@ class FactUpdate(BaseModel):
 
 class CategoriesUpdate(BaseModel):
     # forbid: an unknown field is a client bug. The list itself is checked in
-    # src/categories.py (length, names, duplicates); the cap here only keeps an
+    # src/facts/categories.py (length, names, duplicates); the cap here only keeps an
     # absurd request from being parsed at all.
     model_config = ConfigDict(extra="forbid")
 
@@ -335,32 +335,32 @@ def get_github_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_curr
 
 
 # Lazily-importing wrappers (APPCE-50, same pattern as get_runner/
-# restore_session below): src.pending_facts pulls in google-cloud-pubsub
-# (via src.publisher, for the approve path), which only these three
+# restore_session below): src.facts.pending_facts pulls in google-cloud-pubsub
+# (via src.facts.publisher, for the approve path), which only these three
 # endpoints need — deferring it keeps it off every other request's
 # startup cost. Real module-level names so
 # test/test_api_pending_facts.py's monkeypatch.setattr(api_main, ...)
 # still works.
 def list_pending_facts(tenant_id: str, owner_uid: str) -> list[dict]:
-    from src.pending_facts import list_pending_facts as _list_pending_facts
+    from src.facts.pending_facts import list_pending_facts as _list_pending_facts
 
     return _list_pending_facts(tenant_id, owner_uid)
 
 
 def approve_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
-    from src.pending_facts import approve_pending_fact as _approve_pending_fact
+    from src.facts.pending_facts import approve_pending_fact as _approve_pending_fact
 
     return _approve_pending_fact(tenant_id, pending_fact_id, owner_uid)
 
 
 def reject_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
-    from src.pending_facts import reject_pending_fact as _reject_pending_fact
+    from src.facts.pending_facts import reject_pending_fact as _reject_pending_fact
 
     return _reject_pending_fact(tenant_id, pending_fact_id, owner_uid)
 
 
 def get_pending_fact_stats(tenant_id: str, owner_uid: str) -> dict:
-    from src.pending_facts import get_pending_fact_stats as _get_pending_fact_stats
+    from src.facts.pending_facts import get_pending_fact_stats as _get_pending_fact_stats
 
     return _get_pending_fact_stats(tenant_id, owner_uid)
 

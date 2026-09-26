@@ -3,9 +3,9 @@ import uuid
 
 import pytest
 
-from src.facts import create_fact, get_tenant_facts
-from src.firestore_client import get_client
-from src.tenants import (
+from src.facts.facts import create_fact, get_tenant_facts
+from src.core.firestore_client import get_client
+from src.projects.tenants import (
     add_tenant,
     clear_github_repo,
     clear_jira_project_key,

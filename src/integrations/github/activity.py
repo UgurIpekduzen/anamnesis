@@ -1,7 +1,7 @@
 import requests
 
-from src.github_connections import get_decrypted_token
-from src.tenants import get_owned_tenant
+from src.integrations.github.connections import get_decrypted_token
+from src.projects.tenants import get_owned_tenant
 
 # Capped for the same reason as MAX_MESSAGE_CHARS (api/main.py, APPCE-59):
 # a PR/issue body is free text from a third party, potentially large, and
@@ -102,12 +102,12 @@ def fetch_recent_issues(
 
 def get_github_status(owner_uid: str, tenant_id: str) -> dict:
     """Currently open pull requests and issues for a tenant's linked repo —
-    live data, not stored facts (mirrors src.jira_client.get_jira_status).
+    live data, not stored facts (mirrors src.integrations.jira.client.get_jira_status).
 
     Bodies are dropped entirely (not just truncated): this feeds straight
     into an ongoing chat turn where the agent also holds write tools
     (publish_fact, delete_tenant, ...), unlike the isolated, tool-less
-    call in src.github_fact_extraction — so untrusted PR/issue text is
+    call in src.integrations.github.fact_extraction — so untrusted PR/issue text is
     kept out of that context as much as possible (see APPCE-83 comment).
     Titles alone can't be fully avoided (the point is knowing what's
     open) — the agent's instruction frames them as data, not instructions.

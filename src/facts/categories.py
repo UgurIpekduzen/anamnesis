@@ -1,7 +1,7 @@
 import re
 import time
 
-from src.firestore_client import get_client
+from src.core.firestore_client import get_client
 
 # --- Per-user categories (APPCE-116) ---------------------------------------
 #

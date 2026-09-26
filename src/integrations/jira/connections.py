@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
-from src.firestore_client import get_client
-from src.token_encryption import decrypt_token, encrypt_token
+from src.core.firestore_client import get_client
+from src.core.token_encryption import decrypt_token, encrypt_token
 
 # Keyed by owner_uid directly (not nested under a tenant) — a Jira account
 # belongs to the user, not to any one project (see APPCE-87, mirrors

@@ -1,6 +1,6 @@
 import pytest
 
-from src.similar_facts import MAX_SIMILAR, find_similar_facts
+from src.facts.similar_facts import MAX_SIMILAR, find_similar_facts
 
 
 def _fact(fact_id, content, category="architecture"):

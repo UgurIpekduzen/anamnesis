@@ -3,7 +3,7 @@ from functools import lru_cache
 
 from google.cloud import firestore
 
-from src.env import load_env
+from src.core.env import load_env
 
 load_env()
 

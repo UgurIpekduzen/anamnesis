@@ -9,11 +9,11 @@ hasn't connected the account) or "error" (with a message safe to show).
 
 import requests
 
-from src.github_activity import get_github_status
-from src.github_connections import has_github_connection
-from src.jira_client import get_jira_status
-from src.jira_connections import get_jira_credentials
-from src.tenants import get_owned_tenant
+from src.integrations.github.activity import get_github_status
+from src.integrations.github.connections import has_github_connection
+from src.integrations.jira.client import get_jira_status
+from src.integrations.jira.connections import get_jira_credentials
+from src.projects.tenants import get_owned_tenant
 
 
 _NOT_FOUND = {"Jira": "Jira couldn't find the project.", "GitHub": "GitHub couldn't find the repo, or the token has no access to it."}

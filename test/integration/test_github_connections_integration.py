@@ -3,15 +3,15 @@ import uuid
 import pytest
 from cryptography.fernet import Fernet
 
-from src import github_connections
-from src.firestore_client import get_client
-from src.github_connections import (
+from src.integrations.github import connections as github_connections
+from src.core.firestore_client import get_client
+from src.integrations.github.connections import (
     delete_github_connection,
     get_decrypted_token,
     has_github_connection,
     save_github_token,
 )
-from src.token_encryption import _get_fernet
+from src.core.token_encryption import _get_fernet
 
 
 @pytest.fixture(autouse=True)

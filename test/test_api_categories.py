@@ -11,7 +11,7 @@ def api(monkeypatch, signed_in_owner):
     stored = {}
 
     def save(owner_uid, categories):
-        from src.categories import check_category_names
+        from src.facts.categories import check_category_names
 
         stored[owner_uid] = check_category_names(categories)
 

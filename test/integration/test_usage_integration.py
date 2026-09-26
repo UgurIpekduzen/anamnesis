@@ -2,8 +2,8 @@ import uuid
 
 import pytest
 
-from src import usage
-from src.usage import DailyLimitExceeded, get_today_count, record_message
+from src.accounts import usage
+from src.accounts.usage import DailyLimitExceeded, get_today_count, record_message
 
 
 def test_get_today_count_is_zero_for_an_unseen_owner():

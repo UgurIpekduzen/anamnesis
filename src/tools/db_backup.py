@@ -1,12 +1,12 @@
 """Back up, restore and wipe the whole Firestore database (APPCE-120).
 
-    python -m src.db_backup dump FILE      read the database into a JSON file
-    python -m src.db_backup load FILE      write a dump into the EMULATOR
-    python -m src.db_backup verify FILE    compare the database with a dump (read-only)
-    python -m src.db_backup restore FILE   show what writing a dump here would change
-    python -m src.db_backup restore FILE --confirm-project PROJECT_ID   ...and write it
-    python -m src.db_backup wipe           count what a wipe would delete
-    python -m src.db_backup wipe --confirm-project PROJECT_ID   ...and delete it
+    python -m src.tools.db_backup dump FILE      read the database into a JSON file
+    python -m src.tools.db_backup load FILE      write a dump into the EMULATOR
+    python -m src.tools.db_backup verify FILE    compare the database with a dump (read-only)
+    python -m src.tools.db_backup restore FILE   show what writing a dump here would change
+    python -m src.tools.db_backup restore FILE --confirm-project PROJECT_ID   ...and write it
+    python -m src.tools.db_backup wipe           count what a wipe would delete
+    python -m src.tools.db_backup wipe --confirm-project PROJECT_ID   ...and delete it
 
 The database is whatever get_client() points at: the emulator when
 FIRESTORE_EMULATOR_HOST is set, the real project otherwise. A dump holds the
@@ -21,7 +21,7 @@ import os
 import sys
 from datetime import datetime, timezone
 
-from src.firestore_client import get_client
+from src.core.firestore_client import get_client
 
 FORMAT_VERSION = 1
 
@@ -199,7 +199,7 @@ def wipe(confirm_project: str | None) -> tuple[int, bool]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m src.db_backup")
+    parser = argparse.ArgumentParser(prog="python -m src.tools.db_backup")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("dump").add_argument("file")
     commands.add_parser("load").add_argument("file")

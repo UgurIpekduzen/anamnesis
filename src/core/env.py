@@ -11,7 +11,7 @@ def load_env() -> None:
     It is `.env` unless DOTENV_PATH names another file. That is how a one-off
     script is pointed at real GCP instead of the local emulators:
 
-        DOTENV_PATH=.env.production python -m src.key_rotation check
+        DOTENV_PATH=.env.production python -m src.tools.key_rotation check
 
     (see .env.production.example), where the emulator host variables are
     deliberately absent.

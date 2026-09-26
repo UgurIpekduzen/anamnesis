@@ -2,12 +2,12 @@ from datetime import datetime, timezone
 
 from google.cloud import firestore
 
-from src.categories import validate_category_for
-from src.facts import get_tenant_facts
-from src.firestore_client import get_client
-from src.publisher import publish_fact
-from src.similar_facts import find_similar_facts
-from src.tenants import PENDING_FACTS_COLLECTION, get_owned_tenant
+from src.facts.categories import validate_category_for
+from src.facts.facts import get_tenant_facts
+from src.core.firestore_client import get_client
+from src.facts.publisher import publish_fact
+from src.facts.similar_facts import find_similar_facts
+from src.projects.tenants import PENDING_FACTS_COLLECTION, get_owned_tenant
 
 # A pending fact is never deleted once it is decided (APPCE-110): the document
 # stays with a status, so the approval rate can be counted and a source that
@@ -105,7 +105,7 @@ def _decide(doc_ref, status: str) -> None:
 
 def approve_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
     """Turn a pending fact into a real one via the normal publish path
-    (src.publisher.publish_fact), then mark the staged copy approved.
+    (src.facts.publisher.publish_fact), then mark the staged copy approved.
     """
     get_owned_tenant(tenant_id, owner_uid)
     doc_ref = _collection(tenant_id).document(pending_fact_id)
@@ -150,7 +150,7 @@ def get_pending_facts_summary(tenant_id: str, owner_uid: str) -> dict:
     to approve.
 
     Each carries "similar_to_saved": the text of an already saved fact that
-    says (nearly) the same, decided by code (src.similar_facts) rather than
+    says (nearly) the same, decided by code (src.facts.similar_facts) rather than
     left to the model, or None. Read-only; the pending facts themselves are
     approved or rejected only by the user, in the Pending tab.
 

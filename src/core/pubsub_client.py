@@ -2,7 +2,7 @@ import os
 
 from google.cloud import pubsub_v1
 
-from src.env import load_env
+from src.core.env import load_env
 
 load_env()
 

@@ -1,6 +1,6 @@
 import pytest
 
-from src.tenants import _slugify
+from src.projects.tenants import _slugify
 
 
 @pytest.mark.parametrize(

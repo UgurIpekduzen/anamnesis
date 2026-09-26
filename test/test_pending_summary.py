@@ -1,4 +1,4 @@
-import src.pending_facts as pending_facts
+import src.facts.pending_facts as pending_facts
 
 
 def _pending(content, category="architecture"):

@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src import db_backup
-from src.firestore_client import get_client
+from src.tools import db_backup
+from src.core.firestore_client import get_client
 
 
 @pytest.fixture

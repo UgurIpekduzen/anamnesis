@@ -1,7 +1,7 @@
 import pytest
 import requests
 
-from src.jira_client import (
+from src.integrations.jira.client import (
     DEFAULT_LIMIT,
     MAX_SUMMARY_CHARS,
     get_jira_recently_done,
@@ -40,7 +40,7 @@ def test_get_jira_status_maps_the_expected_fields(monkeypatch):
             }
         )
 
-    monkeypatch.setattr("src.jira_client.requests.get", fake_get)
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", fake_get)
 
     result = get_jira_status("APPCE", "user@example.com", "secret-token", "https://example.atlassian.net")
 
@@ -62,7 +62,7 @@ def _serving(monkeypatch, issues):
         # Like Jira: never more than was asked for.
         return FakeResponse({"issues": issues[: params["maxResults"]]})
 
-    monkeypatch.setattr("src.jira_client.requests.get", fake_get)
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", fake_get)
     return seen
 
 
@@ -126,19 +126,19 @@ def test_get_jira_status_strips_a_trailing_slash_from_the_base_url(monkeypatch):
         assert url == "https://example.atlassian.net/rest/api/3/search/jql"
         return FakeResponse({"issues": []})
 
-    monkeypatch.setattr("src.jira_client.requests.get", fake_get)
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", fake_get)
 
     get_jira_status("APPCE", "user@example.com", "secret-token", "https://example.atlassian.net/")
 
 
 def test_validate_jira_credentials_accepts_a_successful_response(monkeypatch):
-    monkeypatch.setattr("src.jira_client.requests.get", lambda url, auth, timeout, allow_redirects: FakeResponse())
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda url, auth, timeout, allow_redirects: FakeResponse())
 
     validate_jira_credentials("user@example.com", "secret-token", "https://example.atlassian.net")
 
 
 def test_validate_jira_credentials_rejects_a_401(monkeypatch):
-    monkeypatch.setattr("src.jira_client.requests.get", lambda url, auth, timeout, allow_redirects: FakeResponse(status=401))
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda url, auth, timeout, allow_redirects: FakeResponse(status=401))
 
     with pytest.raises(ValueError):
         validate_jira_credentials("user@example.com", "wrong-token", "https://example.atlassian.net")
@@ -148,7 +148,7 @@ def test_validate_jira_credentials_wraps_a_connection_failure(monkeypatch):
     def fake_get(url, auth, timeout, allow_redirects):
         raise requests.ConnectionError("no such host")
 
-    monkeypatch.setattr("src.jira_client.requests.get", fake_get)
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", fake_get)
 
     with pytest.raises(ValueError):
         validate_jira_credentials("user@example.com", "secret-token", "https://not-a-real-host.invalid")
@@ -185,7 +185,7 @@ def test_a_bad_key_saved_earlier_never_reaches_jira(monkeypatch):
     def unexpected(*args, **kwargs):
         raise AssertionError("no request may be made with an invalid key")
 
-    monkeypatch.setattr("src.jira_client.requests.get", unexpected)
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", unexpected)
 
     with pytest.raises(ValueError):
         get_jira_status('X" OR project != "', "u@example.com", "t", "https://example.atlassian.net")
@@ -216,7 +216,7 @@ def test_get_jira_recently_done_asks_for_done_issues_and_shows_the_resolution_da
             }
         )
 
-    monkeypatch.setattr("src.jira_client.requests.get", fake_get)
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", fake_get)
 
     result = get_jira_recently_done("APPCE", "user@example.com", "secret-token", "https://example.atlassian.net")
 
@@ -240,7 +240,7 @@ def test_a_bad_key_never_reaches_jira_when_asking_for_done_issues(monkeypatch):
     def no_network(*args, **kwargs):
         raise AssertionError("a bad key must not reach Jira")
 
-    monkeypatch.setattr("src.jira_client.requests.get", no_network)
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", no_network)
 
     with pytest.raises(ValueError):
         get_jira_recently_done('X" OR project != "', "u@example.com", "t", "https://example.atlassian.net")
@@ -270,7 +270,7 @@ BAD_ADDRESSES = [
 @pytest.mark.parametrize("base_url", BAD_ADDRESSES)
 def test_validate_jira_credentials_refuses_an_address_that_is_not_jira_cloud(monkeypatch, base_url):
     calls = []
-    monkeypatch.setattr("src.jira_client.requests.get", lambda *args, **kwargs: calls.append(args) or FakeResponse())
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda *args, **kwargs: calls.append(args) or FakeResponse())
 
     with pytest.raises(ValueError):
         validate_jira_credentials("user@example.com", "secret-token", base_url)
@@ -280,7 +280,7 @@ def test_validate_jira_credentials_refuses_an_address_that_is_not_jira_cloud(mon
 
 @pytest.mark.parametrize("base_url", ["https://example.atlassian.net", "https://Example.Atlassian.net/", "https://my-team2.atlassian.net"])
 def test_validate_jira_credentials_accepts_a_jira_cloud_address(monkeypatch, base_url):
-    monkeypatch.setattr("src.jira_client.requests.get", lambda *args, **kwargs: FakeResponse())
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda *args, **kwargs: FakeResponse())
 
     validate_jira_credentials("user@example.com", "secret-token", base_url)
 
@@ -292,7 +292,7 @@ def test_the_requests_never_follow_a_redirect(monkeypatch):
         seen.append(kwargs.get("allow_redirects"))
         return FakeResponse()
 
-    monkeypatch.setattr("src.jira_client.requests.get", fake_get)
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", fake_get)
 
     validate_jira_credentials("user@example.com", "secret-token", "https://example.atlassian.net")
     get_jira_status("APPCE", "user@example.com", "secret-token", "https://example.atlassian.net")
@@ -302,7 +302,7 @@ def test_the_requests_never_follow_a_redirect(monkeypatch):
 
 def test_a_saved_bad_address_is_not_called_when_reading_the_status(monkeypatch):
     calls = []
-    monkeypatch.setattr("src.jira_client.requests.get", lambda *args, **kwargs: calls.append(args) or FakeResponse())
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda *args, **kwargs: calls.append(args) or FakeResponse())
 
     with pytest.raises(ValueError):
         get_jira_status("APPCE", "user@example.com", "secret-token", "https://169.254.169.254")
@@ -312,7 +312,7 @@ def test_a_saved_bad_address_is_not_called_when_reading_the_status(monkeypatch):
 
 @pytest.mark.parametrize("status", [302, 403, 404, 500])
 def test_validate_jira_credentials_turns_any_other_failure_into_a_value_error(monkeypatch, status):
-    monkeypatch.setattr("src.jira_client.requests.get", lambda *args, **kwargs: FakeResponse(status=status))
+    monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda *args, **kwargs: FakeResponse(status=status))
 
     with pytest.raises(ValueError):
         validate_jira_credentials("user@example.com", "secret-token", "https://example.atlassian.net")

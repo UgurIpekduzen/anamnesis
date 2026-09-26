@@ -4,7 +4,7 @@ import pytest
 from starlette.testclient import TestClient
 
 import api.main as api_main
-from src.settings import BOUNDS, DEFAULTS
+from src.accounts.settings import BOUNDS, DEFAULTS
 
 OWNER = "test@example.com"
 CURRENT = {"history_turns": 20, "daily_message_warning_threshold": 100}

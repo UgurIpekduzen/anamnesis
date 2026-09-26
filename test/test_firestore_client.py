@@ -1,6 +1,6 @@
 import pytest
 
-from src import firestore_client
+from src.core import firestore_client
 
 
 @pytest.fixture(autouse=True)

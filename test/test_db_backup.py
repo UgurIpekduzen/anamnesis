@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src import db_backup
+from src.tools import db_backup
 
 
 def test_values_survive_a_round_trip_through_json():

@@ -4,17 +4,17 @@ from datetime import datetime, timezone
 from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore
 
-from src.firestore_client import get_client
-from src.jira_client import validate_project_key
+from src.core.firestore_client import get_client
+from src.integrations.jira.client import validate_project_key
 
 
-# Named here (not in src/chat_history.py) so delete_tenant can cascade into
+# Named here (not in src/projects/chat_history.py) so delete_tenant can cascade into
 # it without a circular import — chat_history depends on this module.
 CHAT_TURNS_COLLECTION = "chat_turns"
 
 # Same reasoning as CHAT_TURNS_COLLECTION above — named here so
-# delete_tenant can cascade into it without src/pending_facts.py and
-# src/tenants.py importing each other.
+# delete_tenant can cascade into it without src/facts/pending_facts.py and
+# src/projects/tenants.py importing each other.
 PENDING_FACTS_COLLECTION = "pending_facts"
 
 
@@ -196,7 +196,7 @@ def mark_github_polled(tenant_id: str, owner_uid: str) -> None:
 def list_tenants_with_github_repo() -> list[dict]:
     """Every tenant (across all owners) with a linked GitHub repo.
 
-    Used only by the GitHub polling job (src.github_polling), which needs
+    Used only by the GitHub polling job (src.integrations.github.polling), which needs
     to poll every linked repo system-wide, not one owner's tenants — the
     only caller that legitimately needs to see across owner_uid at all,
     since it runs as a trusted, non-user-triggered job (see APPCE-80).

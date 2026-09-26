@@ -1,8 +1,8 @@
 import pytest
 from cryptography.fernet import Fernet
 
-from src import token_encryption
-from src.token_encryption import UnreadableToken
+from src.core import token_encryption
+from src.core.token_encryption import UnreadableToken
 
 
 @pytest.fixture(autouse=True)

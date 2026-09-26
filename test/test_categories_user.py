@@ -1,6 +1,6 @@
 import pytest
 
-from src import categories as c
+from src.facts import categories as c
 
 
 @pytest.mark.parametrize(

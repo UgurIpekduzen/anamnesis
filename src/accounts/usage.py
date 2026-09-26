@@ -3,7 +3,7 @@ from datetime import datetime, time, timedelta, timezone
 
 from google.cloud import firestore
 
-from src.firestore_client import get_client
+from src.core.firestore_client import get_client
 
 # A soft, visible warning threshold — not an enforced limit. One shared
 # agent_sa serves every user's Vertex AI calls, so a single user running

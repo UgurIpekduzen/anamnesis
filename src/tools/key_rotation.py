@@ -2,14 +2,14 @@
 
 Run by hand through the `task secrets:github-key:*` tasks — never part of a
 request. Both steps read the key list from GITHUB_TOKEN_ENCRYPTION_KEY, the
-same variable the app uses (see src/token_encryption.py).
+same variable the app uses (see src/core/token_encryption.py).
 """
 
 import argparse
 import sys
 
-from src.firestore_client import get_client
-from src.token_encryption import UnreadableToken, decrypt_token, rotate_token
+from src.core.firestore_client import get_client
+from src.core.token_encryption import UnreadableToken, decrypt_token, rotate_token
 
 # Every collection that stores a token encrypted with this key.
 COLLECTIONS = ("github_connections", "jira_connections")

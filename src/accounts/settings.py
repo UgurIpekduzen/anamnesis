@@ -1,8 +1,8 @@
 import os
 import time
 
-from src.firestore_client import get_client
-from src.usage import DAILY_MESSAGE_WARNING_THRESHOLD
+from src.core.firestore_client import get_client
+from src.accounts.usage import DAILY_MESSAGE_WARNING_THRESHOLD
 
 # Per-user preferences (APPCE-58). The env-configured values used to be the
 # only ones; they're now the defaults a user starts from.

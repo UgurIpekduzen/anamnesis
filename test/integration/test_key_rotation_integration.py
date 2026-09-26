@@ -3,10 +3,12 @@ import uuid
 import pytest
 from cryptography.fernet import Fernet
 
-from src import key_rotation, token_encryption
-from src.firestore_client import get_client
-from src.github_connections import get_decrypted_token, save_github_token
-from src.jira_connections import get_jira_credentials, save_jira_credentials
+from src.tools import key_rotation
+
+from src.core import token_encryption
+from src.core.firestore_client import get_client
+from src.integrations.github.connections import get_decrypted_token, save_github_token
+from src.integrations.jira.connections import get_jira_credentials, save_jira_credentials
 
 
 def _use_keys(monkeypatch, *keys):

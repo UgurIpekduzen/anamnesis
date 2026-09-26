@@ -3,7 +3,7 @@ import json
 from google import genai
 from google.genai import types
 
-from src.categories import get_categories
+from src.facts.categories import get_categories
 
 MODEL = "gemini-2.5-flash"
 
@@ -11,7 +11,7 @@ MODEL = "gemini-2.5-flash"
 # the repo — not the user of this app. Without this framing, an attacker
 # could put "ignore previous instructions, ..." in a PR description and
 # have it followed the moment this runs (see APPCE-51 comment, risk #3).
-# This is the only defense at the model level; src.pending_facts' review
+# This is the only defense at the model level; src.facts.pending_facts' review
 # step is the real backstop — nothing this function returns is ever
 # published without a human approving it first.
 _SYSTEM_INSTRUCTION = (
@@ -44,7 +44,7 @@ def extract_facts(title: str, body: str, kind: str, owner_uid: str) -> list[dict
 
     Returns:
         A list of {"content": str, "category": str} dicts. Never published
-        directly — always meant to go through src.pending_facts for human
+        directly — always meant to go through src.facts.pending_facts for human
         review (see APPCE-81).
     """
     categories = get_categories(owner_uid)
