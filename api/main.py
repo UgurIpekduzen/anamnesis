@@ -546,7 +546,7 @@ def update_jira_connection(body: JiraConnectionUpdate, owner_uid: str = Depends(
         validate_jira_credentials(body.email, body.token, body.base_url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    save_jira_credentials(owner_uid, body.email, body.token, body.base_url)
+    save_jira_credentials(owner_uid, body.email, body.token, body.base_url.strip())
     return {"connected": True}
 
 
