@@ -10,8 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from api.deps import get_current_owner_uid, verify_token
-from api.routers import admin, categories, connections, facts, internal, settings, status, tenants
-from src.facts.categories import InvalidCategory
+from api.routers import admin, categories, connections, facts, internal, pending, settings, status, tenants
 from src.projects.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts.facts import get_tenant_facts
 from src.facts.similar_facts import find_similar_facts
@@ -115,80 +114,7 @@ app.include_router(connections.router)
 app.include_router(tenants.router)
 app.include_router(facts.router)
 app.include_router(status.router)
-
-
-# Lazily-importing wrappers (APPCE-50, same pattern as get_runner/
-# restore_session below): src.facts.pending_facts pulls in google-cloud-pubsub
-# (via src.facts.publisher, for the approve path), which only these three
-# endpoints need — deferring it keeps it off every other request's
-# startup cost. Real module-level names so
-# test/test_api_pending_facts.py's monkeypatch.setattr(api_main, ...)
-# still works.
-def list_pending_facts(tenant_id: str, owner_uid: str) -> list[dict]:
-    from src.facts.pending_facts import list_pending_facts as _list_pending_facts
-
-    return _list_pending_facts(tenant_id, owner_uid)
-
-
-def approve_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
-    from src.facts.pending_facts import approve_pending_fact as _approve_pending_fact
-
-    return _approve_pending_fact(tenant_id, pending_fact_id, owner_uid)
-
-
-def reject_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
-    from src.facts.pending_facts import reject_pending_fact as _reject_pending_fact
-
-    return _reject_pending_fact(tenant_id, pending_fact_id, owner_uid)
-
-
-def get_pending_fact_stats(tenant_id: str, owner_uid: str) -> dict:
-    from src.facts.pending_facts import get_pending_fact_stats as _get_pending_fact_stats
-
-    return _get_pending_fact_stats(tenant_id, owner_uid)
-
-
-@app.get("/tenants/{tenant_id}/pending_facts")
-def get_pending_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
-    try:
-        return list_pending_facts(tenant_id, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-
-@app.get("/tenants/{tenant_id}/pending_facts/stats")
-def get_pending_facts_stats(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    try:
-        return get_pending_fact_stats(tenant_id, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-
-@app.post("/tenants/{tenant_id}/pending_facts/{pending_fact_id}/approve")
-def approve_pending_fact_endpoint(
-    tenant_id: str, pending_fact_id: str, owner_uid: str = Depends(get_current_owner_uid)
-) -> dict:
-    try:
-        approve_pending_fact(tenant_id, pending_fact_id, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
-    except InvalidCategory as exc:
-        # The user removed this fact's category after it was staged.
-        raise HTTPException(status_code=400, detail=str(exc))
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Pending fact not found")
-    return {"status": "approved"}
-
-
-@app.delete("/tenants/{tenant_id}/pending_facts/{pending_fact_id}")
-def reject_pending_fact_endpoint(
-    tenant_id: str, pending_fact_id: str, owner_uid: str = Depends(get_current_owner_uid)
-) -> dict:
-    try:
-        reject_pending_fact(tenant_id, pending_fact_id, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return {"status": "rejected"}
+app.include_router(pending.router)
 
 
 @app.get("/tenants/{tenant_id}/history")

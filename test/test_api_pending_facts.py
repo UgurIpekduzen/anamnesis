@@ -2,6 +2,7 @@ import pytest
 from starlette.testclient import TestClient
 
 import api.main as api_main
+from api.routers import pending
 
 OWNER = "test@example.com"
 PENDING = [
@@ -27,11 +28,11 @@ def api(monkeypatch, signed_in_owner):
     def fake_reject(tenant_id, pending_fact_id, owner_uid):
         rejected.append((tenant_id, pending_fact_id, owner_uid))
 
-    monkeypatch.setattr(api_main, "list_pending_facts", lambda tenant_id, owner_uid: list(PENDING))
-    monkeypatch.setattr(api_main, "approve_pending_fact", fake_approve)
-    monkeypatch.setattr(api_main, "reject_pending_fact", fake_reject)
+    monkeypatch.setattr(pending, "list_pending_facts", lambda tenant_id, owner_uid: list(PENDING))
+    monkeypatch.setattr(pending, "approve_pending_fact", fake_approve)
+    monkeypatch.setattr(pending, "reject_pending_fact", fake_reject)
     monkeypatch.setattr(
-        api_main, "get_pending_fact_stats", lambda tenant_id, owner_uid: {"pending": 1, "approved": 7, "rejected": 3}
+        pending, "get_pending_fact_stats", lambda tenant_id, owner_uid: {"pending": 1, "approved": 7, "rejected": 3}
     )
     yield TestClient(api_main.app), approved, rejected
 
@@ -50,7 +51,7 @@ def test_get_returns_404_for_a_project_that_is_not_the_users(api, monkeypatch):
     def raise_permission_error(tenant_id, owner_uid):
         raise PermissionError()
 
-    monkeypatch.setattr(api_main, "list_pending_facts", raise_permission_error)
+    monkeypatch.setattr(pending, "list_pending_facts", raise_permission_error)
 
     assert client.get("/tenants/proj-1/pending_facts").status_code == 404
 
@@ -71,7 +72,7 @@ def test_post_approve_returns_404_for_a_missing_pending_fact(api, monkeypatch):
     def raise_value_error(tenant_id, pending_fact_id, owner_uid):
         raise ValueError("nope")
 
-    monkeypatch.setattr(api_main, "approve_pending_fact", raise_value_error)
+    monkeypatch.setattr(pending, "approve_pending_fact", raise_value_error)
 
     assert client.post("/tenants/proj-1/pending_facts/missing/approve").status_code == 404
 
@@ -109,7 +110,7 @@ def test_stats_of_a_project_that_is_not_the_users_are_a_404(api, monkeypatch):
     def not_yours(tenant_id, owner_uid):
         raise PermissionError()
 
-    monkeypatch.setattr(api_main, "get_pending_fact_stats", not_yours)
+    monkeypatch.setattr(pending, "get_pending_fact_stats", not_yours)
 
     assert client.get("/tenants/proj-1/pending_facts/stats").status_code == 404
 
