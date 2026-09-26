@@ -82,6 +82,36 @@ app.add_middleware(
 )
 
 
+# What the page loads: its own files, plus Google sign-in (script, its iframe,
+# its styles and requests). Report-Only for now (APPCE-119): a browser reports
+# what the policy would block without blocking it, so sign-in can't break by
+# surprise. Enforce it once the browser console shows no violations.
+_CONTENT_SECURITY_POLICY = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self' https://accounts.google.com/gsi/client",
+        "frame-src https://accounts.google.com/gsi/",
+        "connect-src 'self' https://accounts.google.com/gsi/",
+        "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
+        # The profile photo comes from Google.
+        "img-src 'self' data: https://*.googleusercontent.com",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "object-src 'none'",
+    ]
+)
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy-Report-Only"] = _CONTENT_SECURITY_POLICY
+    return response
+
+
 @app.middleware("http")
 async def log_request_duration(request: Request, call_next):
     """One line per REST call: how long the server took to answer (APPCE-68).
