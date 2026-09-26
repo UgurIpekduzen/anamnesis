@@ -2,6 +2,7 @@
 
     python -m src.db_backup dump FILE      read the database into a JSON file
     python -m src.db_backup load FILE      write a dump into the EMULATOR
+    python -m src.db_backup verify FILE    compare the database with a dump (read-only)
     python -m src.db_backup restore FILE   show what writing a dump here would change
     python -m src.db_backup restore FILE --confirm-project PROJECT_ID   ...and write it
     python -m src.db_backup wipe           count what a wipe would delete
@@ -105,6 +106,34 @@ def load(path: str) -> int:
     return len(payload["documents"])
 
 
+def verify(path: str) -> dict:
+    """Compare the database with a dump, document by document. Read-only, and
+    unlike restore it doesn't care which project the dump came from, so it can
+    check a dump that was loaded into the emulator.
+
+    Returns:
+        {"same": n, "different": n, "missing": n, "extra": n}: missing are in the
+        dump but not in the database, extra the other way round.
+    """
+    payload = _read_dump(path)
+    client = get_client()
+    expected = {document["path"]: _decode(document["data"]) for document in payload["documents"]}
+
+    result = {"same": 0, "different": 0, "missing": 0, "extra": 0}
+    for doc_path, data in expected.items():
+        current = client.document(doc_path).get()
+        if not current.exists:
+            result["missing"] += 1
+        elif current.to_dict() != data:
+            result["different"] += 1
+        else:
+            result["same"] += 1
+    for ref in _document_refs(client):
+        if ref.path not in expected and ref.get().exists:
+            result["extra"] += 1
+    return result
+
+
 def restore(path: str, confirm_project: str | None) -> dict:
     """Write a dump into the database get_client() points at, real or emulator.
 
@@ -169,11 +198,12 @@ def wipe(confirm_project: str | None) -> tuple[int, bool]:
     return count, True
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m src.db_backup")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("dump").add_argument("file")
     commands.add_parser("load").add_argument("file")
+    commands.add_parser("verify").add_argument("file")
     restore_parser = commands.add_parser("restore")
     restore_parser.add_argument("file")
     restore_parser.add_argument("--confirm-project")
@@ -188,6 +218,12 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Wrote {dump(args.file)} documents to {args.file}")
     elif args.command == "load":
         print(f"Loaded {load(args.file)} documents")
+    elif args.command == "verify":
+        result = verify(args.file)
+        print(f"{result['same']} same, {result['different']} different, {result['missing']} missing, {result['extra']} extra")
+        if result["different"] or result["missing"] or result["extra"]:
+            return 1
+        print("OK: the database holds exactly what the dump holds.")
     elif args.command == "restore":
         result = restore(args.file, args.confirm_project)
         summary = f"{result['new']} new, {result['changed']} would be overwritten, {result['unchanged']} already the same"
@@ -201,6 +237,7 @@ def main(argv: list[str] | None = None) -> None:
             print(f"Deleted {count} documents")
         else:
             print(f"Would delete {count} documents. Nothing was deleted; add --confirm-project {project} to delete.")
+    return 0
 
 
 if __name__ == "__main__":

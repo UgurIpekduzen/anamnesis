@@ -173,6 +173,23 @@ tasks:
       - docker compose build -q api
       - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.db_backup load {{.CLI_ARGS}}
 
+  db:verify:
+    desc: Compare the EMULATOR's data with a dump, document by document (read-only) — task db:verify -- backups/<file>.json
+    cmds:
+      # A stopped emulator would be started empty and reported as "everything missing": refuse instead.
+      - docker compose ps --status running -q firestore-emulator | grep -q . || { echo "The Firestore emulator isn't running (task local:up)."; exit 1; }
+      - docker compose build -q api
+      - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.db_backup verify {{.CLI_ARGS}}
+
+  local:dump:
+    desc: Save the EMULATOR's data to backups/local-<time>.json (it is lost when the emulator stops) — load it back with task db:load
+    cmds:
+      # A stopped emulator would be started empty and dumped as nothing: refuse instead.
+      - docker compose ps --status running -q firestore-emulator | grep -q . || { echo "The Firestore emulator isn't running (task local:up)."; exit 1; }
+      - mkdir -p backups
+      - docker compose build -q api
+      - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.db_backup dump backups/local-$(date +%Y%m%d-%H%M%S).json
+
   db:restore:
     desc: Show what writing a dump into the REAL database would change; write it only with -- backups/<file>.json --confirm-project <project id>
     cmds:
