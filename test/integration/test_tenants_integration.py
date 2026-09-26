@@ -3,12 +3,14 @@ import uuid
 
 import pytest
 
+from src.facts import create_fact, get_tenant_facts
 from src.firestore_client import get_client
 from src.tenants import (
     add_tenant,
     clear_github_repo,
     clear_jira_project_key,
     delete_tenant,
+    get_owned_tenant,
     list_tenants,
     rename_tenant,
     set_github_repo,
@@ -16,6 +18,7 @@ from src.tenants import (
 )
 
 OWNER_UID = "test-owner@example.com"
+OTHER_UID = "someone-else@example.com"
 
 
 @pytest.fixture
@@ -195,5 +198,38 @@ def test_clearing_a_link_rejects_a_non_owner(tenant_name, clear):
     try:
         with pytest.raises(PermissionError):
             clear(tenant_id, "someone-else@example.com")
+    finally:
+        delete_tenant(tenant_id, OWNER_UID)
+
+
+# APPCE-117: the project id comes from the name and is shared by every user, so
+# creating a project must never take over one that already exists.
+def test_a_second_user_cannot_take_over_a_project_with_the_same_name(tenant_name):
+    tenant_id = add_tenant(tenant_name, OWNER_UID)
+    try:
+        create_fact(tenant_id, "the first user's note", "note")
+
+        # Same slug, different spelling: still the same project id.
+        with pytest.raises(ValueError):
+            add_tenant(tenant_name.upper(), OTHER_UID)
+
+        assert get_owned_tenant(tenant_id, OWNER_UID)["name"] == tenant_name
+        assert [f["content"] for f in get_tenant_facts(tenant_id, OWNER_UID)] == ["the first user's note"]
+        with pytest.raises(PermissionError):
+            get_owned_tenant(tenant_id, OTHER_UID)
+    finally:
+        delete_tenant(tenant_id, OWNER_UID)
+
+
+def test_creating_the_same_name_twice_keeps_the_first_project_as_it_was(tenant_name):
+    tenant_id = add_tenant(tenant_name, OWNER_UID)
+    try:
+        set_github_repo(tenant_id, "some-org/some-repo", OWNER_UID)
+
+        with pytest.raises(ValueError):
+            add_tenant(tenant_name, OWNER_UID)
+
+        # It used to be written over: the repo link and the creation time were lost.
+        assert get_owned_tenant(tenant_id, OWNER_UID)["github_repo"] == "some-org/some-repo"
     finally:
         delete_tenant(tenant_id, OWNER_UID)

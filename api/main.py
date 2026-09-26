@@ -35,6 +35,7 @@ from src.status import get_project_github_status, get_project_jira_status
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.log import log
 from src.tenants import (
+    TenantNameTaken,
     add_tenant,
     clear_github_repo,
     clear_jira_project_key,
@@ -140,7 +141,11 @@ class TenantCreate(BaseModel):
 def create_tenant(body: TenantCreate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
     # Project lifecycle (create/rename/delete) is deliberately UI-only, not
     # a chat tool — see agent/agent.py's build_agent docstring for why.
-    tenant_id = add_tenant(body.name, owner_uid)
+    try:
+        tenant_id = add_tenant(body.name, owner_uid)
+    except TenantNameTaken as exc:
+        # The same answer whoever owns the existing project (APPCE-117).
+        raise HTTPException(status_code=409, detail=f"{exc} Try another name.")
     return {"tenant_id": tenant_id}
 
 

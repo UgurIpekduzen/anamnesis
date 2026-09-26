@@ -17,12 +17,19 @@ export async function listTenants(idToken: string): Promise<Tenant[]> {
   return res.json();
 }
 
+// The name's project id is taken (by anyone) — the message says what to do.
+export class NameTakenError extends Error {}
+
 export async function createTenant(idToken: string, name: string): Promise<{ tenant_id: string }> {
   const res = await fetch(`${API_BASE}/tenants`, {
     method: "POST",
     headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
+  if (res.status === 409) {
+    const detail = (await res.json().catch(() => null))?.detail;
+    throw new NameTakenError(detail || "That project name isn't available. Try another name.");
+  }
   if (!res.ok) throw new Error(`createTenant failed: ${res.status}`);
   return res.json();
 }

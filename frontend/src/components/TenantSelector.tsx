@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { createTenant, deleteTenant, renameTenant, type Tenant } from "../api";
+import { NameTakenError, createTenant, deleteTenant, renameTenant, type Tenant } from "../api";
 import ConfirmDialog from "./ConfirmDialog";
 import "./TenantSelector.css";
 
@@ -40,8 +40,8 @@ function TenantSelector({ idToken, tenants, selectedId, onSelect, error, onRetry
       setAdding(false);
       setNewName("");
       onChanged(tenant_id);
-    } catch {
-      setActionError("Couldn't create the project. Please try again.");
+    } catch (e) {
+      setActionError(e instanceof NameTakenError ? e.message : "Couldn't create the project. Please try again.");
     }
     setBusy(false);
   }
