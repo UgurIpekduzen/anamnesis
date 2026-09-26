@@ -2,6 +2,8 @@ import pytest
 from starlette.testclient import TestClient
 
 import api.main as api_main
+from api.routers import tenants as tenants_router
+from src.projects.tenants import TenantNameTaken
 
 OWNER = "test@example.com"
 
@@ -12,11 +14,11 @@ def api(monkeypatch, signed_in_owner):
     renamed = []
     deleted = []
 
-    monkeypatch.setattr(api_main, "add_tenant", lambda name, owner_uid: added.append((name, owner_uid)) or "new_id")
+    monkeypatch.setattr(tenants_router, "add_tenant", lambda name, owner_uid: added.append((name, owner_uid)) or "new_id")
     monkeypatch.setattr(
-        api_main, "rename_tenant", lambda tenant_id, name, owner_uid: renamed.append((tenant_id, name, owner_uid))
+        tenants_router, "rename_tenant", lambda tenant_id, name, owner_uid: renamed.append((tenant_id, name, owner_uid))
     )
-    monkeypatch.setattr(api_main, "delete_tenant", lambda tenant_id, owner_uid: deleted.append((tenant_id, owner_uid)))
+    monkeypatch.setattr(tenants_router, "delete_tenant", lambda tenant_id, owner_uid: deleted.append((tenant_id, owner_uid)))
     yield TestClient(api_main.app), added, renamed, deleted
 
 
@@ -34,9 +36,9 @@ def test_post_answers_409_when_the_name_is_taken(api, monkeypatch):
     client, _, _, _ = api
 
     def taken(name, owner_uid):
-        raise api_main.TenantNameTaken("That project name isn't available.")
+        raise TenantNameTaken("That project name isn't available.")
 
-    monkeypatch.setattr(api_main, "add_tenant", taken)
+    monkeypatch.setattr(tenants_router, "add_tenant", taken)
 
     response = client.post("/tenants", json={"name": "Taken"})
 
@@ -68,7 +70,7 @@ def test_patch_returns_404_for_a_project_that_is_not_the_users(api, monkeypatch)
     def raise_permission_error(tenant_id, name, owner_uid):
         raise PermissionError()
 
-    monkeypatch.setattr(api_main, "rename_tenant", raise_permission_error)
+    monkeypatch.setattr(tenants_router, "rename_tenant", raise_permission_error)
 
     assert client.patch("/tenants/proj-1", json={"name": "x"}).status_code == 404
 
@@ -89,7 +91,7 @@ def test_delete_returns_404_for_a_project_that_is_not_the_users(api, monkeypatch
     def raise_permission_error(tenant_id, owner_uid):
         raise PermissionError()
 
-    monkeypatch.setattr(api_main, "delete_tenant", raise_permission_error)
+    monkeypatch.setattr(tenants_router, "delete_tenant", raise_permission_error)
 
     assert client.delete("/tenants/proj-1").status_code == 404
 
@@ -109,13 +111,13 @@ def test_tenant_crud_requires_authentication():
 def links(monkeypatch, signed_in_owner):
     calls = []
     monkeypatch.setattr(
-        api_main, "set_github_repo", lambda tenant_id, repo, owner_uid: calls.append(("set_repo", tenant_id, repo, owner_uid))
+        tenants_router, "set_github_repo", lambda tenant_id, repo, owner_uid: calls.append(("set_repo", tenant_id, repo, owner_uid))
     )
-    monkeypatch.setattr(api_main, "clear_github_repo", lambda tenant_id, owner_uid: calls.append(("clear_repo", tenant_id, owner_uid)))
+    monkeypatch.setattr(tenants_router, "clear_github_repo", lambda tenant_id, owner_uid: calls.append(("clear_repo", tenant_id, owner_uid)))
     monkeypatch.setattr(
-        api_main, "set_jira_project_key", lambda tenant_id, key, owner_uid: calls.append(("set_key", tenant_id, key, owner_uid))
+        tenants_router, "set_jira_project_key", lambda tenant_id, key, owner_uid: calls.append(("set_key", tenant_id, key, owner_uid))
     )
-    monkeypatch.setattr(api_main, "clear_jira_project_key", lambda tenant_id, owner_uid: calls.append(("clear_key", tenant_id, owner_uid)))
+    monkeypatch.setattr(tenants_router, "clear_jira_project_key", lambda tenant_id, owner_uid: calls.append(("clear_key", tenant_id, owner_uid)))
     return TestClient(api_main.app), calls
 
 
@@ -192,7 +194,7 @@ def test_someone_elses_or_a_missing_project_is_a_404(monkeypatch, signed_in_owne
         raise PermissionError("No project")
 
     for name in ("set_github_repo", "clear_github_repo", "set_jira_project_key", "clear_jira_project_key"):
-        monkeypatch.setattr(api_main, name, not_yours)
+        monkeypatch.setattr(tenants_router, name, not_yours)
 
     response = getattr(TestClient(api_main.app), method)(path, **({"json": body} if body else {}))
 

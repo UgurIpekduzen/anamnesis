@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid, verify_token
-from api.routers import admin, categories, connections, internal, settings
+from api.routers import admin, categories, connections, internal, settings, tenants
 from src.facts.categories import InvalidCategory
 from src.projects.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts.facts import delete_fact, get_fact, get_tenant_facts, update_fact
@@ -19,18 +19,7 @@ from src.facts.similar_facts import find_similar_facts
 from src.integrations.status import get_project_github_status, get_project_jira_status
 from src.accounts.settings import get_settings
 from src.core.log import log
-from src.projects.tenants import (
-    TenantNameTaken,
-    add_tenant,
-    clear_github_repo,
-    clear_jira_project_key,
-    delete_tenant,
-    get_owned_tenant,
-    list_tenants,
-    rename_tenant,
-    set_github_repo,
-    set_jira_project_key,
-)
+from src.projects.tenants import get_owned_tenant
 from src.accounts.usage import DailyLimitExceeded, record_message
 
 # Token-cost guards (see APPCE-59). A message stays in the session history
@@ -125,29 +114,7 @@ app.include_router(categories.router)
 app.include_router(settings.router)
 app.include_router(admin.router)
 app.include_router(connections.router)
-
-
-@app.get("/tenants")
-def get_tenants(owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
-    return list_tenants(owner_uid)
-
-
-class TenantCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str = Field(strict=True, min_length=1, max_length=200)
-
-
-@app.post("/tenants")
-def create_tenant(body: TenantCreate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    # Project lifecycle (create/rename/delete) is deliberately UI-only, not
-    # a chat tool — see agent/agent.py's build_agent docstring for why.
-    try:
-        tenant_id = add_tenant(body.name, owner_uid)
-    except TenantNameTaken as exc:
-        # The same answer whoever owns the existing project (APPCE-117).
-        raise HTTPException(status_code=409, detail=f"{exc} Try another name.")
-    return {"tenant_id": tenant_id}
+app.include_router(tenants.router)
 
 
 class FactUpdate(BaseModel):
@@ -157,92 +124,6 @@ class FactUpdate(BaseModel):
     # change nothing, so it is refused below.
     content: str | None = Field(default=None, strict=True, min_length=1, max_length=2000)
     category: str | None = Field(default=None, strict=True, min_length=1, max_length=50)
-
-
-class TenantRename(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str = Field(strict=True, min_length=1, max_length=200)
-
-
-@app.patch("/tenants/{tenant_id}")
-def update_tenant(
-    tenant_id: str, body: TenantRename, owner_uid: str = Depends(get_current_owner_uid)
-) -> dict:
-    try:
-        rename_tenant(tenant_id, body.name, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return {"status": "renamed"}
-
-
-@app.delete("/tenants/{tenant_id}")
-def remove_tenant(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    try:
-        delete_tenant(tenant_id, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return {"status": "deleted"}
-
-
-# Which GitHub repo and Jira project a project is linked to is set here, in
-# the UI, and not by the chat agent: these values decide whose repo gets polled
-# with the user's token and what goes into a Jira query, and the agent reads
-# text other people wrote (APPCE-107).
-class GithubRepoUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    github_repo: str = Field(strict=True, min_length=1, max_length=140)
-
-
-class JiraProjectKeyUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    jira_project_key: str = Field(strict=True, min_length=1, max_length=60)
-
-
-@app.put("/tenants/{tenant_id}/github_repo")
-def update_github_repo(
-    tenant_id: str, body: GithubRepoUpdate, owner_uid: str = Depends(get_current_owner_uid)
-) -> dict:
-    try:
-        set_github_repo(tenant_id, body.github_repo, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return {"github_repo": body.github_repo}
-
-
-@app.delete("/tenants/{tenant_id}/github_repo")
-def remove_github_repo(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    try:
-        clear_github_repo(tenant_id, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return {"github_repo": None}
-
-
-@app.put("/tenants/{tenant_id}/jira_project_key")
-def update_jira_project_key(
-    tenant_id: str, body: JiraProjectKeyUpdate, owner_uid: str = Depends(get_current_owner_uid)
-) -> dict:
-    try:
-        set_jira_project_key(tenant_id, body.jira_project_key, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return {"jira_project_key": body.jira_project_key}
-
-
-@app.delete("/tenants/{tenant_id}/jira_project_key")
-def remove_jira_project_key(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    try:
-        clear_jira_project_key(tenant_id, owner_uid)
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return {"jira_project_key": None}
 
 
 @app.get("/tenants/{tenant_id}/facts")
