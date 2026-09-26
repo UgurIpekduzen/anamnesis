@@ -5,7 +5,7 @@ from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore
 
 from src.core.firestore_client import get_client
-from src.integrations.jira.client import validate_project_key
+from src.projects.validation import validate_github_repo, validate_project_key
 
 
 # Named here (not in src/projects/chat_history.py) so delete_tenant can cascade into
@@ -128,23 +128,6 @@ def clear_jira_project_key(tenant_id: str, owner_uid: str) -> None:
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     client.collection("tenants").document(tenant_id).update({"jira_project_key": firestore.DELETE_FIELD})
-
-
-# owner/name only — GitHub usernames/orgs are alphanumeric-or-hyphen (not
-# leading/trailing), repo names add underscore and dot. Rejecting anything
-# else keeps this from ever being treated as an arbitrary URL downstream
-# (SSRF risk, see APPCE-51 comment #2).
-_GITHUB_REPO_PATTERN = re.compile(r"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})/[a-zA-Z0-9_.-]{1,100}$")
-
-
-def validate_github_repo(github_repo: str) -> None:
-    """Reject anything that isn't a plain "owner/name" GitHub repo.
-
-    Raises:
-        ValueError: github_repo isn't a plain "owner/name" string.
-    """
-    if not isinstance(github_repo, str) or not _GITHUB_REPO_PATTERN.match(github_repo):
-        raise ValueError(f"'{github_repo}' doesn't look like a GitHub 'owner/name' repo.")
 
 
 def set_github_repo(tenant_id: str, github_repo: str, owner_uid: str) -> None:

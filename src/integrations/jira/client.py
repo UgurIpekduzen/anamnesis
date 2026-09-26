@@ -3,31 +3,14 @@ from urllib.parse import urlsplit
 
 import requests
 
+from src.projects.validation import validate_project_key
+
 # The result of get_jira_status goes into the model's context and stays in
 # the session history, so it is resent on every later model call. Measured
 # on 50 issues shaped like a real project's: JSON objects cost ~2560 tokens,
 # compact lines for the first 15 ~530 (APPCE-104).
 DEFAULT_LIMIT = 15
 MAX_SUMMARY_CHARS = 100
-
-# A Jira project key: an uppercase letter, then uppercase letters, digits or
-# underscores. The key is put into a JQL query (project = "KEY"), so anything
-# else — a quote above all — could change what the query means (APPCE-107).
-_PROJECT_KEY_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,49}$")
-
-
-def validate_project_key(project_key: str) -> None:
-    """Reject anything that isn't a plain Jira project key such as "APPCE".
-
-    Raises:
-        ValueError: the key has characters a Jira project key can't have.
-    """
-    if not isinstance(project_key, str) or not _PROJECT_KEY_PATTERN.match(project_key):
-        raise ValueError(
-            "A Jira project key is uppercase letters, digits and underscores, starting with a letter "
-            "(for example APPCE)."
-        )
-
 
 # The server calls this address with the user's credentials, so it must be a
 # Jira Cloud workspace and nothing else: a made-up address could point at the

@@ -7,11 +7,12 @@ from agent.history import make_history_limiter
 from src.facts.categories import InvalidCategory, get_categories, validate_category_for
 from src.facts.facts import get_fact, get_tenant_facts
 from src.integrations.github.activity import get_github_history, get_github_status
-from src.integrations.jira.client import get_jira_recently_done, get_jira_status, validate_project_key
+from src.integrations.jira.client import get_jira_recently_done, get_jira_status
 from src.integrations.jira.connections import get_jira_credentials
 from src.facts.pending_facts import get_pending_facts_summary
 from src.facts.publisher import publish_fact
-from src.projects.tenants import get_owned_tenant, validate_github_repo
+from src.projects.tenants import get_owned_tenant
+from src.projects.validation import validate_github_repo, validate_project_key
 
 
 # A tool result stays in the session history for as many turns as the
