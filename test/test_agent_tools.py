@@ -179,8 +179,8 @@ def test_tenant_lifecycle_tools_are_not_exposed_to_the_model():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
     tool_names = {_tool_name(t) for t in tool_agent.tools}
 
-    # Creating/renaming/deleting projects is UI-only now (see api/main.py's
-    # /tenants endpoints) — the agent has nothing to scope those to.
+    # Creating/renaming/deleting projects is UI-only now (see
+    # api/routers/tenants.py) — the agent has nothing to scope those to.
     assert tool_names.isdisjoint({"list_tenants", "add_tenant", "rename_tenant", "delete_tenant"})
 
 

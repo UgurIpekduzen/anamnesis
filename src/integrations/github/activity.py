@@ -3,7 +3,7 @@ import requests
 from src.integrations.github.connections import get_decrypted_token
 from src.projects.tenants import get_owned_tenant
 
-# Capped for the same reason as MAX_MESSAGE_CHARS (api/main.py, APPCE-59):
+# Capped for the same reason as MAX_MESSAGE_CHARS (api/routers/chat.py, APPCE-59):
 # a PR/issue body is free text from a third party, potentially large, and
 # whatever this returns eventually reaches an LLM call (APPCE-81) — an
 # unbounded body is both a cost risk and a bigger prompt-injection payload.

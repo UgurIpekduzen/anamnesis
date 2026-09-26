@@ -26,7 +26,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
 
     Both owner_uid and tenant_id must never be parameters the LLM fills in
     — owner_uid comes from the caller's verified identity, tenant_id from
-    the chat connection it was opened on (see api/main.py), never from
+    the chat connection it was opened on (see api/routers/chat.py), never from
     anything the model or user says in chat. So instead of exposing the
     src.* functions directly as tools (which would put both in their
     tool-calling schema), each tool here is a thin wrapper with both
@@ -36,8 +36,8 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
     One Agent per (owner_uid, tenant_id) also means project management —
     creating, renaming, deleting a tenant — isn't something this agent can
     do at all: those are cross-project operations with nothing to scope
-    them to, so they live in plain UI/REST instead (see api/main.py's
-    /tenants endpoints), never in chat.
+    them to, so they live in plain UI/REST instead (see
+    api/routers/tenants.py), never in chat.
     """
 
     def _get_tenant_facts() -> list[dict]:
@@ -348,7 +348,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
             # a GitHub issue title to call publish_fact with zero actual
             # user confirmation. ADK pauses the turn and requires an
             # explicit approve/reject from the client before running the
-            # real function (see api/main.py's chat handler).
+            # real function (see api/routers/chat.py's chat handler).
             FunctionTool(_publish_fact, require_confirmation=True),
             _get_github_status,
             _get_jira_status,
