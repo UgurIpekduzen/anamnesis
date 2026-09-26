@@ -10,7 +10,7 @@ services:
     entrypoint: ["gcloud"]
 
   terraform:
-    image: hashicorp/terraform:1.9
+    image: hashicorp/terraform:1.15
     working_dir: /workspace
     volumes:
       - ./terraform:/workspace
