@@ -16,11 +16,11 @@ function play(question: string, startedAt: number, steps: Step[]): TraceTurn {
 }
 
 const TENANTS = [
-  { tenant_id: "bd2026", name: "BD2026", jira_project_key: "BD2026" },
-  { tenant_id: "finio", name: "Finio", jira_project_key: "AKFP" },
-  { tenant_id: "recruiter_ai", name: "Recruiter.AI", jira_project_key: "RAI" },
-  { tenant_id: "tety", name: "TETY", jira_project_key: "TETY" },
-  { tenant_id: "tmdb_hit_classifier", name: "TMDB Hit Classifier", jira_project_key: "ADVBK" },
+  { tenant_id: "demo_app", name: "Demo App", jira_project_key: "DAPP" },
+  { tenant_id: "demo_shop", name: "Demo Shop", jira_project_key: "SHOP" },
+  { tenant_id: "demo_hiring", name: "Demo Hiring", jira_project_key: "HIRE" },
+  { tenant_id: "demo_tool", name: "Demo Tool", jira_project_key: "TOOL" },
+  { tenant_id: "demo_model", name: "Demo Model", jira_project_key: "MODEL" },
 ];
 
 const FACT_TEXTS = [
@@ -51,13 +51,13 @@ export const FIXTURE_TURNS: TraceTurn[] = [
   play("Bu projedeki kararları listele.", T0 + 60_000, [
     [50, { type: "tool_call", id: "a1", name: "list_tenants", args: {} }],
     [313, { type: "tool_result", id: "a1", name: "list_tenants", result: { result: TENANTS } }],
-    [900, { type: "tool_call", id: "a2", name: "get_tenant_facts", args: { tenant_id: "bd2026" } }],
+    [900, { type: "tool_call", id: "a2", name: "get_tenant_facts", args: { tenant_id: "demo_app" } }],
     [1494, { type: "tool_result", id: "a2", name: "get_tenant_facts", result: { result: FACTS } }],
     [5300, { type: "answered" }],
   ]),
 
   play("Şu kararı kaydet: deployment Cloud Run'a yapılacak", T0 + 120_000, [
-    [40, { type: "tool_call", id: "b1", name: "add_fact", args: { tenant_id: "bd2026", category: "decision", content: "deployment Cloud Run'a yapılacak" } }],
+    [40, { type: "tool_call", id: "b1", name: "add_fact", args: { tenant_id: "demo_app", category: "decision", content: "deployment Cloud Run'a yapılacak" } }],
     [700, { type: "tool_result", id: "b1", name: "add_fact", result: { result: "3f9a1c7e5b2d4a688e0f" } }],
     [2400, { type: "answered" }],
   ]),
@@ -65,21 +65,21 @@ export const FIXTURE_TURNS: TraceTurn[] = [
   // Same tool twice, results arriving in the opposite order: pairing must
   // follow the call id, not the tool name.
   play("İki projenin kararlarını karşılaştır.", T0 + 180_000, [
-    [30, { type: "tool_call", id: "c1", name: "get_tenant_facts", args: { tenant_id: "bd2026" } }],
-    [35, { type: "tool_call", id: "c2", name: "get_tenant_facts", args: { tenant_id: "finio" } }],
+    [30, { type: "tool_call", id: "c1", name: "get_tenant_facts", args: { tenant_id: "demo_app" } }],
+    [35, { type: "tool_call", id: "c2", name: "get_tenant_facts", args: { tenant_id: "demo_shop" } }],
     [420, { type: "tool_result", id: "c2", name: "get_tenant_facts", result: { result: [] } }],
     [610, { type: "tool_result", id: "c1", name: "get_tenant_facts", result: { result: FACTS.slice(0, 3) } }],
     [4100, { type: "answered" }],
   ]),
 
   play("Jira anahtarını güncelle.", T0 + 240_000, [
-    [20, { type: "tool_call", id: "d1", name: "update_project", args: { tenant_id: "bd2026", settings: { jira_project_key: "BD2026", labels: ["a", "b"] } } }],
+    [20, { type: "tool_call", id: "d1", name: "update_project", args: { tenant_id: "demo_app", settings: { jira_project_key: "DAPP", labels: ["a", "b"] } } }],
     [380, { type: "tool_result", id: "d1", name: "update_project", result: { result: { status: "ok", updated: ["jira_project_key"], at: "2026-09-22T10:04:00.123456+00:00" } } }],
     [1900, { type: "answered" }],
   ]),
 
   play("Jira'daki açık işleri getir.", T0 + 300_000, [
-    [25, { type: "tool_call", id: "e1", name: "get_jira_status", args: { project_key: "BD2026" } }],
+    [25, { type: "tool_call", id: "e1", name: "get_jira_status", args: { project_key: "DAPP" } }],
     [8200, { type: "tool_result", id: "e1", name: "get_jira_status", result: { error: "Jira request timed out after 8 s (HTTP 504)" } }],
     [8400, { type: "failed" }],
   ]),
@@ -96,7 +96,7 @@ export const LIVE_TURN_STEPS: { delayMs: number; event: ChatEvent }[] = [
   { delayMs: 0, event: { type: "sent", question: "Canlı tur: bu projedeki kararları listele." } },
   { delayMs: 900, event: { type: "tool_call", id: "l1", name: "list_tenants", args: {} } },
   { delayMs: 300, event: { type: "tool_result", id: "l1", name: "list_tenants", result: { result: TENANTS } } },
-  { delayMs: 1200, event: { type: "tool_call", id: "l2", name: "get_tenant_facts", args: { tenant_id: "bd2026" } } },
+  { delayMs: 1200, event: { type: "tool_call", id: "l2", name: "get_tenant_facts", args: { tenant_id: "demo_app" } } },
   { delayMs: 600, event: { type: "tool_result", id: "l2", name: "get_tenant_facts", result: { result: FACTS } } },
   { delayMs: 1500, event: { type: "answered" } },
 ];
@@ -105,7 +105,7 @@ export const LIVE_TURN_STEPS: { delayMs: number; event: ChatEvent }[] = [
 export function fillerTurns(count: number, from: number): TraceTurn[] {
   return Array.from({ length: count }, (_, i) =>
     play(`Dolgu sorusu #${from + i}`, T0 + 400_000 + i * 1_000, [
-      [30, { type: "tool_call", id: `x${i}`, name: "get_tenant_facts", args: { tenant_id: "bd2026" } }],
+      [30, { type: "tool_call", id: `x${i}`, name: "get_tenant_facts", args: { tenant_id: "demo_app" } }],
       [500, { type: "tool_result", id: `x${i}`, name: "get_tenant_facts", result: { result: FACTS.slice(0, 5) } }],
       [1500, { type: "answered" }],
     ]),

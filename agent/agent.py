@@ -4,7 +4,7 @@ from google.adk.agents.llm_agent import Agent
 from google.adk.tools.function_tool import FunctionTool
 
 from agent.history import make_history_limiter
-from src.categories import validate_category
+from src.categories import InvalidCategory, get_categories, validate_category_for
 from src.facts import get_fact, get_tenant_facts
 from src.github_activity import get_github_history, get_github_status
 from src.jira_client import get_jira_recently_done, get_jira_status, validate_project_key
@@ -43,7 +43,13 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         return get_tenant_facts(tenant_id, owner_uid, limit=MAX_FACTS_PER_TOOL_CALL)
 
     def _publish_fact(content: str, category: str) -> str:
-        return publish_fact(tenant_id, content, category, owner_uid)
+        # A category outside the user's list comes back as text the model can
+        # act on (ask, or pick another); an uncaught exception would crash
+        # the whole turn (see _get_github_status below).
+        try:
+            return publish_fact(tenant_id, content, category, owner_uid)
+        except InvalidCategory as exc:
+            return f"Not published: {exc}"
 
     def _get_github_status() -> dict:
         # ADK doesn't turn a raised exception into a tool result the model
@@ -158,7 +164,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
             return {"error": "Give the new content or the new category."}
         try:
             if category is not None:
-                validate_category(category)
+                validate_category_for(owner_uid, category)
             fact = get_fact(tenant_id, fact_id, owner_uid)
         except (ValueError, LookupError) as e:
             return {"error": str(e)}
@@ -241,7 +247,9 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         # LLM call and prompt (src/github_fact_extraction.py) rather than
         # going through this agent, so it isn't a gap this instruction
         # needs to cover.
-        instruction=(
+        # A function, not a string: ADK calls it every turn, so a category the
+        # user adds in Settings is known to the model on its very next message.
+        instruction=lambda _ctx: (
             'You help the user recall and record information about the '
             'current project. Every tool here already operates on that '
             'project — never ask the user which project they mean, and '
@@ -252,9 +260,8 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
             'user\'s question (e.g. only mention bugs if they asked about '
             'bugs) rather than filtering the call itself.\n'
             'When the user asks you to remember, note, or record something, '
-            'call publish_fact with content and a category (architecture, '
-            'decision, bug, status, or todo — ask the user if it is unclear '
-            'which one fits).\n'
+            'call publish_fact with content and a category (' + ', '.join(get_categories(owner_uid)) + ' — ask the user if it is unclear '
+            'which one fits, and never use one that is not in this list).\n'
             'When the user asks you to edit or correct a saved note/fact, '
             'call get_tenant_facts to find the matching fact_id (ask the user '
             'to clarify if more than one fact could match), then call '

@@ -7,6 +7,7 @@ import Chat from "./components/Chat";
 import Facts from "./components/Facts";
 import PendingFacts from "./components/PendingFacts";
 import ProjectLinks from "./components/ProjectLinks";
+import StatusPanel from "./components/StatusPanel";
 import SettingsDialog from "./components/SettingsDialog";
 import TenantSelector from "./components/TenantSelector";
 import TracePanel from "./components/TracePanel";
@@ -19,7 +20,7 @@ import { useTenants } from "./hooks/useTenants";
 import { tokenSubject } from "./tokenIdentity";
 import { traceReducer, type ChatEvent } from "./trace";
 
-type SidebarTab = "facts" | "pending" | "trace";
+type SidebarTab = "facts" | "pending" | "status" | "trace";
 
 // Re-prompts in the background well before a token's ~1 hour lifetime
 // runs out, so the user is (usually) never asked to sign in again
@@ -61,6 +62,7 @@ function App() {
   const [usageRefreshKey, bumpUsage] = useRefreshKey();
   const [pendingFactsRefreshKey, bumpPendingFacts] = useRefreshKey();
   const [pendingFactsCount, setPendingFactsCount] = useState(0);
+  const [statusRefreshKey, bumpStatus] = useRefreshKey();
   const sidebar = useResizableSidebar();
   const [googleReady, setGoogleReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -229,6 +231,8 @@ function App() {
             setSettingsOpen(false);
             // Connecting or disconnecting an account happens in Settings.
             reloadConnections();
+            // The Facts tab lists groups in the user's category order.
+            bumpFacts();
           }}
           // The warning threshold lives in Settings, so the counter in the
           // sidebar has to refetch to pick up a new one.
@@ -273,21 +277,29 @@ function App() {
             {pendingFactsCount > 0 && <span className="tab-badge">{pendingFactsCount}</span>}
           </button>
           <button
+            className={`tab ${sidebarTab === "status" ? "active" : ""}`}
+            onClick={() => setSidebarTab("status")}
+          >
+            Status
+          </button>
+          <button
             className={`tab ${sidebarTab === "trace" ? "active" : ""}`}
             onClick={() => setSidebarTab("trace")}
           >
             Trace
             {traceTurns.length > 0 && <span className="tab-badge">{traceTurns.length}</span>}
           </button>
-          {(sidebarTab === "facts" || sidebarTab === "pending") && (
+          {sidebarTab !== "trace" && (
             <button
               className="icon-button"
-              title={sidebarTab === "facts" ? "Refresh facts" : "Refresh pending facts"}
-              onClick={() =>
+              title={
                 sidebarTab === "facts"
-                  ? bumpFacts()
-                  : bumpPendingFacts()
+                  ? "Refresh facts"
+                  : sidebarTab === "pending"
+                    ? "Refresh pending facts"
+                    : "Refresh status"
               }
+              onClick={() => (sidebarTab === "facts" ? bumpFacts() : sidebarTab === "pending" ? bumpPendingFacts() : bumpStatus())}
               disabled={!selectedTenantId}
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -302,6 +314,18 @@ function App() {
         <div className="sidebar-panel">
           {sidebarTab === "trace" ? (
             <TracePanel turns={traceTurns} />
+          ) : sidebarTab === "status" ? (
+            selectedTenantId ? (
+              // Remounted when a link changes, so it reads the new repo or key.
+              <StatusPanel
+                key={`${selectedTenantId}:${selectedTenant?.jira_project_key}:${selectedTenant?.github_repo}`}
+                idToken={idToken}
+                tenantId={selectedTenantId}
+                refreshKey={statusRefreshKey}
+              />
+            ) : (
+              <p className="sidebar-empty">Select a project to see what is open.</p>
+            )
           ) : sidebarTab === "pending" ? (
             selectedTenantId ? (
               <PendingFacts

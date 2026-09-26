@@ -30,6 +30,9 @@ def api(monkeypatch, signed_in_owner):
     monkeypatch.setattr(api_main, "list_pending_facts", lambda tenant_id, owner_uid: list(PENDING))
     monkeypatch.setattr(api_main, "approve_pending_fact", fake_approve)
     monkeypatch.setattr(api_main, "reject_pending_fact", fake_reject)
+    monkeypatch.setattr(
+        api_main, "get_pending_fact_stats", lambda tenant_id, owner_uid: {"pending": 1, "approved": 7, "rejected": 3}
+    )
     yield TestClient(api_main.app), approved, rejected
 
 
@@ -89,3 +92,29 @@ def test_pending_facts_require_authentication():
     assert client.get("/tenants/proj-1/pending_facts").status_code == 401
     assert client.post("/tenants/proj-1/pending_facts/p1/approve").status_code == 401
     assert client.delete("/tenants/proj-1/pending_facts/p1").status_code == 401
+
+
+def test_stats_return_the_counts_for_the_project(api):
+    client, _, _ = api
+
+    response = client.get("/tenants/proj-1/pending_facts/stats")
+
+    assert response.status_code == 200
+    assert response.json() == {"pending": 1, "approved": 7, "rejected": 3}
+
+
+def test_stats_of_a_project_that_is_not_the_users_are_a_404(api, monkeypatch):
+    client, _, _ = api
+
+    def not_yours(tenant_id, owner_uid):
+        raise PermissionError()
+
+    monkeypatch.setattr(api_main, "get_pending_fact_stats", not_yours)
+
+    assert client.get("/tenants/proj-1/pending_facts/stats").status_code == 404
+
+
+def test_stats_require_authentication():
+    from starlette.testclient import TestClient as _Client
+
+    assert _Client(api_main.app).get("/tenants/proj-1/pending_facts/stats").status_code == 401

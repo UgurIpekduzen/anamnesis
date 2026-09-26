@@ -30,3 +30,67 @@
 .pending-fact-approve:hover:not(:disabled) {
   background: var(--accent-hover);
 }
+
+/* Not the usage bar (thin, one blue fill): this one is thicker and split in
+   two colours, approved against rejected. */
+.approval-rate {
+  margin: 0 0 12px;
+}
+
+.approval-rate-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.approval-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+}
+
+.approval-bar-approved,
+.approval-bar-rejected {
+  flex-basis: 0;
+  min-width: 4px;
+  border-radius: 3px;
+  transition: flex-grow 0.3s ease;
+}
+
+.approval-bar-approved {
+  background: var(--success-text);
+}
+
+.approval-bar-rejected {
+  background: var(--error-text);
+  opacity: 0.8;
+}
+
+.approval-legend {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.approval-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: 0 4px 0 10px;
+}
+
+.approval-legend .approval-dot:first-child {
+  margin-left: 0;
+}
+
+.approval-dot-approved {
+  background: var(--success-text);
+}
+
+.approval-dot-rejected {
+  background: var(--error-text);
+  opacity: 0.8;
+}

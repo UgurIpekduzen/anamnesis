@@ -56,7 +56,7 @@ def poll_tenant_github_activity(
                 skipped_over_cap += 1
                 continue
             extractions += 1
-            for fact in extract_facts(item["title"], item["body"], kind):
+            for fact in extract_facts(item["title"], item["body"], kind, owner_uid):
                 create_pending_fact(
                     tenant_id, fact["content"], fact["category"], "github", item["url"], owner_uid
                 )

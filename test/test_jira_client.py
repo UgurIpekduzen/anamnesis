@@ -154,7 +154,7 @@ def test_validate_jira_credentials_wraps_a_connection_failure(monkeypatch):
         validate_jira_credentials("user@example.com", "secret-token", "https://not-a-real-host.invalid")
 
 
-@pytest.mark.parametrize("key", ["APPCE", "BD2026", "AB", "A_1", "X" * 50])
+@pytest.mark.parametrize("key", ["APPCE", "APP2026", "AB", "A_1", "X" * 50])
 def test_a_plain_project_key_is_accepted(key):
     validate_project_key(key)
 

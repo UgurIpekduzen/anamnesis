@@ -1,0 +1,77 @@
+.status-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.status-section {
+  margin-bottom: 16px;
+}
+
+.status-section h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* The heading is upper-cased; a repo name or a key keeps its own spelling. */
+.status-scope {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.status-section h4 {
+  margin: 10px 0 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.status-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.status-list li {
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.status-list a {
+  font-weight: 600;
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+.status-pill {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.status-title {
+  color: var(--text);
+}
+
+.status-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.status-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--error-text);
+}

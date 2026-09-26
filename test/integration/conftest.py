@@ -3,7 +3,6 @@ import socket
 
 import pytest
 
-from seed_data import seed
 from setup_pubsub import setup as setup_pubsub
 
 
@@ -29,15 +28,6 @@ def _require_emulators():
         "PUBSUB_EMULATOR_HOST"
     ):
         pytest.skip("Emulators not reachable — start them with `task emulators:up`")
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _seed_categories(_require_emulators):
-    # A freshly started emulator (every CI run, or after a local restart)
-    # has no config/categories document — create_fact/validate_category
-    # would fail on every test otherwise. The emulator has no persistent
-    # volume, so this can't be a one-time manual step.
-    seed()
 
 
 @pytest.fixture(scope="session", autouse=True)

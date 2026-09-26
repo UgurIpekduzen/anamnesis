@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 import time
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -14,7 +13,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from api.deps import get_current_owner_uid, require_owner, verify_token
 from api.internal_auth import verify_scheduler_token
 from src.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
-from src.categories import ensure_categories_seeded
+from src.categories import (
+    InvalidCategory,
+    get_category_settings,
+    reset_categories,
+    save_categories,
+)
 from src.chat_history import append_turn, clear_turns, load_recent_turns
 from src.facts import delete_fact, get_fact, get_tenant_facts, update_fact
 from src.github_client import validate_github_token
@@ -27,6 +31,7 @@ from src.jira_connections import (
     save_jira_credentials,
 )
 from src.similar_facts import find_similar_facts
+from src.status import get_project_github_status, get_project_jira_status
 from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 from src.log import log
 from src.tenants import (
@@ -61,17 +66,7 @@ CHAT_HISTORY_DISPLAY_TURNS = int(os.environ.get("CHAT_HISTORY_DISPLAY_TURNS", 50
 AUTH_TIMEOUT_SECONDS = float(os.environ.get("WS_AUTH_TIMEOUT_SECONDS", 10))
 MAX_AUTH_FRAME_CHARS = 8192
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Without this, a fresh deployment's Firestore has no config/categories
-    # document until someone manually runs seed_data.py, and every
-    # publish_fact call fails loudly until then (APPCE-93). No-op once the
-    # document exists — never overwrites customized categories.
-    ensure_categories_seeded()
-    yield
-
-
-app = FastAPI(title="Anamnesis API", lifespan=lifespan)
+app = FastAPI(title="Anamnesis API")
 
 # Local dev only — the Vite dev server's own origin. Harmless in
 # production (APPCE-56): the built frontend is served from this same
@@ -156,6 +151,15 @@ class FactUpdate(BaseModel):
     # change nothing, so it is refused below.
     content: str | None = Field(default=None, strict=True, min_length=1, max_length=2000)
     category: str | None = Field(default=None, strict=True, min_length=1, max_length=50)
+
+
+class CategoriesUpdate(BaseModel):
+    # forbid: an unknown field is a client bug. The list itself is checked in
+    # src/categories.py (length, names, duplicates); the cap here only keeps an
+    # absurd request from being parsed at all.
+    model_config = ConfigDict(extra="forbid")
+
+    categories: list[str] = Field(max_length=50)
 
 
 class TenantRename(BaseModel):
@@ -277,6 +281,24 @@ def remove_fact(tenant_id: str, fact_id: str, owner_uid: str = Depends(get_curre
     return {"status": "deleted"}
 
 
+# The Status panel (APPCE-110): what is open in the project's Jira project and
+# GitHub repo, read live with the user's own credentials, no model involved.
+@app.get("/tenants/{tenant_id}/jira_status")
+def get_jira_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    try:
+        return get_project_jira_status(tenant_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+
+@app.get("/tenants/{tenant_id}/github_status")
+def get_github_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    try:
+        return get_project_github_status(tenant_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+
 # Lazily-importing wrappers (APPCE-50, same pattern as get_runner/
 # restore_session below): src.pending_facts pulls in google-cloud-pubsub
 # (via src.publisher, for the approve path), which only these three
@@ -302,10 +324,24 @@ def reject_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) ->
     return _reject_pending_fact(tenant_id, pending_fact_id, owner_uid)
 
 
+def get_pending_fact_stats(tenant_id: str, owner_uid: str) -> dict:
+    from src.pending_facts import get_pending_fact_stats as _get_pending_fact_stats
+
+    return _get_pending_fact_stats(tenant_id, owner_uid)
+
+
 @app.get("/tenants/{tenant_id}/pending_facts")
 def get_pending_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
     try:
         return list_pending_facts(tenant_id, owner_uid)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+
+@app.get("/tenants/{tenant_id}/pending_facts/stats")
+def get_pending_facts_stats(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    try:
+        return get_pending_fact_stats(tenant_id, owner_uid)
     except PermissionError:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -318,6 +354,9 @@ def approve_pending_fact_endpoint(
         approve_pending_fact(tenant_id, pending_fact_id, owner_uid)
     except PermissionError:
         raise HTTPException(status_code=404, detail="Project not found")
+    except InvalidCategory as exc:
+        # The user removed this fact's category after it was staged.
+        raise HTTPException(status_code=400, detail=str(exc))
     except ValueError:
         raise HTTPException(status_code=404, detail="Pending fact not found")
     return {"status": "approved"}
@@ -406,6 +445,28 @@ def _settings_response(settings: dict) -> dict:
         "limits": {name: {"min": low, "max": high} for name, (low, high) in BOUNDS.items()},
         "defaults": dict(DEFAULTS),
     }
+
+
+# The user's own categories (APPCE-116): the suggested list until they change it.
+@app.get("/categories")
+def read_categories(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    return get_category_settings(owner_uid)
+
+
+@app.put("/categories")
+def update_categories(body: CategoriesUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    # owner_uid comes from the verified token, never the body.
+    try:
+        save_categories(owner_uid, body.categories)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return get_category_settings(owner_uid)
+
+
+@app.delete("/categories")
+def delete_categories(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    reset_categories(owner_uid)
+    return get_category_settings(owner_uid)
 
 
 @app.get("/settings")

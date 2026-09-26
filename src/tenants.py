@@ -49,7 +49,7 @@ def add_tenant(name: str, owner_uid: str) -> str:
     the guesswork instead of relying on the caller to get it right.
 
     Returns:
-        The generated tenant_id, e.g. "TMDB Hit Classifier" -> "tmdb_hit_classifier".
+        The generated tenant_id, e.g. "My Project" -> "my_project".
     """
     tenant_id = _slugify(name)
     client = get_client()
