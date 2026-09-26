@@ -1,0 +1,18 @@
+# The app on the emulators instead of real GCP (APPCE-120), for working with a
+# copy of the data (task db:dump / db:load) without touching the real database
+# or the deployed subscriber. Used by `task local:up`, on top of
+# docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d api
+#
+# Only the data services change: the model still runs on the real Vertex AI
+# (GOOGLE_CLOUD_PROJECT in the base file), so chat needs the same credentials.
+services:
+  api:
+    environment:
+      FIRESTORE_EMULATOR_HOST: firestore-emulator:8080
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      GCP_PROJECT_ID: anamnesis-local
+    depends_on:
+      - firestore-emulator
+      - pubsub-emulator

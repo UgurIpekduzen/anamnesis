@@ -143,6 +143,22 @@ tasks:
     cmds:
       - docker compose down firestore-emulator pubsub-emulator
 
+  local:up:
+    desc: Run the app on the emulators, not real GCP (APPCE-120) — then load a copy of the data with task db:load -- backups/<file>.json
+    cmds:
+      - docker compose up -d firestore-emulator pubsub-emulator
+      - until curl -s -o /dev/null localhost:8085 && curl -s -o /dev/null localhost:8080; do sleep 1; done
+      # The emulator subscription pushes to the dev subscriber, like Cloud Pub/Sub does in production.
+      - docker compose run --rm -e PUBSUB_EMULATOR_HOST=pubsub-emulator:8085 -e GCP_PROJECT_ID=anamnesis-local -e PUSH_ENDPOINT=http://subscriber:8080 uv run python setup_pubsub.py
+      - docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build api subscriber
+      - 'echo "Running on the emulators. They start empty: task db:load -- backups/<file>.json (again after every restart of the emulator)."'
+
+  local:down:
+    desc: Back to real GCP — stop the emulators and the dev subscriber, restart the API against the real database
+    cmds:
+      - docker compose stop subscriber firestore-emulator pubsub-emulator
+      - docker compose up -d --build api
+
   db:dump:
     desc: Back up the REAL Firestore database to backups/firestore-<time>.json (read-only; the file holds real data and is git-ignored)
     cmds:
