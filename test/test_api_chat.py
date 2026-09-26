@@ -4,10 +4,13 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 import api.main as api_main
+from api.routers import chat as chat_router
+from src.accounts.usage import DailyLimitExceeded
 
 OWNER = "test@example.com"
 WS_URL = "/ws/chat/some_tenant"
@@ -127,19 +130,19 @@ def chat(monkeypatch, spies):
         spies.loads.append((tenant_id, owner_uid, limit))
         return []
 
-    monkeypatch.setattr(api_main, "restore_session", fake_restore)
-    monkeypatch.setattr(api_main, "load_recent_turns", fake_load)
-    monkeypatch.setattr(api_main, "append_turn", lambda t, o, q, a: spies.saved.append((t, o, q, a)))
-    monkeypatch.setattr(api_main, "clear_turns", lambda t, o: spies.cleared.append((t, o)))
+    monkeypatch.setattr(chat_router, "restore_session", fake_restore)
+    monkeypatch.setattr(chat_router, "load_recent_turns", fake_load)
+    monkeypatch.setattr(chat_router, "append_turn", lambda t, o, q, a: spies.saved.append((t, o, q, a)))
+    monkeypatch.setattr(chat_router, "clear_turns", lambda t, o: spies.cleared.append((t, o)))
     monkeypatch.setattr(
-        api_main, "get_settings", lambda owner_uid: {"history_turns": 7, "daily_message_warning_threshold": 100}
+        chat_router, "get_settings", lambda owner_uid: {"history_turns": 7, "daily_message_warning_threshold": 100}
     )
-    monkeypatch.setattr(api_main, "verify_token", lambda token: OWNER)
-    monkeypatch.setattr(api_main, "get_owned_tenant", lambda tenant_id, owner_uid: {"name": "Some Tenant"})
-    monkeypatch.setattr(api_main, "get_runner", lambda owner_uid, tenant_id: runner)
-    monkeypatch.setattr(api_main, "record_message", lambda owner_uid: recorded.append(owner_uid))
+    monkeypatch.setattr(chat_router, "verify_token", lambda token: OWNER)
+    monkeypatch.setattr(chat_router, "get_owned_tenant", lambda tenant_id, owner_uid: {"name": "Some Tenant"})
+    monkeypatch.setattr(chat_router, "get_runner", lambda owner_uid, tenant_id: runner)
+    monkeypatch.setattr(chat_router, "record_message", lambda owner_uid: recorded.append(owner_uid))
     # A publish_fact confirmation looks for duplicates among the saved facts.
-    monkeypatch.setattr(api_main, "get_tenant_facts", lambda tenant_id, owner_uid: [])
+    monkeypatch.setattr(chat_router, "get_tenant_facts", lambda tenant_id, owner_uid: [])
     return TestClient(api_main.app), runner, recorded
 
 
@@ -150,14 +153,14 @@ def test_a_normal_message_reaches_the_agent_with_a_call_cap(chat):
         assert ws.receive_json() == {"type": "final", "text": "hi"}
 
     assert len(runner.calls) == 1
-    assert runner.calls[0]["run_config"].max_llm_calls == api_main.MAX_LLM_CALLS_PER_TURN
+    assert runner.calls[0]["run_config"].max_llm_calls == chat_router.MAX_LLM_CALLS_PER_TURN
     assert recorded == [OWNER]
 
 
 def test_an_oversized_message_is_rejected_before_the_agent_and_the_socket_survives(chat):
     client, runner, recorded = chat
     with open_chat(client) as ws:
-        ws.send_json({"message": "x" * (api_main.MAX_MESSAGE_CHARS + 1)})
+        ws.send_json({"message": "x" * (chat_router.MAX_MESSAGE_CHARS + 1)})
         assert ws.receive_json()["type"] == "error"
         assert runner.calls == []
         assert recorded == []
@@ -281,7 +284,7 @@ def test_tool_events_carry_ids_so_results_can_be_paired_with_their_calls():
     result = SimpleNamespace(id="call-1", name="get_tenant_facts", response={"result": []})
     event = SimpleNamespace(get_function_calls=lambda: [call], get_function_responses=lambda: [result])
 
-    assert api_main._event_to_messages(event) == [
+    assert chat_router._event_to_messages(event) == [
         {"type": "tool_call", "id": "call-1", "name": "get_tenant_facts", "args": {"tenant_id": "t"}},
         {"type": "tool_result", "id": "call-1", "name": "get_tenant_facts", "result": {"result": []}},
     ]
@@ -301,7 +304,7 @@ def test_the_model_sees_the_users_message_verbatim(chat):
 def test_the_length_limit_applies_to_the_full_message(chat):
     client, runner, _ = chat
     with open_chat(client) as ws:
-        ws.send_json({"message": "x" * api_main.MAX_MESSAGE_CHARS})
+        ws.send_json({"message": "x" * chat_router.MAX_MESSAGE_CHARS})
         assert ws.receive_json()["type"] == "final"
 
 
@@ -311,7 +314,7 @@ def test_connecting_to_a_project_the_user_does_not_own_is_refused(chat, monkeypa
     def not_owned(tenant_id, owner_uid):
         raise PermissionError("nope")
 
-    monkeypatch.setattr(api_main, "get_owned_tenant", not_owned)
+    monkeypatch.setattr(chat_router, "get_owned_tenant", not_owned)
 
     with client.websocket_connect(WS_URL) as ws:
         ws.send_json({"type": "auth", "token": "tok"})
@@ -347,7 +350,7 @@ def test_a_failing_save_does_not_break_the_conversation(chat, monkeypatch):
     def broken(*args):
         raise RuntimeError("firestore is down")
 
-    monkeypatch.setattr(api_main, "append_turn", broken)
+    monkeypatch.setattr(chat_router, "append_turn", broken)
 
     with open_chat(client) as ws:
         ws.send_json({"message": "one"})
@@ -376,7 +379,7 @@ def test_a_failing_restore_does_not_stop_the_user_from_chatting(chat, monkeypatc
     async def broken_restore(*args):
         raise RuntimeError("firestore is down")
 
-    monkeypatch.setattr(api_main, "restore_session", broken_restore)
+    monkeypatch.setattr(chat_router, "restore_session", broken_restore)
 
     with open_chat(client) as ws:
         ws.send_json({"message": "hello"})
@@ -399,7 +402,7 @@ def test_a_failing_clear_does_not_break_the_conversation(chat, monkeypatch):
     def broken(*args):
         raise RuntimeError("firestore is down")
 
-    monkeypatch.setattr(api_main, "clear_turns", broken)
+    monkeypatch.setattr(chat_router, "clear_turns", broken)
 
     with open_chat(client) as ws:
         ws.send_json({"type": "reset"})
@@ -439,7 +442,7 @@ def test_the_message_is_counted_before_the_model_is_called(chat, monkeypatch):
     client, runner, _ = chat
     order = []
 
-    monkeypatch.setattr(api_main, "record_message", lambda owner_uid: order.append("counted"))
+    monkeypatch.setattr(chat_router, "record_message", lambda owner_uid: order.append("counted"))
     original_run = runner.run
 
     def run(**kwargs):
@@ -457,9 +460,9 @@ def test_the_message_is_counted_before_the_model_is_called(chat, monkeypatch):
 
 def _over_the_limit(monkeypatch):
     def refuse(owner_uid):
-        raise api_main.DailyLimitExceeded(200)
+        raise DailyLimitExceeded(200)
 
-    monkeypatch.setattr(api_main, "record_message", refuse)
+    monkeypatch.setattr(chat_router, "record_message", refuse)
 
 
 def test_a_message_over_the_daily_limit_never_reaches_the_agent(chat, spies, monkeypatch):
@@ -485,7 +488,7 @@ def test_the_connection_survives_a_refused_message(chat, monkeypatch):
         assert ws.receive_json()["type"] == "error"
         # Still open: a later message is judged on its own (e.g. after the
         # day rolls over) and reaches the agent.
-        monkeypatch.setattr(api_main, "record_message", lambda owner_uid: 1)
+        monkeypatch.setattr(chat_router, "record_message", lambda owner_uid: 1)
         ws.send_json({"message": "again"})
         assert ws.receive_json() == {"type": "final", "text": "hi"}
 
@@ -514,7 +517,7 @@ def test_a_failing_usage_write_does_not_break_the_conversation(chat, monkeypatch
     def broken(owner_uid):
         raise RuntimeError("firestore is down")
 
-    monkeypatch.setattr(api_main, "record_message", broken)
+    monkeypatch.setattr(chat_router, "record_message", broken)
 
     with open_chat(client) as ws:
         ws.send_json({"message": "one"})
@@ -538,10 +541,10 @@ def test_usage_save_and_clear_run_off_the_event_loop_thread(chat, monkeypatch):
 
         return fake
 
-    monkeypatch.setattr(api_main, "restore_session", fake_restore)
-    monkeypatch.setattr(api_main, "record_message", note("usage"))
-    monkeypatch.setattr(api_main, "append_turn", note("save"))
-    monkeypatch.setattr(api_main, "clear_turns", note("clear"))
+    monkeypatch.setattr(chat_router, "restore_session", fake_restore)
+    monkeypatch.setattr(chat_router, "record_message", note("usage"))
+    monkeypatch.setattr(chat_router, "append_turn", note("save"))
+    monkeypatch.setattr(chat_router, "clear_turns", note("clear"))
 
     with open_chat(client) as ws:
         ws.send_json({"type": "reset"})
@@ -576,7 +579,7 @@ def test_the_token_is_read_from_the_auth_frame_not_the_url(chat, monkeypatch):
         seen.append(token)
         return OWNER
 
-    monkeypatch.setattr(api_main, "verify_token", verify)
+    monkeypatch.setattr(chat_router, "verify_token", verify)
 
     with open_chat(client, token="the-real-token"):
         pass
@@ -589,9 +592,9 @@ def test_an_invalid_token_is_refused_and_never_reaches_the_agent(chat, monkeypat
     client, runner, _ = chat
 
     def reject(token):
-        raise api_main.HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token")
 
-    monkeypatch.setattr(api_main, "verify_token", reject)
+    monkeypatch.setattr(chat_router, "verify_token", reject)
 
     with client.websocket_connect(WS_URL) as ws:
         ws.send_json({"type": "auth", "token": "bad"})
@@ -627,17 +630,17 @@ def test_a_first_frame_that_is_not_json_is_refused(chat):
 def test_an_oversized_first_frame_is_refused_without_verifying_it(chat, monkeypatch):
     client, _, _ = chat
     verified = []
-    monkeypatch.setattr(api_main, "verify_token", lambda token: verified.append(token) or OWNER)
+    monkeypatch.setattr(chat_router, "verify_token", lambda token: verified.append(token) or OWNER)
 
     with client.websocket_connect(WS_URL) as ws:
-        ws.send_json({"type": "auth", "token": "x" * api_main.MAX_AUTH_FRAME_CHARS})
+        ws.send_json({"type": "auth", "token": "x" * chat_router.MAX_AUTH_FRAME_CHARS})
         _assert_closed_with_policy_violation(ws)
     assert verified == []
 
 
 def test_a_connection_that_never_authenticates_is_dropped(chat, monkeypatch):
     client, _, _ = chat
-    monkeypatch.setattr(api_main, "AUTH_TIMEOUT_SECONDS", 0.2)
+    monkeypatch.setattr(chat_router, "AUTH_TIMEOUT_SECONDS", 0.2)
 
     with client.websocket_connect(WS_URL) as ws:
         _assert_closed_with_policy_violation(ws)
@@ -682,7 +685,7 @@ def test_a_fact_that_is_already_saved_is_flagged_on_its_confirmation(chat, monke
         {"fact_id": "f1", "content": "Uses PostgreSQL", "category": "architecture"},
         {"fact_id": "f2", "content": "Deploys on Cloud Run", "category": "architecture"},
     ]
-    monkeypatch.setattr(api_main, "get_tenant_facts", lambda tenant_id, owner_uid: saved)
+    monkeypatch.setattr(chat_router, "get_tenant_facts", lambda tenant_id, owner_uid: saved)
     runner.script = [
         [FakeConfirmationEvent("req-1", "publish_fact", {"content": "uses postgresql.", "category": "decision"})]
     ]
@@ -711,7 +714,7 @@ def test_a_failed_duplicate_lookup_does_not_block_the_confirmation(chat, monkeyp
     def down(tenant_id, owner_uid):
         raise RuntimeError("Firestore unavailable")
 
-    monkeypatch.setattr(api_main, "get_tenant_facts", down)
+    monkeypatch.setattr(chat_router, "get_tenant_facts", down)
     runner.script = [[FakeConfirmationEvent("req-1", "publish_fact", {"content": "x", "category": "todo"})]]
 
     with open_chat(client) as ws:

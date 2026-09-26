@@ -4,6 +4,7 @@ import pytest
 from starlette.testclient import TestClient
 
 import api.main as api_main
+from api.routers import chat as chat_router
 
 OWNER = "test@example.com"
 
@@ -22,7 +23,7 @@ def client(monkeypatch, signed_in_owner):
             }
         ]
 
-    monkeypatch.setattr(api_main, "load_recent_turns", fake_load)
+    monkeypatch.setattr(chat_router, "load_recent_turns", fake_load)
     test_client = TestClient(api_main.app)
     test_client.calls = calls
     yield test_client
@@ -33,14 +34,14 @@ def test_history_returns_the_saved_turns_for_the_authenticated_user(client):
 
     assert response.status_code == 200
     assert response.json() == [{"question": "q", "answer": "a", "created_at": "2026-09-21T12:00:00Z"}]
-    assert client.calls == [("some_tenant", OWNER, api_main.CHAT_HISTORY_DISPLAY_TURNS)]
+    assert client.calls == [("some_tenant", OWNER, chat_router.CHAT_HISTORY_DISPLAY_TURNS)]
 
 
 def test_history_of_a_project_the_user_does_not_own_is_a_404(client, monkeypatch):
     def not_owned(tenant_id, owner_uid, limit):
         raise PermissionError("nope")
 
-    monkeypatch.setattr(api_main, "load_recent_turns", not_owned)
+    monkeypatch.setattr(chat_router, "load_recent_turns", not_owned)
 
     assert client.get("/tenants/not_mine/history").status_code == 404
 
