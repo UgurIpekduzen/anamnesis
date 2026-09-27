@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import require_owner
 from src.accounts.allowed_emails import OWNER_EMAILS, add_allowed_email, get_extra_allowed_emails, remove_allowed_email
+from src.accounts.usage import GLOBAL_DAILY_MESSAGE_LIMIT, get_global_today_count, get_usage_for
 
 router = APIRouter()
 
@@ -38,3 +39,16 @@ def add_allowed_email_endpoint(body: AllowedEmailCreate, owner_uid: str = Depend
 def remove_allowed_email_endpoint(email: str, owner_uid: str = Depends(require_owner)) -> dict:
     remove_allowed_email(email)
     return {"extra_emails": sorted(get_extra_allowed_emails())}
+
+
+# Today's message count for every allowed user, plus the shared ceiling
+# (APPCE-122) — the same reasoning as get_allowed_emails above applies:
+# owner-only, and the list comes from the allowlist itself rather than a
+# separate "users" collection.
+@router.get("/admin/usage")
+def get_usage(owner_uid: str = Depends(require_owner)) -> dict:
+    emails = OWNER_EMAILS | get_extra_allowed_emails()
+    return {
+        "users": get_usage_for(list(emails)),
+        "global": {"count": get_global_today_count(), "limit": GLOBAL_DAILY_MESSAGE_LIMIT},
+    }
