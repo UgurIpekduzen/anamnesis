@@ -135,6 +135,12 @@ def get_global_today_count() -> int:
     return _count(doc, today)
 
 
+def delete_usage(owner_uid: str) -> None:
+    """Drop owner_uid's usage record — part of wiping a user's data
+    entirely (src.tools.wipe_user), not something a user does themselves."""
+    get_client().collection("usage").document(owner_uid).delete()
+
+
 def get_usage_for(emails: list[str]) -> list[dict]:
     """Today's count and role for each of the given emails, sorted by email —
     the admin usage table's rows (APPCE-122/123)."""
