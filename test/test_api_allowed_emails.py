@@ -135,3 +135,59 @@ def test_setting_the_role_back_to_tester(api):
     response = api.put("/admin/allowed_emails/already-allowed@example.com/role", json={"role": "tester"})
 
     assert response.status_code == 200
+
+
+def test_owner_can_wipe_a_users_data_with_a_matching_confirmation(api, monkeypatch):
+    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
+    seen = {}
+
+    def fake_wipe_user(email, confirm=False):
+        seen["email"], seen["confirm"] = email, confirm
+        return {"tenants": ["t1"], "github_connection": True, "deleted": True}
+
+    monkeypatch.setattr(admin, "wipe_user", fake_wipe_user)
+
+    response = api.post(
+        "/admin/users/already-allowed@example.com/wipe", json={"confirm_email": "already-allowed@example.com"}
+    )
+
+    assert response.status_code == 200
+    assert seen == {"email": "already-allowed@example.com", "confirm": True}
+    body = response.json()
+    assert body["deleted"] is True
+    assert body["extra_users"] == [{"email": "already-allowed@example.com", "role": "tester"}]
+
+
+def test_wiping_with_a_mismatched_confirmation_deletes_nothing(api, monkeypatch):
+    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
+    called = []
+    monkeypatch.setattr(admin, "wipe_user", lambda email, confirm=False: called.append(email))
+
+    response = api.post("/admin/users/already-allowed@example.com/wipe", json={"confirm_email": "typo@example.com"})
+
+    assert response.status_code == 400
+    assert not called
+
+
+def test_the_owner_cannot_be_wiped(api, monkeypatch):
+    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
+
+    def reject(email, confirm=False):
+        raise ValueError("The owner's data can't be wiped.")
+
+    monkeypatch.setattr(admin, "wipe_user", reject)
+
+    response = api.post("/admin/users/" + OWNER + "/wipe", json={"confirm_email": OWNER})
+
+    assert response.status_code == 400
+    assert "owner" in response.json()["detail"]
+
+
+def test_non_owner_cannot_wipe_anyone(api):
+    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: NON_OWNER
+
+    response = api.post(
+        "/admin/users/already-allowed@example.com/wipe", json={"confirm_email": "already-allowed@example.com"}
+    )
+
+    assert response.status_code == 403

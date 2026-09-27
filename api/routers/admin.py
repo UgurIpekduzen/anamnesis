@@ -14,6 +14,7 @@ from src.accounts.allowed_emails import (
     set_role,
 )
 from src.accounts.usage import GLOBAL_DAILY_MESSAGE_LIMIT, get_global_today_count, get_usage_for
+from src.tools.wipe_user import wipe_user
 
 
 def _extra_users() -> list[dict]:
@@ -73,6 +74,29 @@ def set_role_endpoint(email: str, body: RoleUpdate, owner_uid: str = Depends(req
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"extra_users": _extra_users()}
+
+
+class UserWipeConfirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    confirm_email: str = Field(strict=True, min_length=1, max_length=320)
+
+
+# Permanently delete an invited user's data — not just remove their access
+# (APPCE-123). Destructive and irreversible, so a single click isn't enough:
+# the caller must repeat the exact email back (confirm_email), the same
+# friction src.tools.db_backup's --confirm-project uses for a whole-database
+# wipe. The owner can never be targeted — wipe_user itself refuses, this
+# just turns that refusal into a 400 instead of a 500.
+@router.post("/admin/users/{email}/wipe")
+def wipe_user_endpoint(email: str, body: UserWipeConfirm, owner_uid: str = Depends(require_owner)) -> dict:
+    if body.confirm_email != email:
+        raise HTTPException(status_code=400, detail="Confirmation email doesn't match.")
+    try:
+        result = wipe_user(email, confirm=True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {**result, "extra_users": _extra_users()}
 
 
 # Today's message count and role for every allowed user, plus the shared
