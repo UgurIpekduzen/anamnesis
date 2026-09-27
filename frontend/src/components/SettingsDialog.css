@@ -180,7 +180,7 @@
   white-space: nowrap;
 }
 
-.settings-access-unlimited {
+.settings-access-role {
   background: none;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -191,12 +191,12 @@
   white-space: nowrap;
 }
 
-.settings-access-unlimited[aria-pressed="true"] {
+.settings-access-role[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.settings-access-unlimited:disabled {
+.settings-access-role:disabled {
   opacity: 0.5;
   cursor: default;
 }

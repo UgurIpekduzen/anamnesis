@@ -14,3 +14,13 @@
   color: var(--text-muted);
   white-space: nowrap;
 }
+
+.admin-usage-role {
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding-right: 8px;
+  white-space: nowrap;
+}

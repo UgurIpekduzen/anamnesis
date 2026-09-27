@@ -1,13 +1,6 @@
 import { useEffect, useState } from "react";
 
-import {
-  addAllowedEmail,
-  getAllowedEmails,
-  markUnlimited,
-  removeAllowedEmail,
-  unmarkUnlimited,
-  type AllowedEmails,
-} from "../../api";
+import { addAllowedEmail, getAllowedEmails, removeAllowedEmail, setRole, type AllowedEmails, type Role } from "../../api";
 
 interface Props {
   idToken: string;
@@ -33,8 +26,8 @@ function AccessSection({ idToken }: Props) {
     setAccessBusy(true);
     setAccessError(null);
     try {
-      const { extra_emails } = await addAllowedEmail(idToken, newEmail.trim());
-      setAllowedEmails((prev) => (prev ? { ...prev, extra_emails } : prev));
+      const { extra_users } = await addAllowedEmail(idToken, newEmail.trim());
+      setAllowedEmails((prev) => (prev ? { ...prev, extra_users } : prev));
       setNewEmail("");
     } catch (e) {
       setAccessError(e instanceof Error ? e.message : "Couldn't add that email.");
@@ -46,23 +39,20 @@ function AccessSection({ idToken }: Props) {
     setAccessBusy(true);
     setAccessError(null);
     try {
-      const { extra_emails } = await removeAllowedEmail(idToken, email);
-      // The backend also drops the email's unlimited flag when it's removed.
-      setAllowedEmails((prev) =>
-        prev ? { ...prev, extra_emails, unlimited_emails: prev.unlimited_emails.filter((e) => e !== email) } : prev,
-      );
+      const { extra_users } = await removeAllowedEmail(idToken, email);
+      setAllowedEmails((prev) => (prev ? { ...prev, extra_users } : prev));
     } catch {
       setAccessError("Couldn't remove that email. Please try again.");
     }
     setAccessBusy(false);
   }
 
-  async function toggleUnlimited(email: string, unlimited: boolean) {
+  async function changeRole(email: string, role: Role) {
     setAccessBusy(true);
     setAccessError(null);
     try {
-      const { unlimited_emails } = unlimited ? await unmarkUnlimited(idToken, email) : await markUnlimited(idToken, email);
-      setAllowedEmails((prev) => (prev ? { ...prev, unlimited_emails } : prev));
+      const { extra_users } = await setRole(idToken, email, role);
+      setAllowedEmails((prev) => (prev ? { ...prev, extra_users } : prev));
     } catch (e) {
       setAccessError(e instanceof Error ? e.message : "Couldn't change that.");
     }
@@ -75,8 +65,8 @@ function AccessSection({ idToken }: Props) {
     <div className="settings-field">
       <div className="settings-label">Access</div>
       <small className="settings-hint">
-        Anyone below can sign in to their own, fully separate projects — never yours. By default they're subject to a
-        one-time lifetime message cap; mark someone "Unlimited" to exempt them from it (e.g. a collaborator, not a
+        Anyone below can sign in to their own, fully separate projects — never yours. "Tester" is the default: a
+        one-time lifetime message cap. Switch someone to "User" to exempt them from it (e.g. a collaborator, not a
         one-off tester).
       </small>
       <ul className="settings-access-list">
@@ -85,30 +75,27 @@ function AccessSection({ idToken }: Props) {
             {email} <span className="settings-hint">(owner)</span>
           </li>
         ))}
-        {allowedEmails.extra_emails.map((email) => {
-          const unlimited = allowedEmails.unlimited_emails.includes(email);
-          return (
-            <li key={email}>
-              <span>{email}</span>
-              <button
-                className="settings-access-unlimited"
-                onClick={() => toggleUnlimited(email, unlimited)}
-                disabled={accessBusy}
-                aria-pressed={unlimited}
-              >
-                {unlimited ? "Unlimited" : "Mark unlimited"}
-              </button>
-              <button
-                className="settings-access-remove"
-                onClick={() => removeEmail(email)}
-                disabled={accessBusy}
-                aria-label={`Remove ${email}`}
-              >
-                ×
-              </button>
-            </li>
-          );
-        })}
+        {allowedEmails.extra_users.map(({ email, role }) => (
+          <li key={email}>
+            <span>{email}</span>
+            <button
+              className="settings-access-role"
+              onClick={() => changeRole(email, role === "user" ? "tester" : "user")}
+              disabled={accessBusy}
+              aria-pressed={role === "user"}
+            >
+              {role === "user" ? "User" : "Tester"}
+            </button>
+            <button
+              className="settings-access-remove"
+              onClick={() => removeEmail(email)}
+              disabled={accessBusy}
+              aria-label={`Remove ${email}`}
+            >
+              ×
+            </button>
+          </li>
+        ))}
       </ul>
       <input
         placeholder="Email to grant access to"

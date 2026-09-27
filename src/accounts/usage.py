@@ -3,7 +3,7 @@ from datetime import datetime, time, timedelta, timezone
 
 from google.cloud import firestore
 
-from src.accounts.allowed_emails import OWNER_EMAILS, get_unlimited_emails
+from src.accounts.allowed_emails import get_role
 from src.core.firestore_client import get_client
 
 # A soft, visible warning threshold — not an enforced limit. One shared
@@ -97,8 +97,13 @@ def record_message(owner_uid: str) -> int:
     client = get_client()
     user_ref = client.collection("usage").document(owner_uid)
     global_ref = client.collection("usage").document(GLOBAL_USAGE_DOC_ID)
-    exempt = owner_uid in OWNER_EMAILS or owner_uid in get_unlimited_emails()
-    lifetime_limit = None if exempt else TESTER_LIFETIME_MESSAGE_LIMIT
+    # Only a "tester" (the default for an invited email) is subject to the
+    # lifetime cap — "admin" (the owner) and "user" (explicitly exempted,
+    # APPCE-123) are not. force_refresh=True: this is what the exemption
+    # actually gates, so a role change (e.g. an owner revoking "user" after
+    # spotting abuse) must apply to the very next message, not up to a
+    # cache-TTL later on whichever Cloud Run instance handles it.
+    lifetime_limit = TESTER_LIFETIME_MESSAGE_LIMIT if get_role(owner_uid, force_refresh=True) == "tester" else None
     return _count_message(
         client.transaction(),
         user_ref,
@@ -131,6 +136,6 @@ def get_global_today_count() -> int:
 
 
 def get_usage_for(emails: list[str]) -> list[dict]:
-    """Today's count for each of the given emails, sorted by email — the
-    admin usage table's rows (APPCE-122)."""
-    return [{"email": email, "count": get_today_count(email)} for email in sorted(emails)]
+    """Today's count and role for each of the given emails, sorted by email —
+    the admin usage table's rows (APPCE-122/123)."""
+    return [{"email": email, "count": get_today_count(email), "role": get_role(email)} for email in sorted(emails)]

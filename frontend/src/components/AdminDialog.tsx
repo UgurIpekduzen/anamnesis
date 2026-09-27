@@ -33,9 +33,10 @@ function UsageSection({ idToken }: { idToken: string }) {
         <>
           <table className="admin-usage-table">
             <tbody>
-              {usage.users.map(({ email, count }) => (
+              {usage.users.map(({ email, count, role }) => (
                 <tr key={email}>
                   <td>{email}</td>
+                  <td className="admin-usage-role">{role}</td>
                   <td className="admin-usage-count">{count}</td>
                 </tr>
               ))}

@@ -51,7 +51,7 @@ def _attempt(owner_uid):
 def test_concurrent_messages_never_push_a_user_past_their_own_limit(monkeypatch):
     monkeypatch.setattr(usage, "DAILY_MESSAGE_HARD_LIMIT", 5)
     monkeypatch.setattr(usage, "GLOBAL_DAILY_MESSAGE_LIMIT", 1000)
-    monkeypatch.setattr(usage, "OWNER_EMAILS", {"owner@example.com"})
+    monkeypatch.setattr(allowed_emails, "OWNER_EMAILS", {"owner@example.com"})
     owner_uid = f"tester-{uuid.uuid4().hex[:8]}@example.com"
 
     # 2x over-subscribed, not 4x — enough to exercise the race without
@@ -71,7 +71,7 @@ def test_concurrent_messages_never_push_a_user_past_their_own_limit(monkeypatch)
 def test_concurrent_messages_never_push_the_global_count_past_its_limit(monkeypatch):
     monkeypatch.setattr(usage, "DAILY_MESSAGE_HARD_LIMIT", 1000)
     monkeypatch.setattr(usage, "GLOBAL_DAILY_MESSAGE_LIMIT", 5)
-    monkeypatch.setattr(usage, "OWNER_EMAILS", {"owner@example.com"})
+    monkeypatch.setattr(allowed_emails, "OWNER_EMAILS", {"owner@example.com"})
     usage.get_client().collection("usage").document(usage.GLOBAL_USAGE_DOC_ID).delete()
 
     with ThreadPoolExecutor(max_workers=10) as pool:
@@ -86,7 +86,7 @@ def test_concurrent_messages_never_push_a_tester_past_their_lifetime_cap(monkeyp
     monkeypatch.setattr(usage, "TESTER_LIFETIME_MESSAGE_LIMIT", 5)
     monkeypatch.setattr(usage, "DAILY_MESSAGE_HARD_LIMIT", 1000)
     monkeypatch.setattr(usage, "GLOBAL_DAILY_MESSAGE_LIMIT", 1000)
-    monkeypatch.setattr(usage, "OWNER_EMAILS", {"owner@example.com"})
+    monkeypatch.setattr(allowed_emails, "OWNER_EMAILS", {"owner@example.com"})
     tester = f"tester-{uuid.uuid4().hex[:8]}@example.com"
 
     with ThreadPoolExecutor(max_workers=10) as pool:
@@ -108,21 +108,20 @@ def test_a_non_owner_is_refused_before_any_data_is_touched():
 
     assert client.get("/admin/usage").status_code == 403
     assert client.get("/admin/allowed_emails").status_code == 403
-    assert client.post("/admin/allowed_emails/x@example.com/unlimited").status_code == 403
-    assert client.delete("/admin/allowed_emails/x@example.com/unlimited").status_code == 403
+    assert client.put("/admin/allowed_emails/x@example.com/role", json={"role": "user"}).status_code == 403
 
 
-def test_the_owner_is_really_refused_from_marking_themselves_unlimited(monkeypatch):
+def test_the_owner_is_really_refused_from_being_given_a_role(monkeypatch):
     owner = f"owner-{uuid.uuid4().hex[:8]}@example.com"
     monkeypatch.setattr(allowed_emails, "OWNER_EMAILS", {owner})
     monkeypatch.setattr(api.deps, "OWNER_EMAILS", {owner})
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: owner
     client = TestClient(api_main.app)
 
-    response = client.post(f"/admin/allowed_emails/{owner}/unlimited")
+    response = client.put(f"/admin/allowed_emails/{owner}/role", json={"role": "user"})
 
     assert response.status_code == 400
-    assert owner not in allowed_emails.get_unlimited_emails(force_refresh=True)
+    assert allowed_emails.get_role(owner) == "admin"
 
 
 def test_an_email_not_on_the_allowlist_is_really_refused(monkeypatch):
@@ -133,24 +132,23 @@ def test_an_email_not_on_the_allowlist_is_really_refused(monkeypatch):
     client = TestClient(api_main.app)
     unknown = f"unknown-{uuid.uuid4().hex[:8]}@example.com"
 
-    response = client.post(f"/admin/allowed_emails/{unknown}/unlimited")
+    response = client.put(f"/admin/allowed_emails/{unknown}/role", json={"role": "user"})
 
     assert response.status_code == 400
-    assert unknown not in allowed_emails.get_unlimited_emails(force_refresh=True)
+    assert allowed_emails.get_role(unknown) == "tester"
 
 
-def test_marking_unlimited_end_to_end_actually_exempts_the_email(monkeypatch):
+def test_setting_the_role_to_user_end_to_end_actually_exempts_the_email(monkeypatch):
     owner = f"owner-{uuid.uuid4().hex[:8]}@example.com"
     monkeypatch.setattr(allowed_emails, "OWNER_EMAILS", {owner})
     monkeypatch.setattr(api.deps, "OWNER_EMAILS", {owner})
-    monkeypatch.setattr(usage, "OWNER_EMAILS", {owner})
     monkeypatch.setattr(usage, "TESTER_LIFETIME_MESSAGE_LIMIT", 1)
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: owner
     client = TestClient(api_main.app)
     tester = f"tester-{uuid.uuid4().hex[:8]}@example.com"
     add_allowed_email(tester)
     try:
-        response = client.post(f"/admin/allowed_emails/{tester}/unlimited")
+        response = client.put(f"/admin/allowed_emails/{tester}/role", json={"role": "user"})
         assert response.status_code == 200
 
         assert [record_message(tester) for _ in range(3)] == [1, 2, 3]

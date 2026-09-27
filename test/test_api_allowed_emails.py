@@ -12,12 +12,11 @@ NON_OWNER = "someone-else@example.com"
 @pytest.fixture
 def api(monkeypatch):
     monkeypatch.setattr(admin, "get_extra_allowed_emails", lambda: {"already-allowed@example.com"})
+    monkeypatch.setattr(admin, "get_roles", lambda emails: {e: "tester" for e in emails})
     monkeypatch.setattr(admin, "add_allowed_email", lambda email: None)
     monkeypatch.setattr(admin, "remove_allowed_email", lambda email: None)
-    monkeypatch.setattr(admin, "get_unlimited_emails", lambda: set())
-    monkeypatch.setattr(admin, "mark_unlimited", lambda email: None)
-    monkeypatch.setattr(admin, "unmark_unlimited", lambda email: None)
-    monkeypatch.setattr(admin, "get_usage_for", lambda emails: [{"email": e, "count": 0} for e in sorted(emails)])
+    monkeypatch.setattr(admin, "set_role", lambda email, role: None)
+    monkeypatch.setattr(admin, "get_usage_for", lambda emails: [{"email": e, "count": 0, "role": "tester"} for e in sorted(emails)])
     monkeypatch.setattr(admin, "get_global_today_count", lambda: 0)
     monkeypatch.setattr(admin, "GLOBAL_DAILY_MESSAGE_LIMIT", 1000)
     yield TestClient(api_main.app)
@@ -31,8 +30,7 @@ def test_owner_can_list_allowed_emails(api):
     assert response.status_code == 200
     assert response.json() == {
         "owner_emails": [OWNER],
-        "extra_emails": ["already-allowed@example.com"],
-        "unlimited_emails": [],
+        "extra_users": [{"email": "already-allowed@example.com", "role": "tester"}],
     }
 
 
@@ -42,6 +40,7 @@ def test_non_owner_is_rejected_from_every_admin_endpoint(api):
     assert api.get("/admin/allowed_emails").status_code == 403
     assert api.post("/admin/allowed_emails", json={"email": "x@example.com"}).status_code == 403
     assert api.delete("/admin/allowed_emails/x@example.com").status_code == 403
+    assert api.put("/admin/allowed_emails/x@example.com/role", json={"role": "user"}).status_code == 403
 
 
 def test_owner_can_add_an_email(api):
@@ -80,7 +79,7 @@ def test_owner_can_read_usage_across_every_allowed_user(api, monkeypatch):
 
     def fake_get_usage_for(emails):
         seen["emails"] = emails
-        return [{"email": e, "count": 3} for e in sorted(emails)]
+        return [{"email": e, "count": 3, "role": "tester"} for e in sorted(emails)]
 
     monkeypatch.setattr(admin, "get_usage_for", fake_get_usage_for)
     monkeypatch.setattr(admin, "get_global_today_count", lambda: 7)
@@ -90,7 +89,10 @@ def test_owner_can_read_usage_across_every_allowed_user(api, monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {
-        "users": [{"email": "already-allowed@example.com", "count": 3}, {"email": OWNER, "count": 3}],
+        "users": [
+            {"email": "already-allowed@example.com", "count": 3, "role": "tester"},
+            {"email": OWNER, "count": 3, "role": "tester"},
+        ],
         "global": {"count": 7, "limit": 1000},
     }
     # The owner is included even though it isn't in the "extra" list.
@@ -103,40 +105,33 @@ def test_non_owner_cannot_read_usage(api):
     assert api.get("/admin/usage").status_code == 403
 
 
-def test_owner_can_mark_an_email_unlimited(api, monkeypatch):
+def test_owner_can_set_an_emails_role(api, monkeypatch):
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
-    monkeypatch.setattr(admin, "get_unlimited_emails", lambda: {"already-allowed@example.com"})
+    monkeypatch.setattr(admin, "get_roles", lambda emails: {e: "user" for e in emails})
 
-    response = api.post("/admin/allowed_emails/already-allowed@example.com/unlimited")
+    response = api.put("/admin/allowed_emails/already-allowed@example.com/role", json={"role": "user"})
 
     assert response.status_code == 200
-    assert response.json() == {"unlimited_emails": ["already-allowed@example.com"]}
+    assert response.json() == {"extra_users": [{"email": "already-allowed@example.com", "role": "user"}]}
 
 
-def test_marking_an_ineligible_email_surfaces_the_reason(api, monkeypatch):
+def test_setting_an_ineligible_role_surfaces_the_reason(api, monkeypatch):
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
 
-    def reject(email):
+    def reject(email, role):
         raise ValueError("That email isn't on the allowlist.")
 
-    monkeypatch.setattr(admin, "mark_unlimited", reject)
+    monkeypatch.setattr(admin, "set_role", reject)
 
-    response = api.post("/admin/allowed_emails/unknown@example.com/unlimited")
+    response = api.put("/admin/allowed_emails/unknown@example.com/role", json={"role": "user"})
 
     assert response.status_code == 400
     assert "allowlist" in response.json()["detail"]
 
 
-def test_owner_can_unmark_an_email(api):
+def test_setting_the_role_back_to_tester(api):
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
 
-    response = api.delete("/admin/allowed_emails/already-allowed@example.com/unlimited")
+    response = api.put("/admin/allowed_emails/already-allowed@example.com/role", json={"role": "tester"})
 
     assert response.status_code == 200
-
-
-def test_non_owner_cannot_mark_or_unmark(api):
-    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: NON_OWNER
-
-    assert api.post("/admin/allowed_emails/x@example.com/unlimited").status_code == 403
-    assert api.delete("/admin/allowed_emails/x@example.com/unlimited").status_code == 403
