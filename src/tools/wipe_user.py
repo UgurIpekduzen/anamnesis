@@ -10,16 +10,18 @@ by default, a deletion only when explicitly confirmed.
 """
 
 from src.accounts.allowed_emails import OWNER_EMAILS, get_extra_allowed_emails, remove_allowed_email
+from src.accounts.settings import reset_settings
 from src.accounts.usage import delete_usage
 from src.core.firestore_client import get_client
 from src.facts.categories import USER_COLLECTION as CATEGORIES_COLLECTION
+from src.facts.categories import reset_categories
 from src.integrations.github.connections import delete_github_connection, has_github_connection
 from src.integrations.jira.connections import delete_jira_connection, has_jira_connection
 from src.projects.tenants import delete_tenant, list_tenants
 
-# Matches src.accounts.settings' own (unexported) collection name — no
-# delete_settings-for-wipe helper exists there beyond reset_settings, whose
-# docstring already describes deleting the same document.
+# Matches src.accounts.settings' own (unexported) collection name — used
+# only for the dry-run existence check; the actual deletion goes through
+# reset_settings, which also drops that module's in-process cache.
 SETTINGS_COLLECTION = "user_settings"
 
 
@@ -68,8 +70,12 @@ def wipe_user(email: str, confirm: bool = False) -> dict:
     delete_github_connection(email)
     delete_jira_connection(email)
     delete_usage(email)
-    client.collection(CATEGORIES_COLLECTION).document(email).delete()
-    client.collection(SETTINGS_COLLECTION).document(email).delete()
+    # reset_categories/reset_settings, not a raw client.delete(): each of
+    # those modules keeps a short-lived in-process read cache (categories.py,
+    # settings.py), and only their own reset functions know to drop it too —
+    # a direct Firestore delete here would leave a stale cached value behind.
+    reset_categories(email)
+    reset_settings(email)
     if summary["on_allowlist"]:
         remove_allowed_email(email)
 
