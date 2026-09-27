@@ -166,12 +166,39 @@
 .settings-access-list li {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   font-size: 13px;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 8px;
+}
+
+.settings-access-list li > :first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-access-unlimited {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.settings-access-unlimited[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.settings-access-unlimited:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .settings-access-remove {

@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 
-import { addAllowedEmail, getAllowedEmails, removeAllowedEmail, type AllowedEmails } from "../../api";
+import {
+  addAllowedEmail,
+  getAllowedEmails,
+  markUnlimited,
+  removeAllowedEmail,
+  unmarkUnlimited,
+  type AllowedEmails,
+} from "../../api";
 
 interface Props {
   idToken: string;
@@ -40,9 +47,24 @@ function AccessSection({ idToken }: Props) {
     setAccessError(null);
     try {
       const { extra_emails } = await removeAllowedEmail(idToken, email);
-      setAllowedEmails((prev) => (prev ? { ...prev, extra_emails } : prev));
+      // The backend also drops the email's unlimited flag when it's removed.
+      setAllowedEmails((prev) =>
+        prev ? { ...prev, extra_emails, unlimited_emails: prev.unlimited_emails.filter((e) => e !== email) } : prev,
+      );
     } catch {
       setAccessError("Couldn't remove that email. Please try again.");
+    }
+    setAccessBusy(false);
+  }
+
+  async function toggleUnlimited(email: string, unlimited: boolean) {
+    setAccessBusy(true);
+    setAccessError(null);
+    try {
+      const { unlimited_emails } = unlimited ? await unmarkUnlimited(idToken, email) : await markUnlimited(idToken, email);
+      setAllowedEmails((prev) => (prev ? { ...prev, unlimited_emails } : prev));
+    } catch (e) {
+      setAccessError(e instanceof Error ? e.message : "Couldn't change that.");
     }
     setAccessBusy(false);
   }
@@ -53,7 +75,9 @@ function AccessSection({ idToken }: Props) {
     <div className="settings-field">
       <div className="settings-label">Access</div>
       <small className="settings-hint">
-        Anyone below can sign in to their own, fully separate projects — never yours.
+        Anyone below can sign in to their own, fully separate projects — never yours. By default they're subject to a
+        one-time lifetime message cap; mark someone "Unlimited" to exempt them from it (e.g. a collaborator, not a
+        one-off tester).
       </small>
       <ul className="settings-access-list">
         {allowedEmails.owner_emails.map((email) => (
@@ -61,19 +85,30 @@ function AccessSection({ idToken }: Props) {
             {email} <span className="settings-hint">(owner)</span>
           </li>
         ))}
-        {allowedEmails.extra_emails.map((email) => (
-          <li key={email}>
-            {email}
-            <button
-              className="settings-access-remove"
-              onClick={() => removeEmail(email)}
-              disabled={accessBusy}
-              aria-label={`Remove ${email}`}
-            >
-              ×
-            </button>
-          </li>
-        ))}
+        {allowedEmails.extra_emails.map((email) => {
+          const unlimited = allowedEmails.unlimited_emails.includes(email);
+          return (
+            <li key={email}>
+              <span>{email}</span>
+              <button
+                className="settings-access-unlimited"
+                onClick={() => toggleUnlimited(email, unlimited)}
+                disabled={accessBusy}
+                aria-pressed={unlimited}
+              >
+                {unlimited ? "Unlimited" : "Mark unlimited"}
+              </button>
+              <button
+                className="settings-access-remove"
+                onClick={() => removeEmail(email)}
+                disabled={accessBusy}
+                aria-label={`Remove ${email}`}
+              >
+                ×
+              </button>
+            </li>
+          );
+        })}
       </ul>
       <input
         placeholder="Email to grant access to"

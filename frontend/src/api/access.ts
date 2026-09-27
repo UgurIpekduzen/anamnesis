@@ -3,6 +3,8 @@ import { API_BASE } from "./client";
 export interface AllowedEmails {
   owner_emails: string[];
   extra_emails: string[];
+  // Extra emails exempt from the tester lifetime message cap (APPCE-122).
+  unlimited_emails: string[];
 }
 
 // A 403 here means the signed-in user isn't an owner — expected for
@@ -37,6 +39,27 @@ export async function removeAllowedEmail(idToken: string, email: string): Promis
     headers: { Authorization: `Bearer ${idToken}` },
   });
   if (!res.ok) throw new Error(`removeAllowedEmail failed: ${res.status}`);
+  return res.json();
+}
+
+export async function markUnlimited(idToken: string, email: string): Promise<{ unlimited_emails: string[] }> {
+  const res = await fetch(`${API_BASE}/admin/allowed_emails/${encodeURIComponent(email)}/unlimited`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) {
+    const detail = res.status === 400 ? (await res.json().catch(() => null))?.detail : null;
+    throw new Error(detail || `markUnlimited failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function unmarkUnlimited(idToken: string, email: string): Promise<{ unlimited_emails: string[] }> {
+  const res = await fetch(`${API_BASE}/admin/allowed_emails/${encodeURIComponent(email)}/unlimited`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`unmarkUnlimited failed: ${res.status}`);
   return res.json();
 }
 
