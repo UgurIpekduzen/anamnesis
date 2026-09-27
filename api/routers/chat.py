@@ -329,12 +329,16 @@ async def chat(websocket: WebSocket, tenant_id: str):
                 try:
                     await asyncio.to_thread(record_message, owner_uid)
                 except DailyLimitExceeded as exc:
-                    await websocket.send_json(
-                        {
-                            "type": "error",
-                            "message": f"Daily message limit of {exc.limit} reached. It resets at midnight UTC.",
-                        }
-                    )
+                    if exc.scope == "global":
+                        # Not this user's own doing — say so, rather than
+                        # implying they personally hit a wall.
+                        text = (
+                            f"Anamnesis reached its shared daily message limit ({exc.limit}, across every "
+                            "user). It resets at midnight UTC."
+                        )
+                    else:
+                        text = f"Daily message limit of {exc.limit} reached. It resets at midnight UTC."
+                    await websocket.send_json({"type": "error", "message": text})
                     continue
                 except Exception as exc:
                     log("WARNING", "usage_record_failed", error=repr(exc))

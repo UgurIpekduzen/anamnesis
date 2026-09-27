@@ -460,7 +460,7 @@ def test_the_message_is_counted_before_the_model_is_called(chat, monkeypatch):
 
 def _over_the_limit(monkeypatch):
     def refuse(owner_uid):
-        raise DailyLimitExceeded(200)
+        raise DailyLimitExceeded(200, "user")
 
     monkeypatch.setattr(chat_router, "record_message", refuse)
 
@@ -477,6 +477,23 @@ def test_a_message_over_the_daily_limit_never_reaches_the_agent(chat, spies, mon
     assert "200" in reply["message"]
     assert runner.calls == []
     assert spies.saved == []
+
+
+def test_a_message_over_the_global_limit_says_it_is_shared(chat, spies, monkeypatch):
+    client, runner, _ = chat
+
+    def refuse(owner_uid):
+        raise DailyLimitExceeded(1000, "global")
+
+    monkeypatch.setattr(chat_router, "record_message", refuse)
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "hello"})
+        reply = ws.receive_json()
+
+    assert reply["type"] == "error"
+    assert "1000" in reply["message"] and "every" in reply["message"]
+    assert runner.calls == []
 
 
 def test_the_connection_survives_a_refused_message(chat, monkeypatch):

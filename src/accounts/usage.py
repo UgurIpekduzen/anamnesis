@@ -20,36 +20,66 @@ DAILY_MESSAGE_WARNING_THRESHOLD = int(os.environ.get("DAILY_MESSAGE_WARNING_THRE
 # tokens.
 DAILY_MESSAGE_HARD_LIMIT = int(os.environ.get("DAILY_MESSAGE_HARD_LIMIT", 200))
 
+# A ceiling across every user combined (APPCE-122): the per-user limit above
+# bounds one runaway session, but says nothing about many invited users each
+# staying under their own limit on the same day. Default chosen so a full day
+# at the default per-user limit from 10 users still fits comfortably under it.
+GLOBAL_DAILY_MESSAGE_LIMIT = int(os.environ.get("GLOBAL_DAILY_MESSAGE_LIMIT", 1000))
+
+# Not a valid email (no "@"), so it can never collide with a real owner_uid —
+# the one document in this collection that isn't a user's own count.
+GLOBAL_USAGE_DOC_ID = "_global"
+
 
 class DailyLimitExceeded(Exception):
-    def __init__(self, limit: int):
-        super().__init__(f"Daily message limit of {limit} reached")
+    def __init__(self, limit: int, scope: str):
+        # scope: "user" (this caller's own limit) or "global" (everyone's,
+        # combined) — callers show a different message for each.
+        super().__init__(f"Daily message limit of {limit} reached ({scope})")
         self.limit = limit
+        self.scope = scope
+
+
+def _count(snapshot, today: str) -> int:
+    data = snapshot.to_dict() if snapshot.exists else {}
+    return data.get("message_count", 0) if data.get("date") == today else 0
 
 
 @firestore.transactional
-def _count_message(transaction, doc_ref, today: str, limit: int) -> int:
-    snapshot = doc_ref.get(transaction=transaction)
-    data = snapshot.to_dict() if snapshot.exists else {}
-    current = data.get("message_count", 0) if data.get("date") == today else 0
-    if current >= limit:
-        # Nothing is written, so refused messages don't inflate the count.
-        raise DailyLimitExceeded(limit)
-    transaction.set(doc_ref, {"date": today, "message_count": current + 1})
-    return current + 1
+def _count_message(transaction, user_ref, global_ref, today: str, user_limit: int, global_limit: int) -> int:
+    # Both reads happen before either write, as a single transaction requires.
+    user_current = _count(user_ref.get(transaction=transaction), today)
+    global_current = _count(global_ref.get(transaction=transaction), today)
+    # The user's own limit is checked first: it's what the message shown to
+    # them should usually reflect, and it's reached far more often in
+    # practice than the shared one.
+    if user_current >= user_limit:
+        raise DailyLimitExceeded(user_limit, "user")
+    if global_current >= global_limit:
+        raise DailyLimitExceeded(global_limit, "global")
+    # Nothing is written on either branch above, so a refused attempt
+    # inflates neither counter.
+    transaction.set(user_ref, {"date": today, "message_count": user_current + 1})
+    transaction.set(global_ref, {"date": today, "message_count": global_current + 1})
+    return user_current + 1
 
 
 def record_message(owner_uid: str) -> int:
     """Count one chat message for owner_uid and return today's running
-    count (UTC calendar day).
+    count (UTC calendar day). Also counts toward the global ceiling.
 
-    Raises DailyLimitExceeded, without counting, once the day's hard limit
-    is reached. The read and the write happen in one transaction, so two
-    messages sent at the same moment can't both slip under the limit.
+    Raises DailyLimitExceeded, without counting toward either ceiling, once
+    the user's own hard limit or the global one is reached. The reads and
+    the writes happen in one transaction, so two messages sent at the same
+    moment can't both slip under either limit.
     """
     today = datetime.now(timezone.utc).date().isoformat()
-    doc_ref = get_client().collection("usage").document(owner_uid)
-    return _count_message(get_client().transaction(), doc_ref, today, DAILY_MESSAGE_HARD_LIMIT)
+    client = get_client()
+    user_ref = client.collection("usage").document(owner_uid)
+    global_ref = client.collection("usage").document(GLOBAL_USAGE_DOC_ID)
+    return _count_message(
+        client.transaction(), user_ref, global_ref, today, DAILY_MESSAGE_HARD_LIMIT, GLOBAL_DAILY_MESSAGE_LIMIT
+    )
 
 
 def next_reset_at() -> datetime:
@@ -61,9 +91,18 @@ def next_reset_at() -> datetime:
 def get_today_count(owner_uid: str) -> int:
     """Return today's message count for owner_uid without recording one."""
     today = datetime.now(timezone.utc).date().isoformat()
-    client = get_client()
-    doc = client.collection("usage").document(owner_uid).get()
-    if not doc.exists:
-        return 0
-    data = doc.to_dict()
-    return data.get("message_count", 0) if data.get("date") == today else 0
+    doc = get_client().collection("usage").document(owner_uid).get()
+    return _count(doc, today)
+
+
+def get_global_today_count() -> int:
+    """Return today's message count across every user, without recording one."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    doc = get_client().collection("usage").document(GLOBAL_USAGE_DOC_ID).get()
+    return _count(doc, today)
+
+
+def get_usage_for(emails: list[str]) -> list[dict]:
+    """Today's count for each of the given emails, sorted by email — the
+    admin usage table's rows (APPCE-122)."""
+    return [{"email": email, "count": get_today_count(email)} for email in sorted(emails)]
