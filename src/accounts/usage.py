@@ -22,9 +22,10 @@ DAILY_MESSAGE_HARD_LIMIT = int(os.environ.get("DAILY_MESSAGE_HARD_LIMIT", 200))
 
 # A ceiling across every user combined (APPCE-122): the per-user limit above
 # bounds one runaway session, but says nothing about many invited users each
-# staying under their own limit on the same day. Default chosen so a full day
-# at the default per-user limit from 10 users still fits comfortably under it.
-GLOBAL_DAILY_MESSAGE_LIMIT = int(os.environ.get("GLOBAL_DAILY_MESSAGE_LIMIT", 1000))
+# staying under their own limit on the same day. Default picked to keep the
+# worst case (every day maxed out, all month) around $5 at ~$0.005/message:
+# 30 * 0.005 * 30 days = $4.50, with a little headroom under $5.
+GLOBAL_DAILY_MESSAGE_LIMIT = int(os.environ.get("GLOBAL_DAILY_MESSAGE_LIMIT", 30))
 
 # Not a valid email (no "@"), so it can never collide with a real owner_uid —
 # the one document in this collection that isn't a user's own count.
