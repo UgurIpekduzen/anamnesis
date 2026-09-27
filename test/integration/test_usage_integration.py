@@ -120,3 +120,54 @@ def test_get_usage_for_reports_zero_for_an_unseen_email():
     email = f"unseen-{uuid.uuid4().hex[:8]}@example.com"
 
     assert usage.get_usage_for([email]) == [{"email": email, "count": 0}]
+
+
+# A lifetime cap for invited (non-owner) testers, independent of the day
+# (APPCE-122): the owner is exempt, and it's on top of the daily limits
+# above — whichever is hit first refuses the message.
+def test_a_tester_is_refused_once_they_reach_the_lifetime_limit(monkeypatch):
+    monkeypatch.setattr(usage, "TESTER_LIFETIME_MESSAGE_LIMIT", 2)
+    monkeypatch.setattr(usage, "OWNER_EMAILS", {"owner@example.com"})
+    tester = f"tester-{uuid.uuid4().hex[:8]}@example.com"
+
+    record_message(tester)
+    record_message(tester)
+    with pytest.raises(DailyLimitExceeded) as excinfo:
+        record_message(tester)
+
+    assert excinfo.value.limit == 2
+    assert excinfo.value.scope == "lifetime"
+
+
+def test_the_lifetime_limit_does_not_apply_to_the_owner(monkeypatch):
+    monkeypatch.setattr(usage, "TESTER_LIFETIME_MESSAGE_LIMIT", 1)
+    owner = f"owner-{uuid.uuid4().hex[:8]}@example.com"
+    monkeypatch.setattr(usage, "OWNER_EMAILS", {owner})
+
+    assert [record_message(owner) for _ in range(3)] == [1, 2, 3]
+
+
+def test_the_lifetime_limit_does_not_reset_on_a_new_day(monkeypatch):
+    monkeypatch.setattr(usage, "TESTER_LIFETIME_MESSAGE_LIMIT", 1)
+    monkeypatch.setattr(usage, "OWNER_EMAILS", {"owner@example.com"})
+    tester = f"tester-{uuid.uuid4().hex[:8]}@example.com"
+    usage.get_client().collection("usage").document(tester).set(
+        {"date": "2000-01-01", "message_count": 0, "lifetime_count": 1}
+    )
+
+    with pytest.raises(DailyLimitExceeded) as excinfo:
+        record_message(tester)
+
+    assert excinfo.value.scope == "lifetime"
+
+
+def test_a_refused_lifetime_attempt_does_not_inflate_the_days_count(monkeypatch):
+    monkeypatch.setattr(usage, "TESTER_LIFETIME_MESSAGE_LIMIT", 0)
+    monkeypatch.setattr(usage, "OWNER_EMAILS", {"owner@example.com"})
+    tester = f"tester-{uuid.uuid4().hex[:8]}@example.com"
+
+    with pytest.raises(DailyLimitExceeded) as excinfo:
+        record_message(tester)
+
+    assert excinfo.value.scope == "lifetime"
+    assert get_today_count(tester) == 0

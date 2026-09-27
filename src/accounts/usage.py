@@ -3,6 +3,7 @@ from datetime import datetime, time, timedelta, timezone
 
 from google.cloud import firestore
 
+from src.accounts.allowed_emails import OWNER_EMAILS
 from src.core.firestore_client import get_client
 
 # A soft, visible warning threshold — not an enforced limit. One shared
@@ -31,6 +32,13 @@ GLOBAL_DAILY_MESSAGE_LIMIT = int(os.environ.get("GLOBAL_DAILY_MESSAGE_LIMIT", 30
 # the one document in this collection that isn't a user's own count.
 GLOBAL_USAGE_DOC_ID = "_global"
 
+# A total, never-reset ceiling for invited (non-owner) testers, on top of the
+# daily limits above — deliberately separate from them (a day-scoped limit
+# alone would let a tester who returns every day use an unbounded amount
+# over time). The owner is exempt: they need to be able to use their own
+# deployment without limit.
+TESTER_LIFETIME_MESSAGE_LIMIT = int(os.environ.get("TESTER_LIFETIME_MESSAGE_LIMIT", 30))
+
 
 class DailyLimitExceeded(Exception):
     def __init__(self, limit: int, scope: str):
@@ -47,39 +55,57 @@ def _count(snapshot, today: str) -> int:
 
 
 @firestore.transactional
-def _count_message(transaction, user_ref, global_ref, today: str, user_limit: int, global_limit: int) -> int:
+def _count_message(
+    transaction, user_ref, global_ref, today: str, user_limit: int, global_limit: int, lifetime_limit: int | None
+) -> int:
     # Both reads happen before either write, as a single transaction requires.
-    user_current = _count(user_ref.get(transaction=transaction), today)
+    user_snapshot = user_ref.get(transaction=transaction)
     global_current = _count(global_ref.get(transaction=transaction), today)
+    user_current = _count(user_snapshot, today)
+    user_data = user_snapshot.to_dict() if user_snapshot.exists else {}
+    lifetime_current = user_data.get("lifetime_count", 0)
     # The user's own limit is checked first: it's what the message shown to
     # them should usually reflect, and it's reached far more often in
-    # practice than the shared one.
+    # practice than the shared or lifetime ones.
     if user_current >= user_limit:
         raise DailyLimitExceeded(user_limit, "user")
+    if lifetime_limit is not None and lifetime_current >= lifetime_limit:
+        raise DailyLimitExceeded(lifetime_limit, "lifetime")
     if global_current >= global_limit:
         raise DailyLimitExceeded(global_limit, "global")
-    # Nothing is written on either branch above, so a refused attempt
-    # inflates neither counter.
-    transaction.set(user_ref, {"date": today, "message_count": user_current + 1})
+    # Nothing is written on any branch above, so a refused attempt inflates
+    # no counter.
+    transaction.set(
+        user_ref, {"date": today, "message_count": user_current + 1, "lifetime_count": lifetime_current + 1}
+    )
     transaction.set(global_ref, {"date": today, "message_count": global_current + 1})
     return user_current + 1
 
 
 def record_message(owner_uid: str) -> int:
     """Count one chat message for owner_uid and return today's running
-    count (UTC calendar day). Also counts toward the global ceiling.
+    count (UTC calendar day). Also counts toward the global ceiling and,
+    for a non-owner, the lifetime one.
 
-    Raises DailyLimitExceeded, without counting toward either ceiling, once
-    the user's own hard limit or the global one is reached. The reads and
-    the writes happen in one transaction, so two messages sent at the same
-    moment can't both slip under either limit.
+    Raises DailyLimitExceeded, without counting toward any of them, once
+    the user's own hard limit, the lifetime one (testers only), or the
+    global one is reached. The reads and the writes happen in one
+    transaction, so two messages sent at the same moment can't both slip
+    under any limit.
     """
     today = datetime.now(timezone.utc).date().isoformat()
     client = get_client()
     user_ref = client.collection("usage").document(owner_uid)
     global_ref = client.collection("usage").document(GLOBAL_USAGE_DOC_ID)
+    lifetime_limit = None if owner_uid in OWNER_EMAILS else TESTER_LIFETIME_MESSAGE_LIMIT
     return _count_message(
-        client.transaction(), user_ref, global_ref, today, DAILY_MESSAGE_HARD_LIMIT, GLOBAL_DAILY_MESSAGE_LIMIT
+        client.transaction(),
+        user_ref,
+        global_ref,
+        today,
+        DAILY_MESSAGE_HARD_LIMIT,
+        GLOBAL_DAILY_MESSAGE_LIMIT,
+        lifetime_limit,
     )
 
 

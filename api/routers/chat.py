@@ -336,6 +336,10 @@ async def chat(websocket: WebSocket, tenant_id: str):
                             f"Anamnesis reached its shared daily message limit ({exc.limit}, across every "
                             "user). It resets at midnight UTC."
                         )
+                    elif exc.scope == "lifetime":
+                        # Never resets, so no "try again later" — that would
+                        # be misleading here.
+                        text = f"This account has used its {exc.limit}-message allowance for Anamnesis."
                     else:
                         text = f"Daily message limit of {exc.limit} reached. It resets at midnight UTC."
                     await websocket.send_json({"type": "error", "message": text})

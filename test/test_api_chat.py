@@ -496,6 +496,24 @@ def test_a_message_over_the_global_limit_says_it_is_shared(chat, spies, monkeypa
     assert runner.calls == []
 
 
+def test_a_message_over_the_lifetime_limit_says_it_never_resets(chat, spies, monkeypatch):
+    client, runner, _ = chat
+
+    def refuse(owner_uid):
+        raise DailyLimitExceeded(30, "lifetime")
+
+    monkeypatch.setattr(chat_router, "record_message", refuse)
+
+    with open_chat(client) as ws:
+        ws.send_json({"message": "hello"})
+        reply = ws.receive_json()
+
+    assert reply["type"] == "error"
+    assert "30" in reply["message"]
+    assert "midnight" not in reply["message"]
+    assert runner.calls == []
+
+
 def test_the_connection_survives_a_refused_message(chat, monkeypatch):
     client, runner, _ = chat
     _over_the_limit(monkeypatch)
