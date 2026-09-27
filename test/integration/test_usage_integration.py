@@ -171,3 +171,17 @@ def test_a_refused_lifetime_attempt_does_not_inflate_the_days_count(monkeypatch)
 
     assert excinfo.value.scope == "lifetime"
     assert get_today_count(tester) == 0
+
+
+def test_an_email_marked_unlimited_is_exempt_from_the_lifetime_cap(monkeypatch):
+    from src.accounts.allowed_emails import add_allowed_email, mark_unlimited, remove_allowed_email
+
+    monkeypatch.setattr(usage, "TESTER_LIFETIME_MESSAGE_LIMIT", 1)
+    monkeypatch.setattr(usage, "OWNER_EMAILS", {"owner@example.com"})
+    tester = f"tester-{uuid.uuid4().hex[:8]}@example.com"
+    add_allowed_email(tester)
+    mark_unlimited(tester)
+    try:
+        assert [record_message(tester) for _ in range(3)] == [1, 2, 3]
+    finally:
+        remove_allowed_email(tester)

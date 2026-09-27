@@ -14,6 +14,9 @@ def api(monkeypatch):
     monkeypatch.setattr(admin, "get_extra_allowed_emails", lambda: {"already-allowed@example.com"})
     monkeypatch.setattr(admin, "add_allowed_email", lambda email: None)
     monkeypatch.setattr(admin, "remove_allowed_email", lambda email: None)
+    monkeypatch.setattr(admin, "get_unlimited_emails", lambda: set())
+    monkeypatch.setattr(admin, "mark_unlimited", lambda email: None)
+    monkeypatch.setattr(admin, "unmark_unlimited", lambda email: None)
     monkeypatch.setattr(admin, "get_usage_for", lambda emails: [{"email": e, "count": 0} for e in sorted(emails)])
     monkeypatch.setattr(admin, "get_global_today_count", lambda: 0)
     monkeypatch.setattr(admin, "GLOBAL_DAILY_MESSAGE_LIMIT", 1000)
@@ -29,6 +32,7 @@ def test_owner_can_list_allowed_emails(api):
     assert response.json() == {
         "owner_emails": [OWNER],
         "extra_emails": ["already-allowed@example.com"],
+        "unlimited_emails": [],
     }
 
 
@@ -97,3 +101,42 @@ def test_non_owner_cannot_read_usage(api):
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: NON_OWNER
 
     assert api.get("/admin/usage").status_code == 403
+
+
+def test_owner_can_mark_an_email_unlimited(api, monkeypatch):
+    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
+    monkeypatch.setattr(admin, "get_unlimited_emails", lambda: {"already-allowed@example.com"})
+
+    response = api.post("/admin/allowed_emails/already-allowed@example.com/unlimited")
+
+    assert response.status_code == 200
+    assert response.json() == {"unlimited_emails": ["already-allowed@example.com"]}
+
+
+def test_marking_an_ineligible_email_surfaces_the_reason(api, monkeypatch):
+    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
+
+    def reject(email):
+        raise ValueError("That email isn't on the allowlist.")
+
+    monkeypatch.setattr(admin, "mark_unlimited", reject)
+
+    response = api.post("/admin/allowed_emails/unknown@example.com/unlimited")
+
+    assert response.status_code == 400
+    assert "allowlist" in response.json()["detail"]
+
+
+def test_owner_can_unmark_an_email(api):
+    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
+
+    response = api.delete("/admin/allowed_emails/already-allowed@example.com/unlimited")
+
+    assert response.status_code == 200
+
+
+def test_non_owner_cannot_mark_or_unmark(api):
+    api_main.app.dependency_overrides[get_current_owner_uid] = lambda: NON_OWNER
+
+    assert api.post("/admin/allowed_emails/x@example.com/unlimited").status_code == 403
+    assert api.delete("/admin/allowed_emails/x@example.com/unlimited").status_code == 403

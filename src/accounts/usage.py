@@ -3,7 +3,7 @@ from datetime import datetime, time, timedelta, timezone
 
 from google.cloud import firestore
 
-from src.accounts.allowed_emails import OWNER_EMAILS
+from src.accounts.allowed_emails import OWNER_EMAILS, get_unlimited_emails
 from src.core.firestore_client import get_client
 
 # A soft, visible warning threshold — not an enforced limit. One shared
@@ -97,7 +97,8 @@ def record_message(owner_uid: str) -> int:
     client = get_client()
     user_ref = client.collection("usage").document(owner_uid)
     global_ref = client.collection("usage").document(GLOBAL_USAGE_DOC_ID)
-    lifetime_limit = None if owner_uid in OWNER_EMAILS else TESTER_LIFETIME_MESSAGE_LIMIT
+    exempt = owner_uid in OWNER_EMAILS or owner_uid in get_unlimited_emails()
+    lifetime_limit = None if exempt else TESTER_LIFETIME_MESSAGE_LIMIT
     return _count_message(
         client.transaction(),
         user_ref,
