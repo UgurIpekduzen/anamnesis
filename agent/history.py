@@ -2,9 +2,9 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types
 
-from src.settings import get_settings
+from src.accounts.settings import get_settings
 
-# The window size is a per-user setting (src/settings.py, APPCE-58); it
+# The window size is a per-user setting (src/accounts/settings.py, APPCE-58); it
 # caps how many past user turns are sent to the model on each call, so a
 # long-running session's token cost doesn't grow without bound. A plain
 # window instead of summarization on purpose — summarizing costs an extra

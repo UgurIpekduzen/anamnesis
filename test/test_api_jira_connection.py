@@ -2,6 +2,7 @@ import pytest
 from starlette.testclient import TestClient
 
 import api.main as api_main
+from api.routers import connections
 
 OWNER = "test@example.com"
 VALID_BODY = {"email": "user@example.com", "token": "secret-token", "base_url": "https://example.atlassian.net"}
@@ -18,16 +19,16 @@ def api(monkeypatch, signed_in_owner):
     def fake_delete(owner_uid):
         deleted.append(owner_uid)
 
-    monkeypatch.setattr(api_main, "validate_jira_credentials", lambda email, token, base_url: None)
-    monkeypatch.setattr(api_main, "save_jira_credentials", fake_save)
-    monkeypatch.setattr(api_main, "delete_jira_connection", fake_delete)
-    monkeypatch.setattr(api_main, "get_jira_base_url", lambda owner_uid: "https://example.atlassian.net")
+    monkeypatch.setattr(connections, "validate_jira_credentials", lambda email, token, base_url: None)
+    monkeypatch.setattr(connections, "save_jira_credentials", fake_save)
+    monkeypatch.setattr(connections, "delete_jira_connection", fake_delete)
+    monkeypatch.setattr(connections, "get_jira_base_url", lambda owner_uid: "https://example.atlassian.net")
     yield TestClient(api_main.app), saved, deleted
 
 
 def test_get_reports_connected_when_credentials_are_on_file(api, monkeypatch):
     client, _, _ = api
-    monkeypatch.setattr(api_main, "has_jira_connection", lambda owner_uid: True)
+    monkeypatch.setattr(connections, "has_jira_connection", lambda owner_uid: True)
 
     assert client.get("/jira/connection").json() == {
         "connected": True,
@@ -37,14 +38,14 @@ def test_get_reports_connected_when_credentials_are_on_file(api, monkeypatch):
 
 def test_get_reports_disconnected_when_no_credentials_are_on_file(api, monkeypatch):
     client, _, _ = api
-    monkeypatch.setattr(api_main, "has_jira_connection", lambda owner_uid: False)
+    monkeypatch.setattr(connections, "has_jira_connection", lambda owner_uid: False)
 
     assert client.get("/jira/connection").json() == {"connected": False, "base_url": None}
 
 
 def test_get_never_returns_the_token(api, monkeypatch):
     client, _, _ = api
-    monkeypatch.setattr(api_main, "has_jira_connection", lambda owner_uid: True)
+    monkeypatch.setattr(connections, "has_jira_connection", lambda owner_uid: True)
 
     assert set(client.get("/jira/connection").json()) == {"connected", "base_url"}
 
@@ -62,7 +63,7 @@ def test_put_validates_then_saves_for_the_authenticated_user(api):
 def test_put_rejects_credentials_validate_raises_on_and_saves_nothing(api, monkeypatch):
     client, saved, _ = api
     monkeypatch.setattr(
-        api_main,
+        connections,
         "validate_jira_credentials",
         lambda email, token, base_url: (_ for _ in ()).throw(ValueError("nope")),
     )

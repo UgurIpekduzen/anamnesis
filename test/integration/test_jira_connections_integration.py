@@ -3,16 +3,16 @@ import uuid
 import pytest
 from cryptography.fernet import Fernet
 
-from src import jira_connections
-from src.firestore_client import get_client
-from src.jira_connections import (
+from src.integrations.jira import connections as jira_connections
+from src.core.firestore_client import get_client
+from src.integrations.jira.connections import (
     delete_jira_connection,
     get_jira_base_url,
     get_jira_credentials,
     has_jira_connection,
     save_jira_credentials,
 )
-from src.token_encryption import _get_fernet
+from src.core.token_encryption import _get_fernet
 
 
 @pytest.fixture(autouse=True)

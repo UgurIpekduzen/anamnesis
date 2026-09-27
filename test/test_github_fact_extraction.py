@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from src import github_fact_extraction
+from src.integrations.github import fact_extraction as github_fact_extraction
 
 
 class FakeModels:

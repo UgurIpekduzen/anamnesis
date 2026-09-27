@@ -6,13 +6,13 @@ import uuid
 
 import pytest
 
-from src import categories as c
-from src import facts as facts_module
-from src import pending_facts as pending_module
-from src import publisher
-from src.categories import InvalidCategory
-from src.firestore_client import get_client
-from src.tenants import add_tenant, delete_tenant
+from src.facts import categories as c
+from src.facts import facts as facts_module
+from src.facts import pending_facts as pending_module
+from src.facts import publisher
+from src.facts.categories import InvalidCategory
+from src.core.firestore_client import get_client
+from src.projects.tenants import add_tenant, delete_tenant
 
 OWNER = "cat-use-owner@example.com"
 

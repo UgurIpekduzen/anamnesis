@@ -3,8 +3,8 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from src.facts import create_fact
-from src.log import log
+from src.facts.facts import create_fact
+from src.core.log import log
 
 # A push carries one fact (at most 2000 characters, base64 in a JSON envelope),
 # so a body this large is not a delivery. Read nothing past it (APPCE-119).

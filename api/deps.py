@@ -7,8 +7,8 @@ from fastapi import Depends, Header, HTTPException
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
-from src.allowed_emails import OWNER_EMAILS, get_extra_allowed_emails
-from src.log import log
+from src.accounts.allowed_emails import OWNER_EMAILS, get_extra_allowed_emails
+from src.core.log import log
 
 _CLIENT_ID = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
 

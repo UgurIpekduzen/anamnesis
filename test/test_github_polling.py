@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src import github_polling
+from src.integrations.github import polling as github_polling
 
 
 def _pr(number, title="t", body="b", updated_at="2026-01-02T00:00:00Z"):

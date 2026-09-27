@@ -1,7 +1,7 @@
 import pytest
 import requests
 
-import src.status as status
+import src.integrations.status as status
 
 
 @pytest.fixture

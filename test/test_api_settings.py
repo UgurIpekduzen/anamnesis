@@ -4,7 +4,8 @@ import pytest
 from starlette.testclient import TestClient
 
 import api.main as api_main
-from src.settings import BOUNDS, DEFAULTS
+from api.routers import settings as settings_router
+from src.accounts.settings import BOUNDS, DEFAULTS
 
 OWNER = "test@example.com"
 CURRENT = {"history_turns": 20, "daily_message_warning_threshold": 100}
@@ -18,8 +19,8 @@ def api(monkeypatch, signed_in_owner):
         saved.append((owner_uid, settings))
         return settings
 
-    monkeypatch.setattr(api_main, "get_settings", lambda owner_uid: dict(CURRENT))
-    monkeypatch.setattr(api_main, "save_settings", fake_save)
+    monkeypatch.setattr(settings_router, "get_settings", lambda owner_uid: dict(CURRENT))
+    monkeypatch.setattr(settings_router, "save_settings", fake_save)
     yield TestClient(api_main.app), saved
 
 
@@ -32,7 +33,7 @@ def test_delete_resets_the_authenticated_users_settings(api, monkeypatch):
     client, _ = api
     resets = []
     monkeypatch.setattr(
-        api_main, "reset_settings", lambda owner_uid: resets.append(owner_uid) or dict(DEFAULTS)
+        settings_router, "reset_settings", lambda owner_uid: resets.append(owner_uid) or dict(DEFAULTS)
     )
 
     response = client.delete("/settings")
@@ -94,9 +95,9 @@ def test_settings_require_authentication():
 
 def test_usage_reports_the_users_own_threshold(api, monkeypatch):
     client, _ = api
-    monkeypatch.setattr(api_main, "get_today_count", lambda owner_uid: 3)
+    monkeypatch.setattr(settings_router, "get_today_count", lambda owner_uid: 3)
     monkeypatch.setattr(
-        api_main, "get_settings", lambda owner_uid: {"history_turns": 20, "daily_message_warning_threshold": 7}
+        settings_router, "get_settings", lambda owner_uid: {"history_turns": 20, "daily_message_warning_threshold": 7}
     )
 
     body = client.get("/usage").json()
@@ -106,11 +107,11 @@ def test_usage_reports_the_users_own_threshold(api, monkeypatch):
 
 def test_usage_reports_the_hard_limit_and_when_it_resets(api, monkeypatch):
     client, _ = api
-    monkeypatch.setattr(api_main, "get_today_count", lambda owner_uid: 3)
+    monkeypatch.setattr(settings_router, "get_today_count", lambda owner_uid: 3)
     monkeypatch.setattr(
-        api_main, "get_settings", lambda owner_uid: {"history_turns": 20, "daily_message_warning_threshold": 7}
+        settings_router, "get_settings", lambda owner_uid: {"history_turns": 20, "daily_message_warning_threshold": 7}
     )
-    monkeypatch.setattr(api_main, "DAILY_MESSAGE_HARD_LIMIT", 150)
+    monkeypatch.setattr(settings_router, "DAILY_MESSAGE_HARD_LIMIT", 150)
 
     body = client.get("/usage").json()
 

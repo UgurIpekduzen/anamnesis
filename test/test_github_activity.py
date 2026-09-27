@@ -1,6 +1,6 @@
 import pytest
 
-from src import github_activity
+from src.integrations.github import activity as github_activity
 
 
 class FakeResponse:

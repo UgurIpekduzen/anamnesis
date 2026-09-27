@@ -1,7 +1,7 @@
 import pytest
 
 import agent.agent as agent_module
-from src.categories import InvalidCategory
+from src.facts.categories import InvalidCategory
 
 
 @pytest.fixture(autouse=True)
@@ -130,7 +130,7 @@ def test_get_jira_status_reports_a_saved_token_the_current_key_cannot_read(monke
     # An uncaught error here would crash the whole turn (APPCE-83); a lost
     # encryption key must reach the user as "reconnect it" instead
     # (APPCE-103).
-    from src.token_encryption import UnreadableToken
+    from src.core.token_encryption import UnreadableToken
 
     def unreadable(owner_uid):
         raise UnreadableToken("The saved token can't be decrypted. Reconnect it in Settings.")
@@ -179,8 +179,8 @@ def test_tenant_lifecycle_tools_are_not_exposed_to_the_model():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
     tool_names = {_tool_name(t) for t in tool_agent.tools}
 
-    # Creating/renaming/deleting projects is UI-only now (see api/main.py's
-    # /tenants endpoints) — the agent has nothing to scope those to.
+    # Creating/renaming/deleting projects is UI-only now (see
+    # api/routers/tenants.py) — the agent has nothing to scope those to.
     assert tool_names.isdisjoint({"list_tenants", "add_tenant", "rename_tenant", "delete_tenant"})
 
 
@@ -220,7 +220,7 @@ def _propose_link(monkeypatch, kind, value, current=None):
     def no_database(*args, **kwargs):
         raise AssertionError("a proposal must not write anything")
 
-    monkeypatch.setattr("src.tenants.get_client", no_database)
+    monkeypatch.setattr("src.projects.tenants.get_client", no_database)
     monkeypatch.setattr(agent_module, "get_owned_tenant", lambda tenant_id, owner_uid: {kind: current})
     tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "propose_link")
     return tool(kind, value)
@@ -258,7 +258,7 @@ def _fact_tool(monkeypatch, name, fact=FACT):
     def no_database(*args, **kwargs):
         raise AssertionError("a proposal must not write anything")
 
-    monkeypatch.setattr("src.facts.get_client", no_database)
+    monkeypatch.setattr("src.facts.facts.get_client", no_database)
 
     def fake_get_fact(tenant_id, fact_id, owner_uid):
         if fact is None or fact_id != fact["fact_id"]:

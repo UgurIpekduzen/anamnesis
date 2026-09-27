@@ -5,11 +5,11 @@ import uuid
 
 import pytest
 
-from src.facts import get_tenant_facts
-from src.publisher import publish_fact
-from src.pubsub_client import get_subscriber_client, subscription_path
+from src.facts.facts import get_tenant_facts
+from src.facts.publisher import publish_fact
+from src.core.pubsub_client import get_subscriber_client, subscription_path
 from src.subscriber import _process_push_message
-from src.tenants import add_tenant, delete_tenant
+from src.projects.tenants import add_tenant, delete_tenant
 
 SUBSCRIPTION_ID = "fact-events-sub"
 OWNER_UID = "test-owner@example.com"
@@ -45,7 +45,7 @@ def test_publish_fact_is_delivered_and_written_by_the_subscriber(tenant_id):
     received = _pull_one(subscriber, subscription)
 
     # The local emulator subscription stays pull-based regardless of
-    # the real deployment's push_config (see setup_pubsub.py), so we
+    # the real deployment's push_config (see src/tools/setup_pubsub.py), so we
     # pull here and then hand the same bytes to _process_push_message
     # wrapped in a push envelope — exercising the same processing path
     # the deployed HTTP handler uses in production.

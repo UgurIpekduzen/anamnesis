@@ -2,9 +2,9 @@ import uuid
 
 import pytest
 
-from src import github_polling
-from src.pending_facts import list_pending_facts
-from src.tenants import add_tenant, delete_tenant
+from src.integrations.github import polling as github_polling
+from src.facts.pending_facts import list_pending_facts
+from src.projects.tenants import add_tenant, delete_tenant
 
 OWNER_UID = "test-owner@example.com"
 

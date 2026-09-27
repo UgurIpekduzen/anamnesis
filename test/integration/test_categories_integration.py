@@ -2,8 +2,8 @@ import uuid
 
 import pytest
 
-from src import categories as c
-from src.firestore_client import get_client
+from src.facts import categories as c
+from src.core.firestore_client import get_client
 
 
 @pytest.fixture

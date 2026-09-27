@@ -3,7 +3,7 @@ import socket
 
 import pytest
 
-from setup_pubsub import setup as setup_pubsub
+from src.tools.setup_pubsub import setup as setup_pubsub
 
 
 def _emulator_reachable(host_env_var: str) -> bool:

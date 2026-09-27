@@ -11,13 +11,13 @@ def test_every_response_carries_the_security_headers():
     assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
 
 
-def test_the_content_security_policy_only_reports_for_now():
-    # Report-Only until it has been seen not to break Google sign-in in a real
-    # browser (APPCE-119); it must not be enforced from an untested policy.
+def test_the_content_security_policy_is_enforced():
+    # It ran report-only first and showed no violation on the live app (sign-in,
+    # sign-out, chat, saving a fact), so it is enforced now (APPCE-119).
     response = TestClient(api_main.app).get("/health")
 
-    assert "content-security-policy" not in response.headers
-    policy = response.headers["content-security-policy-report-only"]
+    assert "content-security-policy-report-only" not in response.headers
+    policy = response.headers["content-security-policy"]
     assert "default-src 'self'" in policy
     assert "frame-ancestors 'none'" in policy
     # What Google sign-in needs, and nothing broader.

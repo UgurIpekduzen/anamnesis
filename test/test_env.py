@@ -1,6 +1,6 @@
 import os
 
-from src.env import load_env
+from src.core.env import load_env
 
 
 def test_dotenv_path_picks_which_file_is_loaded(tmp_path, monkeypatch):

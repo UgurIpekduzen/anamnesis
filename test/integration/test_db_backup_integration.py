@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src import db_backup
-from src.firestore_client import get_client
+from src.tools import db_backup
+from src.core.firestore_client import get_client
 
 
 @pytest.fixture
@@ -130,3 +130,48 @@ def test_restore_refuses_a_dump_from_another_project(own_project, tmp_path, monk
         other.setenv("GCP_PROJECT_ID", "another-project")
         with pytest.raises(SystemExit, match="db-backup-test"):
             db_backup.restore(path, "another-project")
+
+
+def test_verify_says_the_database_matches_the_dump_it_was_loaded_from(own_project, tmp_path):
+    path = _dump_of_sample(own_project, tmp_path)
+
+    assert db_backup.verify(path) == {"same": 4, "different": 0, "missing": 0, "extra": 0}
+
+
+def test_verify_finds_what_differs_what_is_missing_and_what_is_extra(own_project, tmp_path):
+    path = _dump_of_sample(own_project, tmp_path)
+    own_project.document("tenants/alpha").update({"name": "Changed"})
+    own_project.document("config/allowed_emails").delete()
+    own_project.document("tenants/alpha/facts/added-later").set({"content": "not in the dump"})
+
+    assert db_backup.verify(path) == {"same": 2, "different": 1, "missing": 1, "extra": 1}
+
+
+def test_verify_changes_nothing(own_project, tmp_path):
+    path = _dump_of_sample(own_project, tmp_path)
+    own_project.document("tenants/alpha").update({"name": "Changed"})
+
+    db_backup.verify(path)
+
+    assert own_project.document("tenants/alpha").get().to_dict()["name"] == "Changed"
+
+
+def test_verify_works_on_a_dump_taken_from_another_project(own_project, tmp_path, monkeypatch):
+    # A dump of the real project checked against the emulator's copy of it.
+    path = _dump_of_sample(own_project, tmp_path)
+    with monkeypatch.context() as other:
+        other.setenv("GCP_PROJECT_ID", "the-copy")
+        db_backup.load(path)
+        try:
+            assert db_backup.verify(path) == {"same": 4, "different": 0, "missing": 0, "extra": 0}
+        finally:
+            db_backup.wipe("the-copy")
+
+
+def test_the_verify_command_exits_non_zero_when_the_database_differs(own_project, tmp_path):
+    path = _dump_of_sample(own_project, tmp_path)
+
+    assert db_backup.main(["verify", path]) == 0
+
+    own_project.document("tenants/alpha").update({"name": "Changed"})
+    assert db_backup.main(["verify", path]) == 1

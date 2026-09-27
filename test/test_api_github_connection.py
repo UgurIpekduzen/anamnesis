@@ -2,6 +2,7 @@ import pytest
 from starlette.testclient import TestClient
 
 import api.main as api_main
+from api.routers import connections
 
 OWNER = "test@example.com"
 
@@ -17,22 +18,22 @@ def api(monkeypatch, signed_in_owner):
     def fake_delete(owner_uid):
         deleted.append(owner_uid)
 
-    monkeypatch.setattr(api_main, "validate_github_token", lambda token: None)
-    monkeypatch.setattr(api_main, "save_github_token", fake_save)
-    monkeypatch.setattr(api_main, "delete_github_connection", fake_delete)
+    monkeypatch.setattr(connections, "validate_github_token", lambda token: None)
+    monkeypatch.setattr(connections, "save_github_token", fake_save)
+    monkeypatch.setattr(connections, "delete_github_connection", fake_delete)
     yield TestClient(api_main.app), saved, deleted
 
 
 def test_get_reports_connected_when_a_token_is_on_file(api, monkeypatch):
     client, _, _ = api
-    monkeypatch.setattr(api_main, "has_github_connection", lambda owner_uid: True)
+    monkeypatch.setattr(connections, "has_github_connection", lambda owner_uid: True)
 
     assert client.get("/github/connection").json() == {"connected": True}
 
 
 def test_get_reports_disconnected_when_no_token_is_on_file(api, monkeypatch):
     client, _, _ = api
-    monkeypatch.setattr(api_main, "has_github_connection", lambda owner_uid: False)
+    monkeypatch.setattr(connections, "has_github_connection", lambda owner_uid: False)
 
     assert client.get("/github/connection").json() == {"connected": False}
 
@@ -50,7 +51,7 @@ def test_put_validates_then_saves_for_the_authenticated_user(api):
 def test_put_rejects_a_token_validate_raises_on_and_saves_nothing(api, monkeypatch):
     client, saved, _ = api
     monkeypatch.setattr(
-        api_main,
+        connections,
         "validate_github_token",
         lambda token: (_ for _ in ()).throw(ValueError("nope")),
     )

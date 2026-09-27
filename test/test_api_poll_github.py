@@ -3,11 +3,12 @@ from starlette.testclient import TestClient
 
 import api.main as api_main
 from api.internal_auth import verify_scheduler_token
+from api.routers import internal
 
 
 @pytest.fixture
 def api(monkeypatch):
-    monkeypatch.setattr(api_main, "poll_all_tenants", lambda: {"polled": 2, "created": 5, "errors": []})
+    monkeypatch.setattr(internal, "poll_all_tenants", lambda: {"polled": 2, "created": 5, "errors": []})
     yield TestClient(api_main.app)
 
 

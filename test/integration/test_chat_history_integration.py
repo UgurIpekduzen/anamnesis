@@ -3,9 +3,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src.chat_history import RETENTION_DAYS, append_turn, clear_turns, load_recent_turns
-from src.firestore_client import get_client
-from src.tenants import CHAT_TURNS_COLLECTION, add_tenant, delete_tenant
+from src.projects.chat_history import RETENTION_DAYS, append_turn, clear_turns, load_recent_turns
+from src.core.firestore_client import get_client
+from src.projects.tenants import CHAT_TURNS_COLLECTION, add_tenant, delete_tenant
 
 OWNER = "test-owner@example.com"
 STRANGER = "someone-else@example.com"

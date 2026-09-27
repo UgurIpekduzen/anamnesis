@@ -2,8 +2,8 @@ import uuid
 
 import pytest
 
-from src import pending_facts as pending_facts_module
-from src.pending_facts import (
+from src.facts import pending_facts as pending_facts_module
+from src.facts.pending_facts import (
     approve_pending_fact,
     create_pending_fact,
     get_pending_fact_stats,
@@ -11,7 +11,7 @@ from src.pending_facts import (
     list_pending_facts,
     reject_pending_fact,
 )
-from src.tenants import add_tenant, delete_tenant
+from src.projects.tenants import add_tenant, delete_tenant
 
 OWNER_UID = "test-owner@example.com"
 

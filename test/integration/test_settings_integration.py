@@ -2,9 +2,9 @@ import uuid
 
 import pytest
 
-from src import settings as settings_module
-from src.firestore_client import get_client
-from src.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
+from src.accounts import settings as settings_module
+from src.core.firestore_client import get_client
+from src.accounts.settings import BOUNDS, DEFAULTS, get_settings, reset_settings, save_settings
 
 
 @pytest.fixture(autouse=True)

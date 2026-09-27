@@ -4,18 +4,19 @@ from google.adk.agents.llm_agent import Agent
 from google.adk.tools.function_tool import FunctionTool
 
 from agent.history import make_history_limiter
-from src.categories import InvalidCategory, get_categories, validate_category_for
-from src.facts import get_fact, get_tenant_facts
-from src.github_activity import get_github_history, get_github_status
-from src.jira_client import get_jira_recently_done, get_jira_status, validate_project_key
-from src.jira_connections import get_jira_credentials
-from src.pending_facts import get_pending_facts_summary
-from src.publisher import publish_fact
-from src.tenants import get_owned_tenant, validate_github_repo
+from src.facts.categories import InvalidCategory, get_categories, validate_category_for
+from src.facts.facts import get_fact, get_tenant_facts
+from src.integrations.github.activity import get_github_history, get_github_status
+from src.integrations.jira.client import get_jira_recently_done, get_jira_status
+from src.integrations.jira.connections import get_jira_credentials
+from src.facts.pending_facts import get_pending_facts_summary
+from src.facts.publisher import publish_fact
+from src.projects.tenants import get_owned_tenant
+from src.projects.validation import validate_github_repo, validate_project_key
 
 
 # A tool result stays in the session history for as many turns as the
-# user's history window (src/settings.py) and is resent on every model
+# user's history window (src/accounts/settings.py) and is resent on every model
 # call, so an unbounded fact list is an expensive one (APPCE-59).
 MAX_FACTS_PER_TOOL_CALL = int(os.environ.get("MAX_FACTS_PER_TOOL_CALL", 50))
 
@@ -25,7 +26,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
 
     Both owner_uid and tenant_id must never be parameters the LLM fills in
     — owner_uid comes from the caller's verified identity, tenant_id from
-    the chat connection it was opened on (see api/main.py), never from
+    the chat connection it was opened on (see api/routers/chat.py), never from
     anything the model or user says in chat. So instead of exposing the
     src.* functions directly as tools (which would put both in their
     tool-calling schema), each tool here is a thin wrapper with both
@@ -35,8 +36,8 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
     One Agent per (owner_uid, tenant_id) also means project management —
     creating, renaming, deleting a tenant — isn't something this agent can
     do at all: those are cross-project operations with nothing to scope
-    them to, so they live in plain UI/REST instead (see api/main.py's
-    /tenants endpoints), never in chat.
+    them to, so they live in plain UI/REST instead (see
+    api/routers/tenants.py), never in chat.
     """
 
     def _get_tenant_facts() -> list[dict]:
@@ -244,7 +245,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         # rules alone (verified via APPCE-81's 12 live prompt-injection
         # scenarios and the tenant-isolation testing in APPCE-83). Fact
         # extraction from GitHub activity already has its own separate
-        # LLM call and prompt (src/github_fact_extraction.py) rather than
+        # LLM call and prompt (src/integrations/github/fact_extraction.py) rather than
         # going through this agent, so it isn't a gap this instruction
         # needs to cover.
         # A function, not a string: ADK calls it every turn, so a category the
@@ -347,7 +348,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
             # a GitHub issue title to call publish_fact with zero actual
             # user confirmation. ADK pauses the turn and requires an
             # explicit approve/reject from the client before running the
-            # real function (see api/main.py's chat handler).
+            # real function (see api/routers/chat.py's chat handler).
             FunctionTool(_publish_fact, require_confirmation=True),
             _get_github_status,
             _get_jira_status,

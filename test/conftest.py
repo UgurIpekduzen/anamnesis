@@ -19,7 +19,7 @@ OWNER = "test@example.com"
 
 @pytest.fixture
 def log_lines():
-    """Reads the structured log lines (src.log) out of what a test captured."""
+    """Reads the structured log lines (src.core.log) out of what a test captured."""
 
     def read(captured_out: str) -> list[dict]:
         lines = []
