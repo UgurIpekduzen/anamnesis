@@ -14,7 +14,7 @@ interface Props {
   onClose: () => void;
 }
 
-function UsageSection({ idToken }: { idToken: string }) {
+function UsageSection({ idToken, refreshKey }: { idToken: string; refreshKey: number }) {
   const [usage, setUsage] = useState<AdminUsage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,7 +22,10 @@ function UsageSection({ idToken }: { idToken: string }) {
     getAdminUsage(idToken)
       .then(setUsage)
       .catch(() => setError("Couldn't load usage."));
-  }, [idToken]);
+    // refreshKey: Access (add/remove/role/wipe) can change who's on the
+    // allowlist and what row shows for them — this table must reflect that
+    // without waiting for the dialog to be reopened.
+  }, [idToken, refreshKey]);
 
   return (
     <div className="settings-field">
@@ -53,13 +56,18 @@ function UsageSection({ idToken }: { idToken: string }) {
 }
 
 function AdminDialog({ idToken, onClose }: Props) {
+  // Bumped after any Access change (add/remove/role/wipe) so Usage today
+  // re-fetches instead of showing a stale or "ghost" row for someone just
+  // removed.
+  const [usageRefreshKey, setUsageRefreshKey] = useState(0);
+
   return (
     <div className="settings-backdrop" onMouseDown={onClose}>
       <div className="settings-dialog" role="dialog" aria-label="Admin" onMouseDown={(e) => e.stopPropagation()}>
         <h2>Admin</h2>
 
-        <UsageSection idToken={idToken} />
-        <AccessSection idToken={idToken} />
+        <UsageSection idToken={idToken} refreshKey={usageRefreshKey} />
+        <AccessSection idToken={idToken} onChange={() => setUsageRefreshKey((k) => k + 1)} />
 
         <div className="settings-actions">
           <div />

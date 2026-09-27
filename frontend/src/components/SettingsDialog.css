@@ -220,6 +220,25 @@
   cursor: default;
 }
 
+.settings-access-wipe {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.settings-access-wipe:hover:not(:disabled) {
+  color: var(--error-text);
+}
+
+.settings-access-wipe:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* The browser's built-in number stepper is light-colored and clashes with
    the dark theme. Typing and the ↑/↓ keys still work without it. */
 .settings-field input[type="number"] {

@@ -62,6 +62,27 @@ export async function setRole(
   return res.json();
 }
 
+// Permanently deletes email's data (projects, connections, usage,
+// preferences) and their allowlist entry — not just access removal
+// (APPCE-123). confirmEmail must repeat email exactly; the backend refuses
+// otherwise, the same retype-to-confirm friction as removing a project.
+export async function wipeUser(
+  idToken: string,
+  email: string,
+  confirmEmail: string,
+): Promise<{ extra_users: AllowedEmails["extra_users"] }> {
+  const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(email)}/wipe`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm_email: confirmEmail }),
+  });
+  if (!res.ok) {
+    const detail = res.status === 400 ? (await res.json().catch(() => null))?.detail : null;
+    throw new Error(detail || `wipeUser failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export interface AdminUsage {
   users: { email: string; count: number; role: Role | "admin" }[];
   // A ceiling across every user combined, on top of each user's own

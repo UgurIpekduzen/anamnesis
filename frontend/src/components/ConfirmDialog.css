@@ -44,3 +44,14 @@
   color: var(--error-text);
   border-color: var(--error-text);
 }
+
+.confirm-danger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.confirm-error {
+  margin: 0;
+  color: var(--error-text);
+  font-size: 13px;
+}
