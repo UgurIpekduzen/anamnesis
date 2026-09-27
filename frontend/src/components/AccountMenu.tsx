@@ -7,6 +7,10 @@ interface Props {
   onOpenSettings: () => void;
   onSignOut: () => void;
   onChangeAccount: () => void;
+  // null while still being determined — the entry stays hidden either way,
+  // so it never flashes in for someone who turns out not to be an owner.
+  isOwner: boolean | null;
+  onOpenAdmin: () => void;
 }
 
 interface TokenClaims {
@@ -18,7 +22,7 @@ function decodeClaims(idToken: string): TokenClaims {
   return JSON.parse(atob(idToken.split(".")[1]));
 }
 
-function AccountMenu({ idToken, onOpenSettings, onSignOut, onChangeAccount }: Props) {
+function AccountMenu({ idToken, onOpenSettings, onSignOut, onChangeAccount, isOwner, onOpenAdmin }: Props) {
   const [open, setOpen] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -57,6 +61,16 @@ function AccountMenu({ idToken, onOpenSettings, onSignOut, onChangeAccount }: Pr
           >
             Settings
           </button>
+          {isOwner && (
+            <button
+              onClick={() => {
+                setOpen(false);
+                onOpenAdmin();
+              }}
+            >
+              Admin
+            </button>
+          )}
           <button onClick={onChangeAccount}>Change account</button>
           <button onClick={onSignOut}>Sign out</button>
         </div>

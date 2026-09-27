@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import "./App.css";
 import AccountMenu from "./components/AccountMenu";
+import AdminDialog from "./components/AdminDialog";
 import Auth from "./components/Auth";
 import Chat from "./components/Chat";
 import Facts from "./components/Facts";
@@ -14,6 +15,7 @@ import TracePanel from "./components/TracePanel";
 import UsageCounter from "./components/UsageCounter";
 import { describePromptMoment, initGoogleAuth, whenGoogleReady } from "./googleAuth";
 import { useConnections } from "./hooks/useConnections";
+import { useIsOwner } from "./hooks/useIsOwner";
 import { useRefreshKey } from "./hooks/useRefreshKey";
 import { useResizableSidebar } from "./hooks/useResizableSidebar";
 import { useTenants } from "./hooks/useTenants";
@@ -77,6 +79,7 @@ function App() {
   const sidebar = useResizableSidebar();
   const [googleReady, setGoogleReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   // Why the user landed back on the sign-in screen (the chat socket was
   // rejected, APPCE-69, or the account isn't allowed in, APPCE-114).
   const [signInNotice, setSignInNotice] = useState<string | null>(takeParkedNotice);
@@ -87,6 +90,7 @@ function App() {
   const idTokenRef = useRef(idToken);
   idTokenRef.current = idToken;
   const { githubConnected, jira: jiraConnection } = useConnections(idTokenRef, userId, connectionsReloadKey);
+  const isOwner = useIsOwner(idTokenRef, userId);
   const {
     tenants,
     selectedTenantId,
@@ -247,7 +251,11 @@ function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onSignOut={signOut}
         onChangeAccount={changeAccount}
+        isOwner={isOwner}
+        onOpenAdmin={() => setAdminOpen(true)}
       />
+
+      {adminOpen && <AdminDialog idToken={idToken} onClose={() => setAdminOpen(false)} />}
 
       {settingsOpen && (
         <SettingsDialog

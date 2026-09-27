@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
 import { getSettings, resetSettings, updateSettings, type SettingsResponse, type SettingsValues } from "../api";
-import AccessSection from "./settings/AccessSection";
 import CategoriesSection from "./settings/CategoriesSection";
 import GithubSection from "./settings/GithubSection";
 import JiraSection from "./settings/JiraSection";
@@ -149,7 +148,6 @@ function SettingsDialog({ idToken, onClose, onSaved }: Props) {
         <CategoriesSection idToken={idToken} />
         <GithubSection idToken={idToken} />
         <JiraSection idToken={idToken} />
-        <AccessSection idToken={idToken} />
 
         <div className="settings-actions">
           <button className="settings-reset" onClick={reset} disabled={!loaded || atDefaults || saving}>
