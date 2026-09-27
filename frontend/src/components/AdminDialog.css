@@ -1,0 +1,16 @@
+.admin-usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-usage-table td {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-usage-count {
+  text-align: right;
+  color: var(--text-muted);
+  white-space: nowrap;
+}

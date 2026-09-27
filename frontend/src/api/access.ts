@@ -39,3 +39,18 @@ export async function removeAllowedEmail(idToken: string, email: string): Promis
   if (!res.ok) throw new Error(`removeAllowedEmail failed: ${res.status}`);
   return res.json();
 }
+
+export interface AdminUsage {
+  users: { email: string; count: number }[];
+  // A ceiling across every user combined, on top of each user's own
+  // (APPCE-122) — this is that shared count and its limit.
+  global: { count: number; limit: number };
+}
+
+export async function getAdminUsage(idToken: string): Promise<AdminUsage> {
+  const res = await fetch(`${API_BASE}/admin/usage`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`getAdminUsage failed: ${res.status}`);
+  return res.json();
+}
