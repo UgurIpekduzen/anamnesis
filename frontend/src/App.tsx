@@ -43,6 +43,17 @@ const RELOAD_LOOP_WINDOW_MS = 30_000;
 const ACCOUNT_NOT_ALLOWED_NOTICE =
   "This account isn't invited to Anamnesis yet. Ask the owner to add it, or sign in with a different account.";
 
+// A project-specific address (not the owner's personal one) for access
+// requests. mailto: puts it in the page's source, so it will be public once
+// the repo is; it exists only to receive this kind of request.
+const CONTACT_EMAIL = "anamnesis.project@gmail.com";
+const CONTACT_MAILTO =
+  `mailto:${CONTACT_EMAIL}` +
+  "?subject=" +
+  encodeURIComponent("Anamnesis access request") +
+  "&body=" +
+  encodeURIComponent("Google account email you'd like invited:\n\n");
+
 function takeParkedNotice(): string | null {
   try {
     const notice = sessionStorage.getItem(SIGN_IN_NOTICE_KEY);
@@ -208,7 +219,21 @@ function App() {
         <div className="signin-gate">
           <h1>Anamnesis</h1>
           <p>Personal Project Context Engine</p>
-          {signInNotice && <p className="session-expired">{signInNotice}</p>}
+          {signInNotice && (
+            <p className="session-expired">
+              {signInNotice}
+              {signInNotice === ACCOUNT_NOT_ALLOWED_NOTICE && (
+                <>
+                  {" "}
+                  <a href={CONTACT_MAILTO}>Request access</a>.
+                  <br />
+                  <span className="signin-hint">
+                    We'll only use this email to consider your request.
+                  </span>
+                </>
+              )}
+            </p>
+          )}
           <Auth ready={googleReady} />
         </div>
       </div>
