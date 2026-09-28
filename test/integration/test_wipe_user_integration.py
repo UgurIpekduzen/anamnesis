@@ -11,6 +11,7 @@ import pytest
 
 from src.accounts.allowed_emails import add_allowed_email, get_extra_allowed_emails, set_role
 from src.accounts.settings import get_settings, save_settings
+from src.accounts import settings as settings_module
 from src.accounts.usage import get_today_count, record_message
 from src.facts.categories import get_categories, save_categories
 from src.facts.facts import get_tenant_facts
@@ -33,7 +34,6 @@ def seeded_user():
     tenant_id = add_tenant(project_name, email)
     record_message(email)
     save_categories(email, ["bug"])
-    save_settings(email, {"history_turns": 5, "daily_message_warning_threshold": 10})
     save_github_token(email, "ghp_fake")
     save_jira_credentials(email, "jira@example.com", "fake-token", "https://example.atlassian.net")
     yield email, tenant_id, project_name
@@ -71,8 +71,24 @@ def test_a_confirmed_wipe_clears_every_collection(seeded_user):
     assert has_jira_connection(email) is False
     assert get_today_count(email) == 0
     assert get_categories(email) != ["bug"]  # back to the suggested default
-    assert get_settings(email)["history_turns"] != 5  # back to the default
     assert email not in get_extra_allowed_emails()
+
+
+def test_wiping_a_user_never_touches_the_shared_settings(seeded_user):
+    """history_turns/daily_message_warning_threshold are shared, owner-set
+    values (APPCE-124) — wiping one user's data must never reset them for
+    everyone else."""
+    email, _, _ = seeded_user
+    settings_module._cache = None
+    try:
+        save_settings({"history_turns": 5, "daily_message_warning_threshold": 10})
+
+        wipe_user(email, confirm=True)
+
+        assert get_settings() == {"history_turns": 5, "daily_message_warning_threshold": 10}
+    finally:
+        settings_module._doc_ref().delete()
+        settings_module._cache = None
 
 
 def test_the_owner_cannot_be_wiped(monkeypatch):

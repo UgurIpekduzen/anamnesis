@@ -10,7 +10,6 @@ by default, a deletion only when explicitly confirmed.
 """
 
 from src.accounts.allowed_emails import OWNER_EMAILS, get_extra_allowed_emails, remove_allowed_email
-from src.accounts.settings import reset_settings
 from src.accounts.usage import delete_usage
 from src.core.firestore_client import get_client
 from src.facts.categories import USER_COLLECTION as CATEGORIES_COLLECTION
@@ -19,18 +18,18 @@ from src.integrations.github.connections import delete_github_connection, has_gi
 from src.integrations.jira.connections import delete_jira_connection, has_jira_connection
 from src.projects.tenants import delete_tenant, list_tenants
 
-# Matches src.accounts.settings' own (unexported) collection name — used
-# only for the dry-run existence check; the actual deletion goes through
-# reset_settings, which also drops that module's in-process cache.
-SETTINGS_COLLECTION = "user_settings"
-
 
 def wipe_user(email: str, confirm: bool = False) -> dict:
     """Report what belongs to email across every collection (and, with
     confirm=True, delete all of it): every tenant they own — cascading into
     its facts/chat_turns/pending_facts, same as delete_tenant — their GitHub
-    and Jira connections, usage record, saved categories and settings, and
-    their entry in the allowlist (including any role).
+    and Jira connections, usage record, and saved categories, plus their
+    entry in the allowlist (including any role).
+
+    Deliberately doesn't touch src.accounts.settings — conversation memory
+    and the daily warning threshold are shared, owner-set values (APPCE-124),
+    not this user's own data, so wiping a user must never reset them for
+    everyone else.
 
     Never touches an owner: OWNER_EMAILS is the Terraform-configured
     identity that keeps this deployment from locking itself out, not
@@ -39,7 +38,7 @@ def wipe_user(email: str, confirm: bool = False) -> dict:
     Returns:
         {"tenants": [tenant_id, ...], "github_connection": bool,
          "jira_connection": bool, "usage_record": bool, "categories": bool,
-         "settings": bool, "on_allowlist": bool, "deleted": bool}
+         "on_allowlist": bool, "deleted": bool}
         The booleans and the tenant list describe what's there (or, once
         confirm=True, what was there) — a dry run's report and a confirmed
         run's summary have the same shape.
@@ -58,7 +57,6 @@ def wipe_user(email: str, confirm: bool = False) -> dict:
         "jira_connection": has_jira_connection(email),
         "usage_record": client.collection("usage").document(email).get().exists,
         "categories": client.collection(CATEGORIES_COLLECTION).document(email).get().exists,
-        "settings": client.collection(SETTINGS_COLLECTION).document(email).get().exists,
         "on_allowlist": email in get_extra_allowed_emails(),
         "deleted": False,
     }
@@ -70,12 +68,11 @@ def wipe_user(email: str, confirm: bool = False) -> dict:
     delete_github_connection(email)
     delete_jira_connection(email)
     delete_usage(email)
-    # reset_categories/reset_settings, not a raw client.delete(): each of
-    # those modules keeps a short-lived in-process read cache (categories.py,
-    # settings.py), and only their own reset functions know to drop it too —
-    # a direct Firestore delete here would leave a stale cached value behind.
+    # reset_categories, not a raw client.delete(): that module keeps a
+    # short-lived in-process read cache, and only its own reset function
+    # knows to drop it too — a direct Firestore delete would leave a stale
+    # cached value behind.
     reset_categories(email)
-    reset_settings(email)
     if summary["on_allowlist"]:
         remove_allowed_email(email)
 

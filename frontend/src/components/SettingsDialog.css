@@ -100,18 +100,12 @@
   line-height: 1.4;
 }
 
-.settings-hint.invalid,
-.settings-error {
+.settings-hint.invalid {
   color: var(--error-text);
 }
 
 .settings-field input[aria-invalid="true"] {
   border-color: var(--error-text);
-}
-
-.settings-error {
-  margin: 0;
-  font-size: 13px;
 }
 
 .settings-actions {
@@ -130,54 +124,6 @@
 .settings-actions-right {
   display: flex;
   gap: 8px;
-}
-
-/* A regular outlined button like Cancel, so it can be found; it used to be
-   plain text that looked like a label. */
-.settings-reset:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.settings-save {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #0e1117;
-}
-
-.settings-save:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.settings-save:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.settings-access-list {
-  list-style: none;
-  margin: 0 0 8px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.settings-access-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 8px;
-}
-
-.settings-access-list li > :first-child {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .settings-access-role {

@@ -83,6 +83,44 @@ export async function wipeUser(
   return res.json();
 }
 
+// history_turns and daily_message_warning_threshold used to be each user's
+// own setting; APPCE-124 moved them here as one shared value for everyone
+// (owner-only) — history_turns is a cost lever, the same kind of knob as
+// the daily/global message limits, not a per-user preference.
+export interface SharedSettingsValues {
+  history_turns: number;
+  daily_message_warning_threshold: number;
+}
+
+export interface SharedSettingsResponse extends SharedSettingsValues {
+  limits: Record<keyof SharedSettingsValues, { min: number; max: number }>;
+  defaults: SharedSettingsValues;
+}
+
+export async function getSharedSettings(idToken: string): Promise<SharedSettingsResponse> {
+  const res = await fetch(`${API_BASE}/admin/settings`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`getSharedSettings failed: ${res.status}`);
+  return res.json();
+}
+
+export async function setSharedSettings(
+  idToken: string,
+  values: SharedSettingsValues,
+): Promise<SharedSettingsResponse> {
+  const res = await fetch(`${API_BASE}/admin/settings`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  });
+  if (!res.ok) {
+    const detail = res.status === 400 ? (await res.json().catch(() => null))?.detail : null;
+    throw new Error(detail || `setSharedSettings failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export interface AdminUsage {
   users: { email: string; count: number; role: Role | "admin" }[];
   // A ceiling across every user combined, on top of each user's own

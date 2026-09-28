@@ -5,7 +5,6 @@ export * from "./tenants";
 export * from "./facts";
 export * from "./chat";
 export * from "./usage";
-export * from "./settings";
 export * from "./connections";
 export * from "./access";
 export * from "./status";

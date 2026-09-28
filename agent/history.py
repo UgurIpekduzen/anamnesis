@@ -35,16 +35,17 @@ def trim_to_last_turns(contents: list[types.Content], max_turns: int) -> list[ty
     return contents[starts[-max_turns] :]
 
 
-def make_history_limiter(owner_uid: str):
-    """Build a before_model_callback bound to one user's window setting.
+def make_history_limiter():
+    """Build a before_model_callback that trims to the shared history_turns
+    setting (APPCE-124).
 
-    The setting is read on each call rather than captured once, so a change
-    in Settings takes effect on the next turn without rebuilding the cached
+    The setting is read on each call rather than captured once, so an admin
+    change takes effect on the next turn without rebuilding the cached
     Runner (which would throw away every user's in-memory conversation).
     """
 
     def limit_history(callback_context: CallbackContext, llm_request: LlmRequest) -> None:
-        max_turns = get_settings(owner_uid)["history_turns"]
+        max_turns = get_settings()["history_turns"]
         llm_request.contents = trim_to_last_turns(llm_request.contents, max_turns)
         return None
 

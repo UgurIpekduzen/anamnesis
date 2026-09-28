@@ -13,6 +13,7 @@ from src.accounts.allowed_emails import (
     remove_allowed_email,
     set_role,
 )
+from src.accounts.settings import BOUNDS, DEFAULTS, get_settings, save_settings
 from src.accounts.usage import GLOBAL_DAILY_MESSAGE_LIMIT, get_global_today_count, get_usage_for
 from src.tools.wipe_user import wipe_user
 
@@ -110,3 +111,43 @@ def get_usage(owner_uid: str = Depends(require_owner)) -> dict:
         "users": get_usage_for(list(emails)),
         "global": {"count": get_global_today_count(), "limit": GLOBAL_DAILY_MESSAGE_LIMIT},
     }
+
+
+class SettingsUpdate(BaseModel):
+    # forbid: an unknown field is a client bug. strict: "5" or true must
+    # not be quietly coerced into a valid int. Same shape the user's own
+    # PUT /settings used before APPCE-124 moved this here.
+    model_config = ConfigDict(extra="forbid")
+
+    history_turns: int = Field(strict=True, ge=BOUNDS["history_turns"][0], le=BOUNDS["history_turns"][1])
+    daily_message_warning_threshold: int = Field(
+        strict=True,
+        ge=BOUNDS["daily_message_warning_threshold"][0],
+        le=BOUNDS["daily_message_warning_threshold"][1],
+    )
+
+
+def _settings_response(settings: dict) -> dict:
+    # limits/defaults ride along so the admin UI can render min/max and
+    # know what "reset" means from the one source of truth.
+    return {
+        **settings,
+        "limits": {name: {"min": low, "max": high} for name, (low, high) in BOUNDS.items()},
+        "defaults": dict(DEFAULTS),
+    }
+
+
+# history_turns/daily_message_warning_threshold used to be each user's own
+# setting; APPCE-124 moved them here, as one shared value for everyone, not
+# per email — history_turns is really a cost lever (it scales the tokens
+# resent to the shared agent_sa on every message), the same kind of knob as
+# DAILY_MESSAGE_HARD_LIMIT/GLOBAL_DAILY_MESSAGE_LIMIT, not something each
+# invited user should tune for themselves.
+@router.get("/admin/settings")
+def get_shared_settings(owner_uid: str = Depends(require_owner)) -> dict:
+    return _settings_response(get_settings())
+
+
+@router.put("/admin/settings")
+def set_shared_settings(body: SettingsUpdate, owner_uid: str = Depends(require_owner)) -> dict:
+    return _settings_response(save_settings(body.model_dump()))

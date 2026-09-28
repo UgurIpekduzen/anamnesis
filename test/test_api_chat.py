@@ -135,7 +135,7 @@ def chat(monkeypatch, spies):
     monkeypatch.setattr(chat_router, "append_turn", lambda t, o, q, a: spies.saved.append((t, o, q, a)))
     monkeypatch.setattr(chat_router, "clear_turns", lambda t, o: spies.cleared.append((t, o)))
     monkeypatch.setattr(
-        chat_router, "get_settings", lambda owner_uid: {"history_turns": 7, "daily_message_warning_threshold": 100}
+        chat_router, "get_settings", lambda: {"history_turns": 7, "daily_message_warning_threshold": 100}
     )
     monkeypatch.setattr(chat_router, "verify_token", lambda token: OWNER)
     monkeypatch.setattr(chat_router, "get_owned_tenant", lambda tenant_id, owner_uid: {"name": "Some Tenant"})

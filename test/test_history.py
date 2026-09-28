@@ -74,19 +74,19 @@ def test_returns_history_unchanged_when_there_are_no_user_turns():
     assert trim_to_last_turns(contents, max_turns=1) == contents
 
 
-def test_the_limiter_applies_the_users_window_from_settings(monkeypatch):
-    monkeypatch.setattr("agent.history.get_settings", lambda owner_uid: {"history_turns": 1})
+def test_the_limiter_applies_the_shared_window_from_settings(monkeypatch):
+    monkeypatch.setattr("agent.history.get_settings", lambda: {"history_turns": 1})
     request = SimpleNamespace(contents=[_user("one"), _model("a"), _user("two")])
 
-    make_history_limiter("test@example.com")(None, request)
+    make_history_limiter()(None, request)
 
     assert [c.parts[0].text for c in request.contents] == ["two"]
 
 
 def test_the_limiter_picks_up_a_changed_setting_without_being_rebuilt(monkeypatch):
     current = {"history_turns": 1}
-    monkeypatch.setattr("agent.history.get_settings", lambda owner_uid: dict(current))
-    limiter = make_history_limiter("test@example.com")
+    monkeypatch.setattr("agent.history.get_settings", lambda: dict(current))
+    limiter = make_history_limiter()
     contents = [_user("one"), _model("a"), _user("two")]
 
     first = SimpleNamespace(contents=list(contents))

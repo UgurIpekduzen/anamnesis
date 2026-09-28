@@ -233,7 +233,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
     return Agent(
         model='gemini-2.5-flash',
         name='root_agent',
-        before_model_callback=make_history_limiter(owner_uid),
+        before_model_callback=make_history_limiter(),
         description="Answers questions about one of the user's personal projects, records new facts about it, and checks its live Jira/GitHub status.",
         # Prompting strategy (APPCE-84): a flat list of condition -> action
         # rules, one per user intent, each naming the exact tool and how to

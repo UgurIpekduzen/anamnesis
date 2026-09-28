@@ -243,7 +243,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
             runner,
             owner_uid,
             session_id,
-            lambda: load_recent_turns(tenant_id, owner_uid, get_settings(owner_uid)["history_turns"]),
+            lambda: load_recent_turns(tenant_id, owner_uid, get_settings()["history_turns"]),
         )
     except Exception as exc:
         log("WARNING", "chat_memory_restore_failed", error=repr(exc))
