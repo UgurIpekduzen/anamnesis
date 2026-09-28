@@ -24,7 +24,13 @@ from src.tools.wipe_user import wipe_user
 
 @pytest.fixture
 def seeded_user():
-    """An invited email with something in every collection wipe_user touches."""
+    """An invited email with something in every collection wipe_user touches.
+
+    Cleans up with its own confirmed wipe regardless of what the test does
+    with it — a dry-run-only test, or one that raises, would otherwise leave
+    a real allowlist entry, tenant and connections behind in whatever
+    database the tests run against.
+    """
     email = f"wipe-{uuid.uuid4().hex[:8]}@example.com"
     add_allowed_email(email)
     set_role(email, "user")
@@ -36,7 +42,10 @@ def seeded_user():
     save_categories(email, ["bug"])
     save_github_token(email, "ghp_fake")
     save_jira_credentials(email, "jira@example.com", "fake-token", "https://example.atlassian.net")
-    yield email, tenant_id, project_name
+    try:
+        yield email, tenant_id, project_name
+    finally:
+        wipe_user(email, confirm=True)
 
 
 def test_a_dry_run_reports_without_deleting_anything(seeded_user):
