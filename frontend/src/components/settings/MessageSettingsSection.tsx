@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getSharedSettings, setSharedSettings, type SharedSettingsResponse, type SharedSettingsValues } from "../../api";
+import HintLabel from "./HintLabel";
 
 interface Props {
   idToken: string;
@@ -9,20 +10,11 @@ interface Props {
 interface FieldSpec {
   name: keyof SharedSettingsValues;
   label: string;
-  help: string;
 }
 
 const FIELDS: FieldSpec[] = [
-  {
-    name: "history_turns",
-    label: "Conversation memory (messages)",
-    help: "How many recent messages the assistant resends as context on every turn, for everyone — the main cost lever (APPCE-124).",
-  },
-  {
-    name: "daily_message_warning_threshold",
-    label: "Daily message warning",
-    help: "Shows a heads-up once someone has sent this many messages today. Never blocks them.",
-  },
+  { name: "history_turns", label: "Conversation memory (messages)" },
+  { name: "daily_message_warning_threshold", label: "Daily message warning" },
 ];
 
 // Owner-only, shared by every user — replaces the old self-service
@@ -80,11 +72,22 @@ function MessageSettingsSection({ idToken }: Props) {
 
   return (
     <div className="settings-field">
-      <div className="settings-label">Message settings</div>
-      <small className="settings-hint">Applies to every user, including you.</small>
+      <HintLabel label="Message settings" variant="section">
+        Applies to every user, including you.
+        <ul>
+          <li>
+            <strong>Conversation memory</strong> — recent messages resent as context on every turn, the main cost
+            lever
+          </li>
+          <li>
+            <strong>Daily message warning</strong> — a heads-up shown once someone hits this many messages today; it
+            never blocks them
+          </li>
+        </ul>
+      </HintLabel>
 
       {form && loaded ? (
-        FIELDS.map(({ name, label, help }) => {
+        FIELDS.map(({ name, label }) => {
           const { min, max } = loaded.limits[name];
           const invalid = values[name] === null;
           return (
@@ -100,9 +103,7 @@ function MessageSettingsSection({ idToken }: Props) {
                 aria-invalid={invalid}
                 disabled={saving}
               />
-              <small className={invalid ? "settings-hint invalid" : "settings-hint"}>
-                {invalid ? `Enter a whole number from ${min} to ${max}.` : help}
-              </small>
+              {invalid && <small className="settings-hint invalid">{`Enter a whole number from ${min} to ${max}.`}</small>}
             </label>
           );
         })

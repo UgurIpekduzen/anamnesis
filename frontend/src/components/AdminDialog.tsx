@@ -15,17 +15,15 @@ function AdminDialog({ idToken, onClose }: Props) {
   return (
     <div className="settings-backdrop" onMouseDown={onClose}>
       <div className="settings-dialog" role="dialog" aria-label="Admin" onMouseDown={(e) => e.stopPropagation()}>
-        <h2>Admin</h2>
+        <div className="settings-header">
+          <h2>Admin</h2>
+          <button className="settings-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
 
         <UsersSection idToken={idToken} />
         <MessageSettingsSection idToken={idToken} />
-
-        <div className="settings-actions">
-          <div />
-          <div className="settings-actions-right">
-            <button onClick={onClose}>Close</button>
-          </div>
-        </div>
       </div>
     </div>
   );

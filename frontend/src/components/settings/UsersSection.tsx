@@ -11,6 +11,7 @@ import {
   type AdminUsage,
   type Role,
 } from "../../api";
+import HintLabel from "./HintLabel";
 import WipeUserDialog from "../WipeUserDialog";
 
 interface Props {
@@ -112,28 +113,41 @@ function UsersSection({ idToken }: Props) {
 
   return (
     <div className="settings-field">
-      <div className="settings-label">Users</div>
-      <small className="settings-hint">
-        Anyone below can sign in to their own, fully separate projects — never yours. "Tester" is the default: a
-        one-time lifetime message cap. Switch someone to "User" to exempt them from it (e.g. a collaborator, not a
-        one-off tester).
-      </small>
+      <HintLabel label="Users" variant="section">
+        Anyone below can sign in to their own, fully separate projects — never yours.
+        <ul>
+          <li>
+            <strong>Tester</strong> — the default: a one-time lifetime message cap
+          </li>
+          <li>
+            <strong>User</strong> — exempt from that cap (e.g. a collaborator, not a one-off tester)
+          </li>
+        </ul>
+      </HintLabel>
       <table className="admin-users-table">
+        <colgroup>
+          <col />
+          <col className="admin-users-role-col" />
+          <col className="admin-users-count-col" />
+          <col className="admin-users-action-col" />
+          <col className="admin-users-action-col" />
+        </colgroup>
         <thead>
           <tr>
             <th>Email</th>
             <th>Role</th>
-            <th className="admin-users-count">Today</th>
+            <th>Today</th>
+            <th />
             <th />
           </tr>
         </thead>
         <tbody>
           {rows.map(({ email, role, count }) => (
             <tr key={email}>
-              <td>{email}</td>
+              <td className="admin-users-email">{email}</td>
               <td>
                 {role === "admin" ? (
-                  <span className="admin-users-role">ADMIN</span>
+                  <span className="admin-users-role">Admin</span>
                 ) : (
                   <button
                     className="settings-access-role"
@@ -146,28 +160,30 @@ function UsersSection({ idToken }: Props) {
                 )}
               </td>
               <td className="admin-users-count">{count}</td>
-              <td className="admin-users-actions">
+              <td className="admin-users-action">
                 {role !== "admin" && (
-                  <>
-                    <button
-                      className="settings-access-remove"
-                      onClick={() => removeEmail(email)}
-                      disabled={busy}
-                      aria-label={`Remove ${email}`}
-                      title="Remove access"
-                    >
-                      ×
-                    </button>
-                    <button
-                      className="settings-access-wipe"
-                      onClick={() => setWipeTarget(email)}
-                      disabled={busy}
-                      aria-label={`Delete ${email}'s data`}
-                      title="Remove access and permanently delete their data"
-                    >
-                      🗑
-                    </button>
-                  </>
+                  <button
+                    className="settings-access-remove"
+                    onClick={() => removeEmail(email)}
+                    disabled={busy}
+                    aria-label={`Remove ${email}`}
+                    title="Remove access"
+                  >
+                    ×
+                  </button>
+                )}
+              </td>
+              <td className="admin-users-action">
+                {role !== "admin" && (
+                  <button
+                    className="settings-access-wipe"
+                    onClick={() => setWipeTarget(email)}
+                    disabled={busy}
+                    aria-label={`Delete ${email}'s data`}
+                    title="Remove access and permanently delete their data"
+                  >
+                    🗑
+                  </button>
                 )}
               </td>
             </tr>
@@ -180,16 +196,18 @@ function UsersSection({ idToken }: Props) {
           user's own, so it resets at midnight UTC.
         </small>
       )}
-      <input
-        placeholder="Email to grant access to"
-        value={newEmail}
-        onChange={(e) => setNewEmail(e.target.value)}
-        aria-invalid={!!error}
-      />
+      <div className="admin-users-add">
+        <input
+          placeholder="Email to grant access to"
+          value={newEmail}
+          onChange={(e) => setNewEmail(e.target.value)}
+          aria-invalid={!!error}
+        />
+        <button onClick={addEmail} disabled={!newEmail.trim() || busy}>
+          {busy ? "Adding…" : "Add"}
+        </button>
+      </div>
       {error && <small className="settings-hint invalid">{error}</small>}
-      <button onClick={addEmail} disabled={!newEmail.trim() || busy}>
-        {busy ? "Adding…" : "Add"}
-      </button>
       {wipeTarget && (
         <WipeUserDialog email={wipeTarget} onConfirm={confirmWipe} onCancel={() => setWipeTarget(null)} />
       )}

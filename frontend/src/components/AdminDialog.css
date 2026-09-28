@@ -1,7 +1,25 @@
+/* table-layout: fixed + explicit <col> widths: column widths come only
+   from these, never from cell content — a plain "ADMIN" label, a
+   bordered/padded Tester button and an uppercase, letter-spaced header
+   label can all sit in the same column without any of them silently
+   growing it (which is what kept throwing header and data out of line). */
 .admin-users-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 13px;
+}
+
+.admin-users-role-col {
+  width: 64px;
+}
+
+.admin-users-count-col {
+  width: 44px;
+}
+
+.admin-users-action-col {
+  width: 24px;
 }
 
 .admin-users-table th {
@@ -11,39 +29,52 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  padding: 0 8px 4px 0;
-}
-
-.admin-users-table td {
-  padding: 4px 8px 4px 0;
-  border-bottom: 1px solid var(--border);
+  padding: 0 0 4px;
+  overflow: hidden;
   white-space: nowrap;
 }
 
-.admin-users-table th:first-child,
-.admin-users-table td:first-child {
-  width: 100%;
+.admin-users-table td {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  white-space: nowrap;
 }
 
-.admin-users-table td:first-child {
-  overflow: hidden;
+.admin-users-email {
   text-overflow: ellipsis;
 }
 
-.admin-users-role {
-  color: var(--text-muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
 .admin-users-count {
-  text-align: right;
   color: var(--text-muted);
 }
 
-.admin-users-actions {
+.admin-users-action {
+  text-align: center;
+}
+
+/* Same pill shape as .settings-access-role (Tester/User) — border-radius,
+   font size, padding — so "Admin" isn't just plain text sitting oddly next
+   to a bordered button in the same column. Not a button: no cursor/hover,
+   since the owner's role isn't settable (it's always admin). Its own
+   color (distinct from Tester's neutral border and User's accent) makes
+   the three roles tellable apart at a glance. */
+.admin-users-role {
+  display: inline-block;
+  border: 1px solid var(--warning-text);
+  border-radius: 999px;
+  color: var(--warning-text);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.admin-users-add {
   display: flex;
-  align-items: center;
-  gap: 2px;
+  gap: 8px;
+}
+
+.admin-users-add input {
+  flex: 1;
 }

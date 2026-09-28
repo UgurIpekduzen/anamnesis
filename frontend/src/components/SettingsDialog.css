@@ -28,6 +28,35 @@
   font-size: 18px;
 }
 
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  /* Stays visible while the sections below scroll — the same sticky-edge
+     trick .settings-actions used at the bottom, mirrored at the top. */
+  position: sticky;
+  top: -24px;
+  margin: -24px -24px 0;
+  padding: 20px 24px 0;
+  background: var(--bg-card);
+  z-index: 1;
+}
+
+.settings-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.settings-close:hover {
+  color: var(--text);
+}
+
 .settings-field {
   display: flex;
   flex-direction: column;
@@ -37,6 +66,17 @@
 .settings-label {
   font-weight: 600;
   font-size: 14px;
+}
+
+/* A top-level section heading (e.g. "Users", "Message settings") — set
+   apart from an ordinary field label like "Conversation memory" below it,
+   which stays on .settings-label, so the hierarchy is visible at a glance
+   rather than every heading looking the same weight. */
+.settings-section-label {
+  font-weight: 700;
+  font-size: 16px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-info-wrapper {
@@ -59,6 +99,12 @@
   visibility: hidden;
   opacity: 0;
   position: absolute;
+  /* Anchored to the ⓘ's left edge, extending rightward. The dialog's
+     overflow-y: auto makes the browser clip overflow-x too (they can't
+     differ once one of them isn't visible), so this only stays fully
+     on-screen because every ⓘ that uses it now sits near the left edge
+     (a section heading like "Users", not a long field label) — centering
+     it instead once clipped the left side for exactly that case. */
   left: 0;
   top: 100%;
   margin-top: 6px;
@@ -106,24 +152,6 @@
 
 .settings-field input[aria-invalid="true"] {
   border-color: var(--error-text);
-}
-
-.settings-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  /* Stays visible while the sections above scroll. */
-  position: sticky;
-  bottom: -24px;
-  margin-bottom: -24px;
-  padding: 12px 0 24px;
-  background: var(--bg-card);
-}
-
-.settings-actions-right {
-  display: flex;
-  gap: 8px;
 }
 
 .settings-access-role {

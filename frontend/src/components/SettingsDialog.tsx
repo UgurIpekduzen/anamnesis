@@ -31,18 +31,16 @@ function SettingsDialog({ idToken, onClose }: Props) {
         aria-label="Settings"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <h2>Settings</h2>
+        <div className="settings-header">
+          <h2>Settings</h2>
+          <button className="settings-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
 
         <CategoriesSection idToken={idToken} />
         <GithubSection idToken={idToken} />
         <JiraSection idToken={idToken} />
-
-        <div className="settings-actions">
-          <div />
-          <div className="settings-actions-right">
-            <button onClick={onClose}>Close</button>
-          </div>
-        </div>
       </div>
     </div>
   );
