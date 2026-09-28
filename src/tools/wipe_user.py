@@ -10,6 +10,7 @@ by default, a deletion only when explicitly confirmed.
 """
 
 from src.accounts.allowed_emails import OWNER_EMAILS, get_extra_allowed_emails, remove_allowed_email
+from src.accounts.profiles import get_name, set_name
 from src.accounts.usage import delete_usage
 from src.core.firestore_client import get_client
 from src.facts.categories import USER_COLLECTION as CATEGORIES_COLLECTION
@@ -23,8 +24,9 @@ def wipe_user(email: str, confirm: bool = False) -> dict:
     """Report what belongs to email across every collection (and, with
     confirm=True, delete all of it): every tenant they own — cascading into
     its facts/chat_turns/pending_facts, same as delete_tenant — their GitHub
-    and Jira connections, usage record, and saved categories, plus their
-    entry in the allowlist (including any role).
+    and Jira connections, usage record, saved categories and owner-set
+    display name (APPCE-126), plus their entry in the allowlist (including
+    any role).
 
     Deliberately doesn't touch src.accounts.settings — conversation memory
     and the daily warning threshold are shared, owner-set values (APPCE-124),
@@ -38,7 +40,7 @@ def wipe_user(email: str, confirm: bool = False) -> dict:
     Returns:
         {"tenants": [tenant_id, ...], "github_connection": bool,
          "jira_connection": bool, "usage_record": bool, "categories": bool,
-         "on_allowlist": bool, "deleted": bool}
+         "name": str | None, "on_allowlist": bool, "deleted": bool}
         The booleans and the tenant list describe what's there (or, once
         confirm=True, what was there) — a dry run's report and a confirmed
         run's summary have the same shape.
@@ -57,6 +59,7 @@ def wipe_user(email: str, confirm: bool = False) -> dict:
         "jira_connection": has_jira_connection(email),
         "usage_record": client.collection("usage").document(email).get().exists,
         "categories": client.collection(CATEGORIES_COLLECTION).document(email).get().exists,
+        "name": get_name(email),
         "on_allowlist": email in get_extra_allowed_emails(),
         "deleted": False,
     }
@@ -73,6 +76,7 @@ def wipe_user(email: str, confirm: bool = False) -> dict:
     # knows to drop it too — a direct Firestore delete would leave a stale
     # cached value behind.
     reset_categories(email)
+    set_name(email, "")
     if summary["on_allowlist"]:
         remove_allowed_email(email)
 

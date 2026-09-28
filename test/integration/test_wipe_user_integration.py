@@ -10,6 +10,7 @@ import uuid
 import pytest
 
 from src.accounts.allowed_emails import add_allowed_email, get_extra_allowed_emails, set_role
+from src.accounts.profiles import get_name, set_name
 from src.accounts.settings import get_settings, save_settings
 from src.accounts import settings as settings_module
 from src.accounts.usage import get_today_count, record_message
@@ -40,6 +41,7 @@ def seeded_user():
     tenant_id = add_tenant(project_name, email)
     record_message(email)
     save_categories(email, ["bug"])
+    set_name(email, "Wipe Test User")
     save_github_token(email, "ghp_fake")
     save_jira_credentials(email, "jira@example.com", "fake-token", "https://example.atlassian.net")
     try:
@@ -55,6 +57,7 @@ def test_a_dry_run_reports_without_deleting_anything(seeded_user):
 
     assert result["deleted"] is False
     assert result["tenants"] == [tenant_id]
+    assert result["name"] == "Wipe Test User"
     assert result["on_allowlist"] is True
     # Nothing touched: nobody's data is gone just from asking what's there.
     assert list_tenants(email) == [
@@ -80,6 +83,7 @@ def test_a_confirmed_wipe_clears_every_collection(seeded_user):
     assert has_jira_connection(email) is False
     assert get_today_count(email) == 0
     assert get_categories(email) != ["bug"]  # back to the suggested default
+    assert get_name(email) is None
     assert email not in get_extra_allowed_emails()
 
 

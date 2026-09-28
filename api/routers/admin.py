@@ -13,6 +13,7 @@ from src.accounts.allowed_emails import (
     remove_allowed_email,
     set_role,
 )
+from src.accounts.profiles import MAX_NAME_LENGTH, get_names, set_name
 from src.accounts.settings import BOUNDS, DEFAULTS, get_settings, save_settings
 from src.accounts.usage import GLOBAL_DAILY_MESSAGE_LIMIT, get_global_today_count, get_usage_for
 from src.tools.wipe_user import wipe_user
@@ -22,6 +23,12 @@ def _extra_users() -> list[dict]:
     emails = get_extra_allowed_emails()
     roles = get_roles(list(emails))
     return [{"email": email, "role": roles[email]} for email in sorted(emails)]
+
+
+def _known_email(email: str) -> bool:
+    """Whether email is someone this app knows about — the owner or an
+    invited email — as opposed to an arbitrary string an owner mistyped."""
+    return email in OWNER_EMAILS or email in get_extra_allowed_emails()
 
 
 router = APIRouter()
@@ -34,7 +41,17 @@ router = APIRouter()
 # successful GET.
 @router.get("/admin/allowed_emails")
 def get_allowed_emails(owner_uid: str = Depends(require_owner)) -> dict:
-    return {"owner_emails": sorted(OWNER_EMAILS), "extra_users": _extra_users()}
+    extra_users = _extra_users()
+    all_emails = list(OWNER_EMAILS) + [u["email"] for u in extra_users]
+    return {
+        "owner_emails": sorted(OWNER_EMAILS),
+        "extra_users": extra_users,
+        # A display name the owner set for an email (APPCE-126) — never
+        # captured from the user's own Google account. Keyed separately
+        # rather than folded into owner_emails/extra_users so those two
+        # keep their existing shape.
+        "names": get_names(all_emails),
+    }
 
 
 class AllowedEmailCreate(BaseModel):
@@ -151,3 +168,27 @@ def get_shared_settings(owner_uid: str = Depends(require_owner)) -> dict:
 @router.put("/admin/settings")
 def set_shared_settings(body: SettingsUpdate, owner_uid: str = Depends(require_owner)) -> dict:
     return _settings_response(save_settings(body.model_dump()))
+
+
+class NameUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Not min_length=1: an empty/whitespace string is how the owner clears
+    # a name they set by mistake — set_name treats that as "no name", not
+    # an error.
+    name: str = Field(strict=True, max_length=MAX_NAME_LENGTH)
+
+
+# A label the owner chooses for an email — never captured from the user's
+# own Google account (APPCE-126) — so people are tellable apart once email
+# addresses alone aren't enough. Works for the owner's own email too: same
+# reasoning as /admin/settings, no lockout risk in a display name.
+@router.put("/admin/users/{email}/name")
+def set_user_name(email: str, body: NameUpdate, owner_uid: str = Depends(require_owner)) -> dict:
+    if not _known_email(email):
+        raise HTTPException(status_code=400, detail="That email isn't on the allowlist.")
+    try:
+        name = set_name(email, body.name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"email": email, "name": name}

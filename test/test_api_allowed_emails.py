@@ -13,6 +13,7 @@ NON_OWNER = "someone-else@example.com"
 def api(monkeypatch):
     monkeypatch.setattr(admin, "get_extra_allowed_emails", lambda: {"already-allowed@example.com"})
     monkeypatch.setattr(admin, "get_roles", lambda emails: {e: "tester" for e in emails})
+    monkeypatch.setattr(admin, "get_names", lambda emails: {})
     monkeypatch.setattr(admin, "add_allowed_email", lambda email: None)
     monkeypatch.setattr(admin, "remove_allowed_email", lambda email: None)
     monkeypatch.setattr(admin, "set_role", lambda email, role: None)
@@ -31,6 +32,7 @@ def test_owner_can_list_allowed_emails(api):
     assert response.json() == {
         "owner_emails": [OWNER],
         "extra_users": [{"email": "already-allowed@example.com", "role": "tester"}],
+        "names": {},
     }
 
 
