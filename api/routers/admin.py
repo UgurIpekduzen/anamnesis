@@ -1,7 +1,7 @@
 """Who may sign in beyond the owner(s) named in Terraform, and their role.
 Owner-only."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import require_owner
@@ -168,6 +168,44 @@ def get_shared_settings(owner_uid: str = Depends(require_owner)) -> dict:
 @router.put("/admin/settings")
 def set_shared_settings(body: SettingsUpdate, owner_uid: str = Depends(require_owner)) -> dict:
     return _settings_response(save_settings(body.model_dump()))
+
+
+# Merges what get_allowed_emails/get_usage/get_names each separately
+# expose into rows the Users table can page and search through — the
+# owner/extra split and separate usage call made sense before a name (and
+# the need to search by it) existed, but the table always showed them as
+# one list anyway (APPCE-126). offset/limit are in-memory paging over
+# OWNER_EMAILS | get_extra_allowed_emails() (never more than a handful of
+# invited testers in practice), not a Firestore-cursor query — there's no
+# per-user document to page over, only this array-backed allowlist.
+@router.get("/admin/users")
+def list_users(
+    q: str = Query("", max_length=200),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    owner_uid: str = Depends(require_owner),
+) -> dict:
+    emails = OWNER_EMAILS | get_extra_allowed_emails()
+    roles = get_roles(list(emails))
+    names = get_names(list(emails))
+    counts = {u["email"]: u["count"] for u in get_usage_for(list(emails))}
+
+    rows = [
+        {"email": email, "role": roles[email], "name": names.get(email), "count": counts.get(email, 0)}
+        for email in sorted(emails)
+    ]
+
+    needle = q.strip().lower()
+    if needle:
+        rows = [r for r in rows if needle in r["email"].lower() or needle in (r["name"] or "").lower()]
+
+    return {
+        "users": rows[offset : offset + limit],
+        "total": len(rows),
+        "limit": limit,
+        "offset": offset,
+        "global": {"count": get_global_today_count(), "limit": GLOBAL_DAILY_MESSAGE_LIMIT},
+    }
 
 
 class NameUpdate(BaseModel):
