@@ -49,7 +49,7 @@ def get_pending_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner
     """Facts staged from GitHub activity, awaiting approval or rejection.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     try:
         return list_pending_facts(tenant_id, owner_uid)
@@ -62,7 +62,7 @@ def get_pending_facts_stats(tenant_id: str, owner_uid: str = Depends(get_current
     """How many pending facts have been approved vs. rejected so far.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     try:
         return get_pending_fact_stats(tenant_id, owner_uid)
@@ -77,8 +77,8 @@ def approve_pending_fact_endpoint(
     """Approve a pending fact, turning it into a real, stored fact.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
-        pending_fact_id: The pending fact's id, as returned by
+        tenant_id (str): The project identifier, e.g. "my_project".
+        pending_fact_id (str): The pending fact's id, as returned by
             get_pending_facts.
     """
     try:
@@ -100,8 +100,8 @@ def reject_pending_fact_endpoint(
     """Reject a pending fact, discarding it.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
-        pending_fact_id: The pending fact's id, as returned by
+        tenant_id (str): The project identifier, e.g. "my_project".
+        pending_fact_id (str): The pending fact's id, as returned by
             get_pending_facts.
     """
     try:

@@ -14,8 +14,8 @@ def get_runner(owner_uid: str, tenant_id: str) -> Runner:
     """Return the cached Runner for this owner and project, building one on first use.
 
     Args:
-        owner_uid: The signed-in user's identity.
-        tenant_id: The project this Runner's agent is scoped to.
+        owner_uid (str): The signed-in user's identity.
+        tenant_id (str): The project this Runner's agent is scoped to.
     """
     # Cached per (owner_uid, tenant_id) so each project's chat gets its own
     # Runner wrapping an Agent whose tools are already scoped to just that

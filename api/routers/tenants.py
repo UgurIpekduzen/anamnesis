@@ -63,7 +63,7 @@ def update_tenant(
     """Rename a project owned by the signed-in user.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     try:
         rename_tenant(tenant_id, body.name, owner_uid)
@@ -77,7 +77,7 @@ def remove_tenant(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid
     """Delete a project owned by the signed-in user, and everything in it.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     try:
         delete_tenant(tenant_id, owner_uid)
@@ -115,7 +115,7 @@ def update_github_repo(
     """Link a project to a GitHub repo, so it gets polled for facts.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     try:
         set_github_repo(tenant_id, body.github_repo, owner_uid)
@@ -131,7 +131,7 @@ def remove_github_repo(tenant_id: str, owner_uid: str = Depends(get_current_owne
     """Unlink a project's GitHub repo, stopping it being polled.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     try:
         clear_github_repo(tenant_id, owner_uid)
@@ -147,7 +147,7 @@ def update_jira_project_key(
     """Link a project to a Jira project key.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     try:
         set_jira_project_key(tenant_id, body.jira_project_key, owner_uid)
@@ -163,7 +163,7 @@ def remove_jira_project_key(tenant_id: str, owner_uid: str = Depends(get_current
     """Unlink a project's Jira project key.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     try:
         clear_jira_project_key(tenant_id, owner_uid)

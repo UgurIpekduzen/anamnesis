@@ -38,7 +38,8 @@ def edit_fact(
     """Apply a partial update to one fact and confirm it was updated.
 
     Args:
-        fact_id: The fact's document id, as returned by get_tenant_facts.
+        fact_id (str): The fact's document id, as returned by
+            get_tenant_facts.
 
     Raises:
         HTTPException: 422 if neither content nor category is given, 404 if
@@ -61,7 +62,8 @@ def remove_fact(tenant_id: str, fact_id: str, owner_uid: str = Depends(get_curre
     """Delete one fact and confirm it was deleted.
 
     Args:
-        fact_id: The fact's document id, as returned by get_tenant_facts.
+        fact_id (str): The fact's document id, as returned by
+            get_tenant_facts.
 
     Raises:
         HTTPException: 404 if the fact doesn't exist.

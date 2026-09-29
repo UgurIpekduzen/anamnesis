@@ -84,7 +84,7 @@ def remove_allowed_email_endpoint(email: str, owner_uid: str = Depends(require_o
     """Revoke an invited email's access. A no-op if it was never invited.
 
     Args:
-        email: The invited email to revoke.
+        email (str): The invited email to revoke.
     """
     remove_allowed_email(email)
     return {"extra_users": _extra_users()}
@@ -108,7 +108,7 @@ def set_role_endpoint(email: str, body: RoleUpdate, owner_uid: str = Depends(req
     """Change an invited email's role.
 
     Args:
-        email: The invited email to change.
+        email (str): The invited email to change.
     """
     try:
         set_role(email, body.role)
@@ -137,8 +137,8 @@ def wipe_user_endpoint(email: str, body: UserWipeConfirm, owner_uid: str = Depen
     """Revoke an invited user's access and permanently delete their data.
 
     Args:
-        email: The invited user's email. body.confirm_email must match it
-            exactly, or the request is refused.
+        email (str): The invited user's email. body.confirm_email must
+            match it exactly, or the request is refused.
     """
     if body.confirm_email != email:
         raise HTTPException(status_code=400, detail="Confirmation email doesn't match.")
@@ -230,10 +230,11 @@ def list_users(
     first.
 
     Args:
-        q: Case-insensitive search text, matched against email and display
-            name. Empty means no filtering.
-        limit: Maximum number of rows to return.
-        offset: How many matching rows to skip before returning `limit`.
+        q (str): Case-insensitive search text, matched against email and
+            display name. Empty means no filtering.
+        limit (int): Maximum number of rows to return.
+        offset (int): How many matching rows to skip before returning
+            `limit`.
     """
     emails = OWNER_EMAILS | get_extra_allowed_emails()
     roles = get_roles(list(emails))
@@ -289,7 +290,7 @@ def set_user_name(email: str, body: NameUpdate, owner_uid: str = Depends(require
     """Set or clear the display name shown for an allowed email.
 
     Args:
-        email: Any owner or invited email — must already be on the
+        email (str): Any owner or invited email — must already be on the
             allowlist, or the request is refused.
     """
     if not _known_email(email):

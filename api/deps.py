@@ -40,10 +40,10 @@ class CachedCertsRequest:
         """Wrap a transport (or build a default one) with an empty cache.
 
         Args:
-            inner: The transport to delegate actual requests to; defaults
-                to a fresh google.auth Request.
-            clock: Time source used to judge cache freshness; overridable
-                so tests can control expiry without sleeping.
+            inner (unannotated): The transport to delegate actual requests
+                to; defaults to a fresh google.auth Request.
+            clock (unannotated): Time source used to judge cache freshness;
+                overridable so tests can control expiry without sleeping.
         """
         self._inner = inner or google_requests.Request()
         self._clock = clock

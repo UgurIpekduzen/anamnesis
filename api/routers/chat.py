@@ -230,7 +230,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
     final answer, until the client disconnects.
 
     Args:
-        tenant_id: The project this conversation is scoped to.
+        tenant_id (str): The project this conversation is scoped to.
     """
     # Also deferred for startup speed — not part of the
     # monkeypatch surface above, so a plain local import is enough.
