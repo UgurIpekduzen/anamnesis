@@ -61,6 +61,8 @@ def audit() -> list[str]:
 
 
 def main() -> int:
+    """Run the audit and print each missing docstring. Exits 0 if none are
+    missing, 1 otherwise, so it can be used as a CI/pre-commit gate."""
     missing = audit()
     if not missing:
         print("No missing docstrings.")

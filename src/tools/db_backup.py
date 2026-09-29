@@ -65,6 +65,13 @@ def _document_refs(parent):
 
 
 def dump(path: str) -> int:
+    """Read every document in the database get_client() points at and write
+    it to path as JSON. Read-only against the database; overwrites path if
+    it already exists.
+
+    Returns:
+        How many documents were written.
+    """
     client = get_client()
     documents = []
     for ref in _document_refs(client):
@@ -91,6 +98,13 @@ def _read_dump(path: str) -> dict:
 
 
 def load(path: str) -> int:
+    """Write every document from the dump at path into the database, with no
+    confirmation step. Refuses to run unless FIRESTORE_EMULATOR_HOST is set,
+    so this can only ever write to the emulator, never the real database.
+
+    Returns:
+        How many documents were written.
+    """
     # The quick way into the emulator, with nothing to confirm. Against the
     # real database it refuses: that is restore()'s job, which shows what it
     # would change first.
@@ -199,6 +213,10 @@ def wipe(confirm_project: str | None) -> tuple[int, bool]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the dump/load/verify/restore/wipe CLI described in this module's
+    docstring. dump and verify only read the database; load, restore and
+    wipe can write to or delete from it (load only against the emulator;
+    restore and wipe require --confirm-project against the real one)."""
     parser = argparse.ArgumentParser(prog="python -m src.tools.db_backup")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("dump").add_argument("file")

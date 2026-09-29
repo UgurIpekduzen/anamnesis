@@ -1,3 +1,9 @@
+"""Validates a Jira Cloud workspace URL and credentials, and queries live
+issue status directly from the Jira REST API. Kept separate from
+connections.py (which stores credentials) so the network-facing validation
+and query logic is testable on its own.
+"""
+
 import re
 from urllib.parse import urlsplit
 

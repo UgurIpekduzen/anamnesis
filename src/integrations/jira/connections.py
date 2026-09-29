@@ -1,3 +1,9 @@
+"""Stores and retrieves a user's Jira credentials (email, API token, workspace
+URL), token encrypted at rest. Kept separate from client.py (which validates
+credentials before they get here) so storage and validation can be tested
+and reasoned about independently.
+"""
+
 from datetime import datetime, timezone
 
 from src.core.firestore_client import get_client

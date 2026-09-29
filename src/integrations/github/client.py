@@ -1,3 +1,8 @@
+"""Validates a GitHub personal access token before it's stored, separate
+from connections.py (which stores it) so the check that talks to GitHub's
+API is testable and reusable on its own.
+"""
+
 import requests
 
 # Fine-grained PATs are the only kind accepted: a classic PAT's

@@ -1,3 +1,9 @@
+"""Creates the Pub/Sub topic and subscriptions this app needs (pull, and a
+push one when PUSH_ENDPOINT is set), for the local emulator. Kept as its own
+script, separate from src.core.pubsub_client, since it's a one-time setup
+step, not something the app calls at runtime.
+"""
+
 import os
 
 from google.api_core.exceptions import AlreadyExists
@@ -13,6 +19,10 @@ PUSH_SUBSCRIPTION_ID = "fact-events-push"
 
 
 def setup():
+    """Create the fact-events topic and its pull subscription if they don't
+    already exist, plus a push subscription to PUSH_ENDPOINT when that
+    environment variable is set. Safe to run repeatedly — an existing
+    topic/subscription is reported, not recreated."""
     publisher = get_publisher_client()
     subscriber = get_subscriber_client()
 

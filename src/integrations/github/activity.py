@@ -1,3 +1,9 @@
+"""Live reads of a tenant's linked GitHub repo (PRs and issues) via the
+GitHub REST API. Kept separate from fact_extraction.py and polling.py so
+the raw fetch/shape logic (reused by both the agent's live-status tools and
+the periodic poller) doesn't depend on LLM or Firestore concerns.
+"""
+
 import requests
 
 from src.integrations.github.connections import get_decrypted_token

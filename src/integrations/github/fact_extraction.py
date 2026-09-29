@@ -1,3 +1,9 @@
+"""Turns a GitHub PR/issue's title and body into candidate facts via an LLM
+call. Isolated from polling.py (which calls this per item) because it's the
+one place in the GitHub integration that sends third-party text to a model,
+so the prompt-injection framing lives in exactly one spot.
+"""
+
 import json
 
 from google import genai

@@ -1,3 +1,9 @@
+"""Stores and retrieves a user's GitHub personal access token, encrypted at
+rest. Kept separate from client.py (which validates a token before it gets
+here) so storage and validation can be tested and reasoned about
+independently.
+"""
+
 from datetime import datetime, timezone
 
 from src.core.firestore_client import get_client

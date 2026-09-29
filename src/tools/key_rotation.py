@@ -51,6 +51,10 @@ def reencrypt_all_tokens(dry_run: bool = False) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the reencrypt/check CLI: reencrypt rewrites every stored token
+    with the configured primary key, check only verifies every token is
+    still readable without writing anything. Exits non-zero if any token
+    couldn't be read with the currently configured keys."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "action",

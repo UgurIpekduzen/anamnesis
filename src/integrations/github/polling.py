@@ -1,3 +1,9 @@
+"""Periodic polling of every tenant's linked GitHub repo: fetches recent
+PRs/issues, extracts candidate facts, and stages them for review. Meant to
+be called by whatever schedules it (Cloud Scheduler, or by hand) — this
+module only orchestrates, so it stays testable independent of that trigger.
+"""
+
 from datetime import datetime
 
 from src.integrations.github.activity import fetch_recent_issues, fetch_recent_pull_requests
