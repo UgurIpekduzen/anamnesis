@@ -199,7 +199,7 @@ def test_the_default_cap_is_applied_when_none_is_passed(wired):
 
 @pytest.fixture
 def all_wired(monkeypatch):
-    state = {"tenants": [], "polled": []}
+    state = {"tenants": [], "polled": [], "failed": []}
 
     def fake_poll(owner_uid, tenant_id):
         state["polled"].append((owner_uid, tenant_id))
@@ -210,6 +210,9 @@ def all_wired(monkeypatch):
     monkeypatch.setattr(github_polling, "list_tenants_with_github_repo", lambda: state["tenants"])
     monkeypatch.setattr(github_polling, "poll_tenant_github_activity", fake_poll)
     monkeypatch.setattr(github_polling, "is_github_poll_alert_muted", lambda: False)
+    monkeypatch.setattr(
+        github_polling, "mark_github_poll_failed", lambda tenant_id, kind: state["failed"].append((tenant_id, kind))
+    )
     return state
 
 
@@ -242,6 +245,57 @@ def test_one_tenants_failure_does_not_stop_the_others(all_wired):
     assert result["errors"] == [{"tenant_id": "boom", "error": "GitHub token expired"}]
     # Both were still attempted, even though the first one failed.
     assert all_wired["polled"] == [("owner-a", "boom"), ("owner-b", "t2")]
+
+
+def test_a_failed_tenant_is_recorded_for_the_admin_panel(all_wired):
+    all_wired["tenants"] = [{"owner_uid": "owner-a", "tenant_id": "boom"}]
+
+    github_polling.poll_all_tenants()
+
+    assert all_wired["failed"] == [("boom", "other")]
+
+
+def test_a_successful_tenant_is_never_recorded_as_failed(all_wired):
+    all_wired["tenants"] = [{"owner_uid": "owner-a", "tenant_id": "t1"}]
+
+    github_polling.poll_all_tenants()
+
+    assert all_wired["failed"] == []
+
+
+class _FakeResponse:
+    def __init__(self, status_code):
+        self.status_code = status_code
+
+
+class _FakeHTTPError(Exception):
+    def __init__(self, status_code):
+        super().__init__(f"status {status_code}")
+        self.response = _FakeResponse(status_code)
+
+
+@pytest.mark.parametrize(
+    "status_code,expected_kind",
+    [(401, "auth"), (403, "auth"), (404, "not_found"), (500, "other")],
+)
+def test_poll_failures_are_classified_by_status_code(all_wired, monkeypatch, status_code, expected_kind):
+    def leaky_poll(owner_uid, tenant_id):
+        raise _FakeHTTPError(status_code)
+
+    monkeypatch.setattr(github_polling, "poll_tenant_github_activity", leaky_poll)
+    all_wired["tenants"] = [{"owner_uid": "owner-a", "tenant_id": "boom"}]
+
+    github_polling.poll_all_tenants()
+
+    assert all_wired["failed"] == [("boom", expected_kind)]
+
+
+def test_an_exception_with_no_response_attribute_classifies_as_other(all_wired):
+    all_wired["tenants"] = [{"owner_uid": "owner-a", "tenant_id": "boom"}]
+
+    github_polling.poll_all_tenants()
+
+    assert all_wired["failed"] == [("boom", "other")]
 
 
 def test_poll_all_tenants_logs_one_structured_summary_line(all_wired, capsys, log_lines):

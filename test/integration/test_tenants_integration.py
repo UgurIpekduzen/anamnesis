@@ -12,6 +12,8 @@ from src.projects.tenants import (
     delete_tenant,
     get_owned_tenant,
     list_tenants,
+    mark_github_poll_failed,
+    mark_github_polled,
     rename_tenant,
     set_github_repo,
     set_jira_project_key,
@@ -174,6 +176,32 @@ def test_switching_to_another_repo_resets_the_poll_cut_off(tenant_name):
         assert doc["github_repo"] == "owner/new-repo"
         # Kept, the old repo's cut-off would hide the new repo's existing items.
         assert "github_polled_at" not in doc
+    finally:
+        delete_tenant(tenant_id, OWNER_UID)
+
+
+def test_mark_github_poll_failed_records_the_failure(tenant_name):
+    tenant_id = add_tenant(tenant_name, OWNER_UID)
+    try:
+        mark_github_poll_failed(tenant_id, "auth")
+
+        doc = _tenant_doc(tenant_id)
+        assert doc["github_poll_failure_kind"] == "auth"
+        assert "github_poll_failed_at" in doc
+    finally:
+        delete_tenant(tenant_id, OWNER_UID)
+
+
+def test_a_successful_poll_clears_a_previously_recorded_failure(tenant_name):
+    tenant_id = add_tenant(tenant_name, OWNER_UID)
+    try:
+        mark_github_poll_failed(tenant_id, "auth")
+
+        mark_github_polled(tenant_id, OWNER_UID)
+
+        doc = _tenant_doc(tenant_id)
+        assert "github_poll_failed_at" not in doc
+        assert "github_poll_failure_kind" not in doc
     finally:
         delete_tenant(tenant_id, OWNER_UID)
 

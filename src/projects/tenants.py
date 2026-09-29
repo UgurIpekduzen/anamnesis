@@ -168,11 +168,40 @@ def mark_github_polled(tenant_id: str, owner_uid: str) -> None:
     bookkeeping, not something worth surfacing to the chat agent or UI).
     Lets a repeated poll skip PRs/issues it already processed, instead of
     re-extracting and re-staging the same pending facts every run.
+
+    Also clears any github_poll_failed_at/github_poll_failure_kind left by a
+    previous failed run (APPCE-125) — a poll only reaches this call once it
+    has succeeded, so a prior failure no longer applies.
     """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     client.collection("tenants").document(tenant_id).update(
-        {"github_polled_at": datetime.now(timezone.utc)}
+        {
+            "github_polled_at": datetime.now(timezone.utc),
+            "github_poll_failed_at": firestore.DELETE_FIELD,
+            "github_poll_failure_kind": firestore.DELETE_FIELD,
+        }
+    )
+
+
+def mark_github_poll_failed(tenant_id: str, kind: str) -> None:
+    """Record that this tenant's GitHub poll just failed (see APPCE-125).
+
+    No owner_uid check, unlike every other tenant write here — called only
+    from the GitHub polling job (src.integrations.github.polling), which
+    runs system-wide across every owner (see list_tenants_with_github_repo),
+    the same trust boundary that function already documents.
+
+    kind is a coarse classification ("auth", "not_found", "other"), never
+    the raw exception text — this is surfaced in the Admin panel, and the
+    raw error could echo a token or other credential.
+    """
+    client = get_client()
+    client.collection("tenants").document(tenant_id).update(
+        {
+            "github_poll_failed_at": datetime.now(timezone.utc),
+            "github_poll_failure_kind": kind,
+        }
     )
 
 

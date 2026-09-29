@@ -5,7 +5,12 @@ from src.integrations.github.alerts import is_github_poll_alert_muted
 from src.integrations.github.fact_extraction import extract_facts
 from src.core.log import log
 from src.facts.pending_facts import create_pending_fact, has_pending_fact_for_source
-from src.projects.tenants import get_owned_tenant, list_tenants_with_github_repo, mark_github_polled
+from src.projects.tenants import (
+    get_owned_tenant,
+    list_tenants_with_github_repo,
+    mark_github_poll_failed,
+    mark_github_polled,
+)
 
 # Upper bound on LLM extractions per tenant per poll (APPCE-101). Normal use
 # is far below it: a fetch returns at most 2 x DEFAULT_LIMIT items.
@@ -70,6 +75,22 @@ def poll_tenant_github_activity(
     return created
 
 
+def _classify_poll_error(exc: Exception) -> str:
+    """Coarsely classify a poll failure for Admin-panel display (APPCE-125),
+    without keeping the raw exception text anywhere (see poll_all_tenants).
+
+    Only requests.HTTPError (raised by activity.py's raise_for_status())
+    carries a status code to branch on; anything else — a network error, a
+    bug, a test double — falls through to "other".
+    """
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status in (401, 403):
+        return "auth"
+    if status == 404:
+        return "not_found"
+    return "other"
+
+
 def poll_all_tenants() -> dict:
     """Poll every tenant (any owner) with a linked GitHub repo.
 
@@ -95,6 +116,7 @@ def poll_all_tenants() -> dict:
             polled += 1
         except Exception as e:
             errors.append({"tenant_id": tenant["tenant_id"], "error": str(e)})
+            mark_github_poll_failed(tenant["tenant_id"], _classify_poll_error(e))
 
     result = {"polled": polled, "created": created, "errors": errors}
     # One structured line per run so Cloud Logging can filter on it (and a
