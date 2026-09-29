@@ -16,6 +16,9 @@ def get_jira_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_curren
     """Return what's open in the project's linked Jira project, read live
     with the user's own credentials.
 
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+
     Raises:
         HTTPException: 404 if tenant_id isn't a project this user owns.
     """
@@ -29,6 +32,9 @@ def get_jira_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_curren
 def get_github_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
     """Return what's open in the project's linked GitHub repo, read live
     with the user's own credentials.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
 
     Raises:
         HTTPException: 404 if tenant_id isn't a project this user owns.

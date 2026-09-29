@@ -48,6 +48,9 @@ def get_history(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid))
     """Return the project's most recent saved chat turns, for the UI to show
     when a conversation is opened.
 
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+
     Raises:
         HTTPException: 404 if tenant_id isn't a project this user owns.
     """
@@ -208,6 +211,9 @@ def get_runner(owner_uid: str, tenant_id: str):
     Deferred so only an actual chat connection pays for pulling in ADK's
     import chain (see the module-level comment above for why this stays a
     real function rather than a local import).
+
+    Args:
+        tenant_id (str): The project this conversation is scoped to.
     """
     from api.runner import get_runner as _get_runner
 

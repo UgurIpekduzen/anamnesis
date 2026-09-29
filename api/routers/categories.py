@@ -33,6 +33,9 @@ def read_categories(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
 def update_categories(body: CategoriesUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
     """Replace the signed-in user's whole category list and return the updated settings.
 
+    Args:
+        body (CategoriesUpdate): The request body — see CategoriesUpdate.
+
     Raises:
         HTTPException: 400 if the list fails validation (see save_categories).
     """

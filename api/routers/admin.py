@@ -71,7 +71,11 @@ class AllowedEmailCreate(BaseModel):
 
 @router.post("/admin/allowed_emails")
 def add_allowed_email_endpoint(body: AllowedEmailCreate, owner_uid: str = Depends(require_owner)) -> dict:
-    """Invite an email, defaulting it to the tester role."""
+    """Invite an email, defaulting it to the tester role.
+
+    Args:
+        body (AllowedEmailCreate): The request body — see AllowedEmailCreate.
+    """
     try:
         add_allowed_email(body.email)
     except ValueError as e:
@@ -206,7 +210,11 @@ def get_shared_settings(owner_uid: str = Depends(require_owner)) -> dict:
 
 @router.put("/admin/settings")
 def set_shared_settings(body: SettingsUpdate, owner_uid: str = Depends(require_owner)) -> dict:
-    """Change the shared settings applied to every user."""
+    """Change the shared settings applied to every user.
+
+    Args:
+        body (SettingsUpdate): The request body — see SettingsUpdate.
+    """
     return _settings_response(save_settings(body.model_dump()))
 
 
@@ -324,7 +332,11 @@ def get_alerts(owner_uid: str = Depends(require_owner)) -> dict:
 
 @router.put("/admin/alerts")
 def set_alerts(body: AlertsUpdate, owner_uid: str = Depends(require_owner)) -> dict:
-    """Mute or unmute the GitHub poll-failure alert email."""
+    """Mute or unmute the GitHub poll-failure alert email.
+
+    Args:
+        body (AlertsUpdate): The request body — see AlertsUpdate.
+    """
     set_github_poll_alert_muted(body.github_poll_alert_muted)
     return {"github_poll_alert_muted": body.github_poll_alert_muted}
 

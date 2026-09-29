@@ -36,7 +36,11 @@ def read_github_connection(owner_uid: str = Depends(get_current_owner_uid)) -> d
 def update_github_connection(
     body: GithubConnectionUpdate, owner_uid: str = Depends(get_current_owner_uid)
 ) -> dict:
-    """Validate and save the signed-in user's GitHub token."""
+    """Validate and save the signed-in user's GitHub token.
+
+    Args:
+        body (GithubConnectionUpdate): The request body — see GithubConnectionUpdate.
+    """
     # Validated before it ever reaches Firestore — an invalid/wrong-kind
     # token must not get encrypted and stored, only to fail on first use.
     try:
@@ -76,7 +80,11 @@ def read_jira_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dic
 
 @router.put("/jira/connection")
 def update_jira_connection(body: JiraConnectionUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    """Validate and save the signed-in user's Jira credentials."""
+    """Validate and save the signed-in user's Jira credentials.
+
+    Args:
+        body (JiraConnectionUpdate): The request body — see JiraConnectionUpdate.
+    """
     # Validated before it ever reaches Firestore — bad credentials must
     # not get encrypted and stored, only to fail on first use.
     try:

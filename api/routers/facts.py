@@ -25,7 +25,11 @@ class FactUpdate(BaseModel):
 @router.get("/tenants/{tenant_id}/facts")
 def get_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
     """Return every fact stored for the project — the Facts tab's data
-    source (see get_tenant_facts for the shape of each entry)."""
+    source (see get_tenant_facts for the shape of each entry).
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+    """
     return get_tenant_facts(tenant_id, owner_uid)
 
 

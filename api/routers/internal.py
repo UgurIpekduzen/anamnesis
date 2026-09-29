@@ -32,5 +32,11 @@ def poll_all_tenants() -> dict:
 def poll_github(_: None = Depends(verify_scheduler_token)) -> dict:
     """Scheduler-only endpoint that triggers a GitHub activity poll across
     every tenant; gated by verify_scheduler_token, never reachable by a
-    signed-in user."""
+    signed-in user.
+
+    Args:
+        _ (None): Unused — the result of verify_scheduler_token, whose
+            side effect (raising if the caller isn't Cloud Scheduler) is
+            the point; its return value carries no information.
+    """
     return poll_all_tenants()

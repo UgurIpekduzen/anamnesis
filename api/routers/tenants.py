@@ -37,7 +37,11 @@ class TenantCreate(BaseModel):
 
 @router.post("/tenants")
 def create_tenant(body: TenantCreate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
-    """Create a new, empty project owned by the signed-in user."""
+    """Create a new, empty project owned by the signed-in user.
+
+    Args:
+        body (TenantCreate): The request body — see TenantCreate.
+    """
     # Project lifecycle (create/rename/delete) is deliberately UI-only, not
     # a chat tool — see agent/agent.py's build_agent docstring for why.
     try:
