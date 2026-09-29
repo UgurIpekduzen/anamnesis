@@ -33,3 +33,9 @@ variable "google_oauth_client_id" {
   description = "Google OAuth 2.0 Client ID used for Sign In With Google — not a secret, embedded in the frontend bundle too"
   type        = string
 }
+
+variable "global_daily_message_limit" {
+  description = "Shared daily message ceiling across every allowed user combined, on top of each user's own. At ~$0.005/message, 100 keeps the worst case (every day maxed out, all month) around $15/month."
+  type        = number
+  default     = 100
+}

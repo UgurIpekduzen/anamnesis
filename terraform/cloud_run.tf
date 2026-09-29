@@ -67,6 +67,10 @@ resource "google_cloud_run_v2_service" "ui" {
         name  = "GITHUB_POLLER_AUDIENCE"
         value = local.github_poller_audience
       }
+      env {
+        name  = "GLOBAL_DAILY_MESSAGE_LIMIT"
+        value = tostring(var.global_daily_message_limit)
+      }
     }
 
     max_instance_request_concurrency = 40
