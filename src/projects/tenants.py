@@ -205,6 +205,38 @@ def mark_github_poll_failed(tenant_id: str, kind: str) -> None:
     )
 
 
+def list_broken_github_connections() -> list[dict]:
+    """Every tenant (across all owners) whose last GitHub poll failed
+    (see mark_github_poll_failed, APPCE-125).
+
+    Used only by the Admin panel's owner-only "broken connections" view —
+    the same trust boundary as list_tenants_with_github_repo, and for the
+    same reason: this necessarily spans every owner, not just one.
+
+    Returns:
+        A list of dicts with "owner_uid", "tenant_id", "name",
+        "kind" (the classification from mark_github_poll_failed) and
+        "failed_at". A tenant that has never failed, or that has since
+        polled successfully (mark_github_polled clears these fields), is
+        absent.
+    """
+    client = get_client()
+    query = client.collection("tenants").where(
+        filter=firestore.FieldFilter("github_poll_failed_at", "!=", None)
+    )
+    return [
+        {
+            "owner_uid": data.get("owner_uid"),
+            "tenant_id": doc.id,
+            "name": data.get("name"),
+            "kind": data.get("github_poll_failure_kind"),
+            "failed_at": data.get("github_poll_failed_at"),
+        }
+        for doc in query.stream()
+        for data in [doc.to_dict()]
+    ]
+
+
 def list_tenants_with_github_repo() -> list[dict]:
     """Every tenant (across all owners) with a linked GitHub repo.
 

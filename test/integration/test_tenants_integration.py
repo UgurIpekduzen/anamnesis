@@ -11,6 +11,7 @@ from src.projects.tenants import (
     clear_jira_project_key,
     delete_tenant,
     get_owned_tenant,
+    list_broken_github_connections,
     list_tenants,
     mark_github_poll_failed,
     mark_github_polled,
@@ -202,6 +203,30 @@ def test_a_successful_poll_clears_a_previously_recorded_failure(tenant_name):
         doc = _tenant_doc(tenant_id)
         assert "github_poll_failed_at" not in doc
         assert "github_poll_failure_kind" not in doc
+    finally:
+        delete_tenant(tenant_id, OWNER_UID)
+
+
+def test_list_broken_github_connections_includes_a_failed_tenant(tenant_name):
+    tenant_id = add_tenant(tenant_name, OWNER_UID)
+    try:
+        mark_github_poll_failed(tenant_id, "not_found")
+
+        broken = list_broken_github_connections()
+
+        entry = next(c for c in broken if c["tenant_id"] == tenant_id)
+        assert entry["owner_uid"] == OWNER_UID
+        assert entry["name"] == tenant_name
+        assert entry["kind"] == "not_found"
+        assert entry["failed_at"] is not None
+    finally:
+        delete_tenant(tenant_id, OWNER_UID)
+
+
+def test_list_broken_github_connections_excludes_a_healthy_tenant(tenant_name):
+    tenant_id = add_tenant(tenant_name, OWNER_UID)
+    try:
+        assert tenant_id not in {c["tenant_id"] for c in list_broken_github_connections()}
     finally:
         delete_tenant(tenant_id, OWNER_UID)
 

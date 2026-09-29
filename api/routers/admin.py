@@ -20,6 +20,7 @@ from src.accounts.profiles import MAX_NAME_LENGTH, get_names, set_name
 from src.accounts.settings import BOUNDS, DEFAULTS, get_settings, save_settings
 from src.accounts.usage import GLOBAL_DAILY_MESSAGE_LIMIT, get_global_today_count, get_usage_for
 from src.integrations.github.alerts import is_github_poll_alert_muted, set_github_poll_alert_muted
+from src.projects.tenants import list_broken_github_connections
 from src.tools.wipe_user import wipe_user
 
 
@@ -268,3 +269,23 @@ def get_alerts(owner_uid: str = Depends(require_owner)) -> dict:
 def set_alerts(body: AlertsUpdate, owner_uid: str = Depends(require_owner)) -> dict:
     set_github_poll_alert_muted(body.github_poll_alert_muted)
     return {"github_poll_alert_muted": body.github_poll_alert_muted}
+
+
+# Lets the owner see which GitHub connections are broken (and why, coarsely)
+# from the Admin panel instead of only from the Cloud Monitoring alert email
+# (APPCE-125) — one entry per tenant whose last poll failed; a tenant drops
+# off this list on its own once a later poll succeeds (mark_github_polled
+# clears the fields this reads).
+@router.get("/admin/connections/broken")
+def get_broken_connections(owner_uid: str = Depends(require_owner)) -> dict:
+    connections = [
+        {
+            "owner_uid": c["owner_uid"],
+            "tenant_id": c["tenant_id"],
+            "name": c["name"],
+            "kind": c["kind"],
+            "failed_at": c["failed_at"].isoformat() if c["failed_at"] else None,
+        }
+        for c in list_broken_github_connections()
+    ]
+    return {"connections": connections}
