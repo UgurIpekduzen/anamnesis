@@ -41,8 +41,9 @@
   white-space: nowrap;
 }
 
-.admin-users-email {
+.admin-users-table td.admin-users-email {
   text-overflow: ellipsis;
+  padding-right: 16px;
 }
 
 .admin-users-count {
@@ -77,4 +78,63 @@
 
 .admin-users-add input {
   flex: 1;
+}
+
+.admin-users-search {
+  width: 100%;
+}
+
+/* A fixed-height, independently scrolling area (APPCE-126) — without it,
+   an invited list long enough to need scrolling would instead push the
+   rest of the dialog (Message settings, Close) down and out of view. */
+.admin-users-table-wrap {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 8px;
+}
+
+.admin-users-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  padding-top: 6px;
+}
+
+.admin-users-email > div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A visible input box (same light background/border every other input in
+   this app uses), not just colored text — text-only styling (even with a
+   color or an underline hint) wasn't noticeable enough as an editable
+   field on its own. */
+.admin-users-name-input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 11px;
+  padding: 2px 6px;
+  margin-top: 2px;
+}
+
+.admin-users-name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.admin-users-invited {
+  color: var(--text-muted);
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.admin-users-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 12px 0;
 }

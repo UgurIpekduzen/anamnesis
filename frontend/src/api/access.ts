@@ -121,17 +121,51 @@ export async function setSharedSettings(
   return res.json();
 }
 
-export interface AdminUsage {
-  users: { email: string; count: number; role: Role | "admin" }[];
-  // A ceiling across every user combined, on top of each user's own
-  // (APPCE-122) — this is that shared count and its limit.
+// One row per allowed email — merges what getAllowedEmails/getAdminUsage
+// each separately expose, plus the display name the owner can set
+// (APPCE-126), searchable and pageable server-side.
+export interface AdminUserRow {
+  email: string;
+  role: Role | "admin";
+  name: string | null;
+  count: number;
+  // ISO 8601, or null for the owner (they come from Terraform, not this
+  // invite flow) — when this email was added to the allowlist.
+  invited_at: string | null;
+}
+
+export interface AdminUsersPage {
+  users: AdminUserRow[];
+  total: number;
+  limit: number;
+  offset: number;
   global: { count: number; limit: number };
 }
 
-export async function getAdminUsage(idToken: string): Promise<AdminUsage> {
-  const res = await fetch(`${API_BASE}/admin/usage`, {
+export async function listUsers(
+  idToken: string,
+  { q = "", limit = 200, offset = 0 }: { q?: string; limit?: number; offset?: number } = {},
+): Promise<AdminUsersPage> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (q) params.set("q", q);
+  const res = await fetch(`${API_BASE}/admin/users?${params}`, {
     headers: { Authorization: `Bearer ${idToken}` },
   });
-  if (!res.ok) throw new Error(`getAdminUsage failed: ${res.status}`);
+  if (!res.ok) throw new Error(`listUsers failed: ${res.status}`);
+  return res.json();
+}
+
+// A label the owner chooses for an email — never captured from the user's
+// own Google account. An empty string clears a name set by mistake.
+export async function setUserName(idToken: string, email: string, name: string): Promise<{ name: string | null }> {
+  const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(email)}/name`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const detail = res.status === 400 ? (await res.json().catch(() => null))?.detail : null;
+    throw new Error(detail || `setUserName failed: ${res.status}`);
+  }
   return res.json();
 }
