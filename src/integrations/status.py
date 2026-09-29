@@ -1,5 +1,5 @@
 """What is open in a project's linked Jira project and GitHub repo, for the
-Status panel (APPCE-110): the same live data the chat tools read, with no
+Status panel: the same live data the chat tools read, with no
 model in between — exact, and it costs no tokens.
 
 Each function returns a dict with a "state": "ok" (with the data),
@@ -36,7 +36,7 @@ def _failure(service: str, exc: Exception) -> str:
 
 
 def _jira_issue(line: str, base_url: str) -> dict:
-    # get_jira_status returns "KEY · Type · Status · Summary" lines (APPCE-104).
+    # get_jira_status returns "KEY · Type · Status · Summary" lines.
     key, kind, status, summary = line.split(" · ", 3)
     return {"key": key, "type": kind, "status": status, "summary": summary, "url": f"{base_url}/browse/{key}"}
 

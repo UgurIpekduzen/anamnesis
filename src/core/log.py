@@ -1,4 +1,4 @@
-"""Structured log lines (APPCE-106).
+"""Structured log lines.
 
 Cloud Run turns a JSON line on stdout into a structured entry and reads its
 "severity" field, so an error can be found with `severity>=ERROR` and alerted

@@ -12,7 +12,7 @@ from src.projects.tenants import (
     mark_github_polled,
 )
 
-# Upper bound on LLM extractions per tenant per poll (APPCE-101). Normal use
+# Upper bound on LLM extractions per tenant per poll. Normal use
 # is far below it: a fetch returns at most 2 x DEFAULT_LIMIT items.
 MAX_EXTRACTIONS_PER_POLL = 10
 
@@ -27,13 +27,13 @@ def poll_tenant_github_activity(
     owner_uid: str, tenant_id: str, max_extractions: int = MAX_EXTRACTIONS_PER_POLL
 ) -> int:
     """Fetch a tenant's recent GitHub PRs/issues, extract candidate facts
-    from each, and stage them for review (see APPCE-81).
+    from each, and stage them for review.
 
     Only items updated since the last poll are processed — otherwise every
     run would re-extract and re-stage the same pending facts for anything
     that hasn't changed. This function is meant to be called periodically
-    (Cloud Scheduler once APPCE-56 lands; called by hand or a manual
-    trigger until then, see APPCE-80).
+    (Cloud Scheduler once that periodic trigger is set up in Terraform;
+    called by hand or a manual trigger until then).
 
     Each item costs one LLM call, and anyone with write access to the repo
     controls how many items exist — so at most `max_extractions` are
@@ -76,7 +76,7 @@ def poll_tenant_github_activity(
 
 
 def _classify_poll_error(exc: Exception) -> str:
-    """Coarsely classify a poll failure for Admin-panel display (APPCE-125),
+    """Coarsely classify a poll failure for Admin-panel display,
     without keeping the raw exception text anywhere (see poll_all_tenants).
 
     Only requests.HTTPError (raised by activity.py's raise_for_status())
@@ -95,7 +95,7 @@ def poll_all_tenants() -> dict:
     """Poll every tenant (any owner) with a linked GitHub repo.
 
     The actual periodic trigger (Cloud Scheduler calling an endpoint that
-    calls this) is Terraform's responsibility (APPCE-80) — this is just
+    calls this) is Terraform's responsibility — this is just
     the orchestration, so it's testable and callable independently of how
     it ends up scheduled.
 
@@ -120,11 +120,11 @@ def poll_all_tenants() -> dict:
 
     result = {"polled": polled, "created": created, "errors": errors}
     # One structured line per run so Cloud Logging can filter on it (and a
-    # log-based alert can fire on a non-empty `errors`, see APPCE-101). The
+    # log-based alert can fire on a non-empty `errors`). The
     # error strings stay out of it in case they echo credentials.
     #
-    # ERROR unless the owner muted this alert from the Admin window
-    # (APPCE-125) — the Cloud Monitoring alert policy in
+    # ERROR unless the owner muted this alert from the Admin window —
+    # the Cloud Monitoring alert policy in
     # terraform/monitoring.tf only matches severity=ERROR, so WARNING here
     # is what actually silences the emails, without touching that policy or
     # needing any new GCP permission.

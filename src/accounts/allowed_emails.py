@@ -6,18 +6,18 @@ from google.cloud import firestore
 
 from src.core.firestore_client import get_client
 
-# The owner set (from Terraform's owner_email, APPCE-56) is always allowed
+# The owner set (from Terraform's owner_email) is always allowed
 # and can never be removed via the API below — it's what keeps this
 # feature from being able to lock everyone out of their own deployment.
 # Anyone else is an "extra" email, added/removed at runtime and stored in
-# Firestore instead of requiring a redeploy (APPCE-94).
+# Firestore instead of requiring a redeploy.
 OWNER_EMAILS = {e.strip() for e in os.environ.get("ALLOWED_EMAILS", "").split(",") if e.strip()}
 
 _CACHE_TTL_SECONDS = int(os.environ.get("ALLOWED_EMAILS_CACHE_TTL_SECONDS", 60))
 _cache: set[str] | None = None
 _cache_loaded_at: float = 0.0
 
-# Every extra email has one of three roles (APPCE-122/123): the owner is
+# Every extra email has one of three roles: the owner is
 # always "admin" (from OWNER_EMAILS, never stored here); an extra email is
 # "tester" unless it's in this set, in which case it's "user" — exempt from
 # the tester lifetime message cap (src.accounts.usage) but still subject to
@@ -37,7 +37,7 @@ ROLES = ("user", "tester")
 
 _DOC_PATH = ("config", "allowed_emails")
 
-# When each extra email was invited (APPCE-126) — the Users table's default
+# When each extra email was invited — the Users table's default
 # sort, oldest first, and shown next to each row. One document per email
 # (the document ID, not a map key), same reasoning as user_role_emails
 # would have if it weren't an array: a "." in the key would be parsed as a

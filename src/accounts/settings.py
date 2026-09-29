@@ -4,7 +4,7 @@ import time
 from src.core.firestore_client import get_client
 from src.accounts.usage import DAILY_MESSAGE_WARNING_THRESHOLD
 
-# One shared configuration for everyone (APPCE-124), not a per-user
+# One shared configuration for everyone, not a per-user
 # preference: history_turns scales the tokens resent to the shared agent_sa
 # on every message, so it's a cost lever the owner sets once, the same way
 # DAILY_MESSAGE_HARD_LIMIT and GLOBAL_DAILY_MESSAGE_LIMIT are shared knobs
@@ -17,7 +17,7 @@ DEFAULTS = {
 
 # Hard bounds, enforced on write AND on read. history_turns' upper bound is
 # what keeps this from being turned off and running up the shared
-# agent_sa's Vertex AI bill (APPCE-57/59); the threshold is only a soft UI
+# agent_sa's Vertex AI bill; the threshold is only a soft UI
 # warning, so its bounds are about sanity, not cost.
 BOUNDS = {
     "history_turns": (1, 50),

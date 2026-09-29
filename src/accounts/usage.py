@@ -9,10 +9,10 @@ from src.core.firestore_client import get_client
 # A soft, visible warning threshold — not an enforced limit. One shared
 # agent_sa serves every user's Vertex AI calls, so a single user running
 # up a large daily count is worth surfacing before it becomes a real
-# quota/cost problem (see APPCE-49).
+# quota/cost problem.
 DAILY_MESSAGE_WARNING_THRESHOLD = int(os.environ.get("DAILY_MESSAGE_WARNING_THRESHOLD", 100))
 
-# The enforced ceiling (APPCE-102), as opposed to the soft warning above:
+# The enforced ceiling, as opposed to the soft warning above:
 # messages past it are refused before any model call is made. It is a cost
 # backstop against a runaway or stolen session, not a product quota — normal
 # use should never see it. Deliberately an environment variable and not a
@@ -21,7 +21,7 @@ DAILY_MESSAGE_WARNING_THRESHOLD = int(os.environ.get("DAILY_MESSAGE_WARNING_THRE
 # tokens.
 DAILY_MESSAGE_HARD_LIMIT = int(os.environ.get("DAILY_MESSAGE_HARD_LIMIT", 200))
 
-# A ceiling across every user combined (APPCE-122): the per-user limit above
+# A ceiling across every user combined: the per-user limit above
 # bounds one runaway session, but says nothing about many invited users each
 # staying under their own limit on the same day. Default picked to keep the
 # worst case (every day maxed out, all month) around $5 at ~$0.005/message:
@@ -98,8 +98,8 @@ def record_message(owner_uid: str) -> int:
     user_ref = client.collection("usage").document(owner_uid)
     global_ref = client.collection("usage").document(GLOBAL_USAGE_DOC_ID)
     # Only a "tester" (the default for an invited email) is subject to the
-    # lifetime cap — "admin" (the owner) and "user" (explicitly exempted,
-    # APPCE-123) are not. force_refresh=True: this is what the exemption
+    # lifetime cap — "admin" (the owner) and "user" (explicitly exempted)
+    # are not. force_refresh=True: this is what the exemption
     # actually gates, so a role change (e.g. an owner revoking "user" after
     # spotting abuse) must apply to the very next message, not up to a
     # cache-TTL later on whichever Cloud Run instance handles it.
@@ -143,5 +143,5 @@ def delete_usage(owner_uid: str) -> None:
 
 def get_usage_for(emails: list[str]) -> list[dict]:
     """Today's count and role for each of the given emails, sorted by email —
-    the admin usage table's rows (APPCE-122/123)."""
+    the admin usage table's rows."""
     return [{"email": email, "count": get_today_count(email), "role": get_role(email)} for email in sorted(emails)]

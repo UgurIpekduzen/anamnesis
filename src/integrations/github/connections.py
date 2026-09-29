@@ -4,12 +4,12 @@ from src.core.firestore_client import get_client
 from src.core.token_encryption import decrypt_token, encrypt_token
 
 # Keyed by owner_uid directly (not nested under a tenant) — a GitHub PAT
-# belongs to the user's account, not to any one project (see APPCE-79).
+# belongs to the user's account, not to any one project.
 COLLECTION = "github_connections"
 
 
 def save_github_token(owner_uid: str, token: str) -> None:
-    """Store a user's GitHub PAT, encrypted — never the raw value (APPCE-79)."""
+    """Store a user's GitHub PAT, encrypted — never the raw value."""
     client = get_client()
     client.collection(COLLECTION).document(owner_uid).set(
         {
@@ -30,7 +30,7 @@ def get_decrypted_token(owner_uid: str) -> str | None:
 
     Call this only right before using the token (e.g. one GitHub API
     request), and don't let the result linger in a variable longer than it
-    has to — see APPCE-79's risk-mitigation notes.
+    has to.
     """
     doc = get_client().collection(COLLECTION).document(owner_uid).get()
     if not doc.exists:

@@ -8,14 +8,14 @@ from src.projects.validation import validate_project_key
 # The result of get_jira_status goes into the model's context and stays in
 # the session history, so it is resent on every later model call. Measured
 # on 50 issues shaped like a real project's: JSON objects cost ~2560 tokens,
-# compact lines for the first 15 ~530 (APPCE-104).
+# compact lines for the first 15 ~530.
 DEFAULT_LIMIT = 15
 MAX_SUMMARY_CHARS = 100
 
 # The server calls this address with the user's credentials, so it must be a
 # Jira Cloud workspace and nothing else: a made-up address could point at the
 # server's own network (its metadata service, other services) or at a host that
-# collects the token (APPCE-118).
+# collects the token.
 _WORKSPACE_HOST = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}\.atlassian\.net$")
 
 
@@ -49,7 +49,7 @@ def validate_base_url(base_url: str) -> None:
 
 def validate_jira_credentials(email: str, token: str, base_url: str) -> None:
     """Verify email/token/base_url actually authenticate against Jira
-    before storing them (see APPCE-87) — a bad value should fail here,
+    before storing them — a bad value should fail here,
     not silently on first use.
 
     Raises:
@@ -109,19 +109,19 @@ def get_jira_status(
 ) -> dict:
     """Query open issues for a Jira project directly from the Jira REST API.
 
-    Data minimization (APPCE-29): only returns key, issue type, status and
+    Data minimization: only returns key, issue type, status and
     summary — never assignee/reporter/comment-author fields, since those
     could identify a third party (e.g. a job candidate referenced
     in a ticket). `summary` itself isn't filtered further: the result is
     never persisted, it's only shown back to the same user who already has
     Jira access, so it doesn't create new exposure.
 
-    Kept small on purpose (APPCE-104): the most recently updated `limit`
+    Kept small on purpose: the most recently updated `limit`
     issues only, one short line each, with long summaries cut off.
 
     Args:
         project_key: The Jira project key, e.g. "APPCE".
-        email: The connected Jira account's email (see APPCE-87).
+        email: The connected Jira account's email.
         token: The connected Jira account's API token.
         base_url: The connected Jira workspace's URL, e.g.
             "https://example.atlassian.net".
@@ -143,8 +143,7 @@ def get_jira_recently_done(
 ) -> dict:
     """Recently finished issues of a Jira project — what was done lately.
 
-    Same data minimization and size limits as get_jira_status (APPCE-29,
-    APPCE-104): key, type, status, resolution date and a cut-off summary,
+    Same data minimization and size limits as get_jira_status: key, type, status, resolution date and a cut-off summary,
     never people. The most recently updated `limit` done issues only.
 
     Returns:

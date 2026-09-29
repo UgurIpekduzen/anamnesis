@@ -1,7 +1,7 @@
 from src.core.firestore_client import get_client
 
 # A display name for an allowed email, set by the owner from the Admin
-# window (APPCE-126) — never captured from the user's own Google account,
+# window — never captured from the user's own Google account,
 # so it's purely a label the owner chooses to tell people apart in the
 # Users table once email addresses alone aren't enough.
 #

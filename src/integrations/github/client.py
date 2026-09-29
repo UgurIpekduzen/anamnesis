@@ -1,6 +1,6 @@
 import requests
 
-# Fine-grained PATs are the only kind accepted (APPCE-79): a classic PAT's
+# Fine-grained PATs are the only kind accepted: a classic PAT's
 # scopes (e.g. "repo") grant access to a user's entire account, so a leaked
 # one is far more damaging than a leaked fine-grained token, which is
 # limited to the repos its owner explicitly selected. The prefix alone is

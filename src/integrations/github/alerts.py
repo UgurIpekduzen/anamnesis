@@ -3,8 +3,8 @@ from src.core.firestore_client import get_client
 # Whether poll_all_tenants should log a failed run at ERROR (which the
 # Cloud Monitoring alert policy in terraform/monitoring.tf matches on) or
 # WARNING (which it doesn't). Muting doesn't touch that policy or need any
-# new GCP permission — it just changes which severity this app logs at
-# (APPCE-125). A single doc, not per-tenant: the alert itself fires on any
+# new GCP permission — it just changes which severity this app logs at.
+# A single doc, not per-tenant: the alert itself fires on any
 # tenant failing, not a specific one, so there's nothing to key by.
 _DOC_PATH = ("config", "alerts")
 

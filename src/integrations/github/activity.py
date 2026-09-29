@@ -3,16 +3,16 @@ import requests
 from src.integrations.github.connections import get_decrypted_token
 from src.projects.tenants import get_owned_tenant
 
-# Capped for the same reason as MAX_MESSAGE_CHARS (api/routers/chat.py, APPCE-59):
+# Capped for the same reason as MAX_MESSAGE_CHARS (api/routers/chat.py):
 # a PR/issue body is free text from a third party, potentially large, and
-# whatever this returns eventually reaches an LLM call (APPCE-81) — an
+# whatever this returns eventually reaches an LLM call — an
 # unbounded body is both a cost risk and a bigger prompt-injection payload.
 MAX_BODY_CHARS = 2000
 
 DEFAULT_LIMIT = 10
 
 # What get_github_history returns is resent on every later model call, so it
-# is kept small like get_jira_status (APPCE-104): a few short lines.
+# is kept small like get_jira_status: a few short lines.
 HISTORY_LIMIT = 15
 MAX_TITLE_CHARS = 100
 
@@ -44,8 +44,8 @@ def fetch_recent_pull_requests(
     """Recently updated pull requests for a tenant's linked GitHub repo.
 
     Data minimization: no comments, no reviewer/assignee identities — those
-    could name a third party who never consented to being summarized here
-    (see APPCE-29). Only what's needed to describe the PR itself.
+    could name a third party who never consented to being summarized here.
+    Only what's needed to describe the PR itself.
     """
     repo = _repo_for(tenant_id, owner_uid)
     response = requests.get(
@@ -108,7 +108,7 @@ def get_github_status(owner_uid: str, tenant_id: str) -> dict:
     into an ongoing chat turn where the agent also holds write tools
     (publish_fact, delete_tenant, ...), unlike the isolated, tool-less
     call in src.integrations.github.fact_extraction — so untrusted PR/issue text is
-    kept out of that context as much as possible (see APPCE-83 comment).
+    kept out of that context as much as possible.
     Titles alone can't be fully avoided (the point is knowing what's
     open) — the agent's instruction frames them as data, not instructions.
     """

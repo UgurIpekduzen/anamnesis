@@ -4,14 +4,14 @@ from src.core.firestore_client import get_client
 from src.core.token_encryption import decrypt_token, encrypt_token
 
 # Keyed by owner_uid directly (not nested under a tenant) — a Jira account
-# belongs to the user, not to any one project (see APPCE-87, mirrors
-# github_connections.py's APPCE-79 reasoning).
+# belongs to the user, not to any one project (mirrors
+# github_connections.py's reasoning).
 COLLECTION = "jira_connections"
 
 
 def save_jira_credentials(owner_uid: str, email: str, token: str, base_url: str) -> None:
     """Store a user's Jira credentials, token encrypted — never the raw
-    value (APPCE-87). email and base_url aren't secret, but keeping them
+    value. email and base_url aren't secret, but keeping them
     alongside the token means one document holds everything a call to
     Jira needs.
     """
@@ -38,7 +38,7 @@ def get_jira_base_url(owner_uid: str) -> str | None:
 
     Not a secret (the user typed it, and it only names their own workspace),
     so it is read without touching the encrypted token. The UI uses it to
-    link a project's Jira key (APPCE-105).
+    link a project's Jira key.
     """
     doc = get_client().collection(COLLECTION).document(owner_uid).get()
     return doc.to_dict()["base_url"] if doc.exists else None
@@ -50,8 +50,8 @@ def get_jira_credentials(owner_uid: str) -> dict | None:
     Returns:
         A dict with "email", "token" (decrypted), and "base_url", or None.
         Call this only right before using the token, and don't let the
-        result linger in a variable longer than it has to — see APPCE-79's
-        risk-mitigation notes (the same ones apply here).
+        result linger in a variable longer than it has to (same
+        risk-mitigation reasoning as the GitHub token applies here).
     """
     doc = get_client().collection(COLLECTION).document(owner_uid).get()
     if not doc.exists:
