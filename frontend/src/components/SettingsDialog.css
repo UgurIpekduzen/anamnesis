@@ -16,10 +16,10 @@
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 24px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
@@ -36,9 +36,9 @@
   /* Stays visible while the sections below scroll — the same sticky-edge
      trick .settings-actions used at the bottom, mirrored at the top. */
   position: sticky;
-  top: -24px;
-  margin: -24px -24px 0;
-  padding: 20px 24px 0;
+  top: -20px;
+  margin: -20px -20px 0;
+  padding: 16px 20px 0;
   background: var(--bg-card);
   z-index: 1;
 }
@@ -61,6 +61,12 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* Without this, .settings-dialog (also a flex column) can shrink a
+     later section well below its actual content height under overflow
+     pressure — Alerts, the last one, measured offsetHeight 55 against a
+     scrollHeight of 153 with this unset, while the sections above it
+     weren't touched at all. */
+  flex-shrink: 0;
 }
 
 .settings-label {

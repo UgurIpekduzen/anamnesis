@@ -138,3 +138,63 @@
   color: var(--text-muted);
   padding: 12px 0;
 }
+
+.alerts-mute-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.alerts-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.alerts-switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.alerts-switch-track {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.alerts-switch-track::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.alerts-switch input:checked + .alerts-switch-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.alerts-switch input:checked + .alerts-switch-track::before {
+  background: var(--text);
+  transform: translateX(16px);
+}
+
+.alerts-switch input:disabled + .alerts-switch-track {
+  opacity: 0.5;
+}
