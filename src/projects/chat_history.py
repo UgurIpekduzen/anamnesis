@@ -6,7 +6,7 @@ from google.cloud import firestore
 from src.core.firestore_client import get_client
 from src.projects.tenants import CHAT_TURNS_COLLECTION, get_owned_tenant
 
-# Saved conversation turns (APPCE-60): one document per *finished* turn,
+# Saved conversation turns: one document per *finished* turn,
 # holding just the question and the final answer as text. Tool calls and
 # their (often large) results are deliberately not stored — the model can
 # call the tools again, and leaving them out keeps writes to one per turn

@@ -3,7 +3,7 @@ import time
 
 from src.core.firestore_client import get_client
 
-# --- Per-user categories (APPCE-116) ---------------------------------------
+# --- Per-user categories ----------------------------------------------------
 #
 # A user keeps their own list. Until they change it they follow the suggested
 # one below (no document is stored for them, so a better suggestion later

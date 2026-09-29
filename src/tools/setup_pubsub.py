@@ -7,7 +7,7 @@ from src.core.pubsub_client import get_publisher_client, get_subscriber_client, 
 TOPIC_ID = "fact-events"
 SUBSCRIPTION_ID = "fact-events-sub"
 # A second subscription on the same topic that pushes to the dev subscriber
-# service, like Cloud Pub/Sub does in production (APPCE-120). The pull one
+# service, like Cloud Pub/Sub does in production. The pull one
 # above stays as it is: the integration tests pull from it.
 PUSH_SUBSCRIPTION_ID = "fact-events-push"
 

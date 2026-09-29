@@ -7,7 +7,7 @@ from src.facts.facts import create_fact
 from src.core.log import log
 
 # A push carries one fact (at most 2000 characters, base64 in a JSON envelope),
-# so a body this large is not a delivery. Read nothing past it (APPCE-119).
+# so a body this large is not a delivery. Read nothing past it.
 MAX_BODY_BYTES = 64 * 1024
 
 
@@ -26,7 +26,7 @@ def _process_push_message(body: bytes) -> int:
             tenant_id=payload["tenant_id"],
             content=payload["content"],
             category=payload["category"],
-            # .get, not [] — messages published before APPCE-81 added this
+            # .get, not [] — messages published before this
             # field have none, and should still default to "chat".
             source=payload.get("source", "chat"),
         )
@@ -35,7 +35,7 @@ def _process_push_message(body: bytes) -> int:
         # still return a non-2xx (rather than silently ack-ing) so
         # Pub/Sub's existing retry/DLQ policy eventually routes it to
         # the dead-letter topic instead of just dropping it — same
-        # intent as the old pull-based nack() path (APPCE-30).
+        # intent as the old pull-based nack() path.
         # The size only, never the body: it holds a fact's text, and logs are
         # kept and read more widely than the facts themselves.
         log("WARNING", "malformed_push_message", size=len(body))

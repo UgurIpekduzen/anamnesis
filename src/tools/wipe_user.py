@@ -1,6 +1,6 @@
 """Permanently delete one invited user's data — everything the app knows
 about a single email, as opposed to src.tools.db_backup's whole-database
-wipe (APPCE-123).
+wipe.
 
 Removing access (src.accounts.allowed_emails.remove_allowed_email) only
 stops a sign-in; it leaves the user's projects, facts, connections and usage
@@ -25,11 +25,11 @@ def wipe_user(email: str, confirm: bool = False) -> dict:
     confirm=True, delete all of it): every tenant they own — cascading into
     its facts/chat_turns/pending_facts, same as delete_tenant — their GitHub
     and Jira connections, usage record, saved categories and owner-set
-    display name (APPCE-126), plus their entry in the allowlist (including
+    display name, plus their entry in the allowlist (including
     any role).
 
     Deliberately doesn't touch src.accounts.settings — conversation memory
-    and the daily warning threshold are shared, owner-set values (APPCE-124),
+    and the daily warning threshold are shared, owner-set values,
     not this user's own data, so wiping a user must never reset them for
     everyone else.
 

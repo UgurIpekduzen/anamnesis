@@ -14,7 +14,7 @@ def publish_fact(tenant_id: str, content: str, category: str, owner_uid: str, so
     actual Firestore write, decoupling the caller from Firestore's
     availability. Ownership is checked here, before the message is
     published — the subscriber trusts tenant_id once a message reaches
-    it, since only this function can have put it there (see APPCE-48).
+    it, since only this function can have put it there.
 
     Args:
         tenant_id: The project identifier, e.g. "my_project".

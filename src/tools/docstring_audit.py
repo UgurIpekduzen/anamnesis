@@ -1,7 +1,7 @@
 """List modules and public functions/classes in src/, api/ and agent/ that
-have no docstring (APPCE-44) — run via `python -m src.tools.docstring_audit`.
-Exits non-zero if anything is missing, so it can gate the documentation pass
-the same way a test does.
+have no docstring — run via `python -m src.tools.docstring_audit`. Exits
+non-zero if anything is missing, so it can gate the documentation pass the
+same way a test does.
 
 Private helpers (a leading underscore) and test files are skipped: the
 ticket's acceptance criterion is "every public module and function",

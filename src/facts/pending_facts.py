@@ -9,7 +9,7 @@ from src.facts.publisher import publish_fact
 from src.facts.similar_facts import find_similar_facts
 from src.projects.tenants import PENDING_FACTS_COLLECTION, get_owned_tenant
 
-# A pending fact is never deleted once it is decided (APPCE-110): the document
+# A pending fact is never deleted once it is decided: the document
 # stays with a status, so the approval rate can be counted and a source that
 # was already approved or rejected is not proposed again. Documents from
 # before this field existed have no status and count as pending.
@@ -18,7 +18,7 @@ APPROVED = "approved"
 REJECTED = "rejected"
 
 # What get_pending_facts_summary returns stays in the model's context for
-# later turns, so it is kept small like the other read tools (APPCE-104).
+# later turns, so it is kept small like the other read tools.
 MAX_PENDING_FOR_REVIEW = 20
 MAX_PENDING_CONTENT_CHARS = 200
 
@@ -32,7 +32,7 @@ def create_pending_fact(
 ) -> str:
     """Stage a fact for review instead of publishing it — used for facts
     the agent didn't extract from the user's own chat messages (currently
-    just GitHub, see APPCE-81), which a person never actually asked to be
+    just GitHub), which a person never actually asked to be
     remembered and hasn't seen yet.
 
     Args:
@@ -65,7 +65,7 @@ def has_pending_fact_for_source(tenant_id: str, source_url: str) -> bool:
     """Whether a fact from this origin (e.g. a PR/issue URL) was already
     staged: still waiting for review, or approved or rejected before.
 
-    Lets the GitHub poller stay idempotent (APPCE-101): Cloud Scheduler is
+    Lets the GitHub poller stay idempotent: Cloud Scheduler is
     at-least-once, so a retried or overlapping run must not stage the same
     item twice — and checking before the LLM extraction also skips its cost.
     No ownership check: callers are trusted server-side code that already
@@ -99,7 +99,7 @@ def list_pending_facts(tenant_id: str, owner_uid: str) -> list[dict]:
 def _decide(doc_ref, status: str) -> None:
     """Record a decision. The fact's text goes: the rate and the "already
     seen" check only need the source, and the text was derived from what
-    other people wrote (APPCE-29, data minimization)."""
+    other people wrote (data minimization)."""
     doc_ref.update({"status": status, "decided_at": datetime.now(timezone.utc), "content": firestore.DELETE_FIELD})
 
 
@@ -131,7 +131,7 @@ def reject_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) ->
 def get_pending_fact_stats(tenant_id: str, owner_uid: str) -> dict:
     """How many staged facts are waiting, approved and rejected — the approval
     rate is approved / (approved + rejected). Counts start from when decisions
-    began to be kept (APPCE-110); earlier ones were deleted."""
+    began to be kept; earlier ones were deleted."""
     get_owned_tenant(tenant_id, owner_uid)
     counts = {PENDING: 0, APPROVED: 0, REJECTED: 0}
     for doc in _collection(tenant_id).select(["status"]).stream():

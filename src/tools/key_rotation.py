@@ -1,4 +1,4 @@
-"""Steps of an encryption key rotation that touch stored data (APPCE-103).
+"""Steps of an encryption key rotation that touch stored data.
 
 Run by hand through the `task secrets:github-key:*` tasks — never part of a
 request. Both steps read the key list from GITHUB_TOKEN_ENCRYPTION_KEY, the

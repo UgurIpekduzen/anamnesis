@@ -1,4 +1,4 @@
-"""Back up, restore and wipe the whole Firestore database (APPCE-120).
+"""Back up, restore and wipe the whole Firestore database.
 
     python -m src.tools.db_backup dump FILE      read the database into a JSON file
     python -m src.tools.db_backup load FILE      write a dump into the EMULATOR

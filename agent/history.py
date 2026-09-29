@@ -4,11 +4,11 @@ from google.genai import types
 
 from src.accounts.settings import get_settings
 
-# The window size is a per-user setting (src/accounts/settings.py, APPCE-58); it
+# The window size is a per-user setting (src/accounts/settings.py); it
 # caps how many past user turns are sent to the model on each call, so a
 # long-running session's token cost doesn't grow without bound. A plain
 # window instead of summarization on purpose — summarizing costs an extra
-# LLM call, which defeats the point at this usage scale (see APPCE-57).
+# LLM call, which defeats the point at this usage scale.
 
 
 def _starts_user_turn(content: types.Content) -> bool:
@@ -37,7 +37,7 @@ def trim_to_last_turns(contents: list[types.Content], max_turns: int) -> list[ty
 
 def make_history_limiter():
     """Build a before_model_callback that trims to the shared history_turns
-    setting (APPCE-124).
+    setting.
 
     The setting is read on each call rather than captured once, so an admin
     change takes effect on the next turn without rebuilding the cached

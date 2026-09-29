@@ -10,13 +10,13 @@ import re
 
 # A Jira project key: an uppercase letter, then uppercase letters, digits or
 # underscores. The key is put into a JQL query (project = "KEY"), so anything
-# else — a quote above all — could change what the query means (APPCE-107).
+# else — a quote above all — could change what the query means.
 _PROJECT_KEY_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,49}$")
 
 # owner/name only — GitHub usernames/orgs are alphanumeric-or-hyphen (not
 # leading/trailing), repo names add underscore and dot. Rejecting anything
 # else keeps this from ever being treated as an arbitrary URL downstream
-# (SSRF risk, see APPCE-51 comment #2).
+# (SSRF risk).
 _GITHUB_REPO_PATTERN = re.compile(r"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})/[a-zA-Z0-9_.-]{1,100}$")
 
 

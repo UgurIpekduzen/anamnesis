@@ -32,7 +32,7 @@ def get_owned_tenant(tenant_id: str, owner_uid: str) -> dict:
         PermissionError: if the tenant doesn't exist or belongs to a
             different owner — callers must not distinguish between the
             two, so a user can't tell "wrong owner" from "never existed"
-            for someone else's project (see APPCE-48).
+            for someone else's project.
     """
     client = get_client()
     doc = client.collection("tenants").document(tenant_id).get()
@@ -43,7 +43,7 @@ def get_owned_tenant(tenant_id: str, owner_uid: str) -> dict:
 
 class TenantNameTaken(ValueError):
     """The project id derived from a name is already in use. The id is shared
-    by every user, so this can't say whose project it is (APPCE-117)."""
+    by every user, so this can't say whose project it is."""
 
 
 def add_tenant(name: str, owner_uid: str) -> str:
@@ -51,7 +51,7 @@ def add_tenant(name: str, owner_uid: str) -> str:
 
     The tenant_id is derived from the name rather than accepted as a
     parameter — a caller (human or agent) inventing an ID is exactly how
-    the tenant_id mismatch in APPCE-11 happened; deriving it here removes
+    the tenant_id mismatch that happened before; deriving it here removes
     the guesswork instead of relying on the caller to get it right.
 
     Returns:
@@ -95,7 +95,7 @@ def delete_tenant(tenant_id: str, owner_uid: str) -> None:
 
     Cascade-deletes the "facts" and saved chat-turn subcollections first —
     leaving orphans behind a deleted tenant would work against this
-    project's data minimization principle (see APPCE-29) for no benefit,
+    project's data minimization principle for no benefit,
     since nothing can reference them once the tenant document is gone.
     """
     get_owned_tenant(tenant_id, owner_uid)
@@ -132,7 +132,7 @@ def clear_jira_project_key(tenant_id: str, owner_uid: str) -> None:
 
 def set_github_repo(tenant_id: str, github_repo: str, owner_uid: str) -> None:
     """Attach a GitHub repo (owner/name) to an existing tenant, used to poll
-    its PRs/issues for facts (see APPCE-80).
+    its PRs/issues for facts.
 
     Raises:
         ValueError: github_repo isn't a plain "owner/name" string.
@@ -162,7 +162,7 @@ def clear_github_repo(tenant_id: str, owner_uid: str) -> None:
 
 
 def mark_github_polled(tenant_id: str, owner_uid: str) -> None:
-    """Record that this tenant's GitHub repo was just polled (see APPCE-81).
+    """Record that this tenant's GitHub repo was just polled.
 
     Read back via get_owned_tenant (not list_tenants — this is internal
     bookkeeping, not something worth surfacing to the chat agent or UI).
@@ -170,7 +170,7 @@ def mark_github_polled(tenant_id: str, owner_uid: str) -> None:
     re-extracting and re-staging the same pending facts every run.
 
     Also clears any github_poll_failed_at/github_poll_failure_kind left by a
-    previous failed run (APPCE-125) — a poll only reaches this call once it
+    previous failed run — a poll only reaches this call once it
     has succeeded, so a prior failure no longer applies.
     """
     get_owned_tenant(tenant_id, owner_uid)
@@ -185,7 +185,7 @@ def mark_github_polled(tenant_id: str, owner_uid: str) -> None:
 
 
 def mark_github_poll_failed(tenant_id: str, kind: str) -> None:
-    """Record that this tenant's GitHub poll just failed (see APPCE-125).
+    """Record that this tenant's GitHub poll just failed.
 
     No owner_uid check, unlike every other tenant write here — called only
     from the GitHub polling job (src.integrations.github.polling), which
@@ -207,7 +207,7 @@ def mark_github_poll_failed(tenant_id: str, kind: str) -> None:
 
 def list_broken_github_connections() -> list[dict]:
     """Every tenant (across all owners) whose last GitHub poll failed
-    (see mark_github_poll_failed, APPCE-125).
+    (see mark_github_poll_failed).
 
     Used only by the Admin panel's owner-only "broken connections" view —
     the same trust boundary as list_tenants_with_github_repo, and for the
@@ -243,7 +243,7 @@ def list_tenants_with_github_repo() -> list[dict]:
     Used only by the GitHub polling job (src.integrations.github.polling), which needs
     to poll every linked repo system-wide, not one owner's tenants — the
     only caller that legitimately needs to see across owner_uid at all,
-    since it runs as a trusted, non-user-triggered job (see APPCE-80).
+    since it runs as a trusted, non-user-triggered job.
 
     Returns:
         A list of dicts with "owner_uid" and "tenant_id" only, enough to

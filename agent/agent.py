@@ -17,7 +17,7 @@ from src.projects.validation import validate_github_repo, validate_project_key
 
 # A tool result stays in the session history for as many turns as the
 # user's history window (src/accounts/settings.py) and is resent on every model
-# call, so an unbounded fact list is an expensive one (APPCE-59).
+# call, so an unbounded fact list is an expensive one.
 MAX_FACTS_PER_TOOL_CALL = int(os.environ.get("MAX_FACTS_PER_TOOL_CALL", 50))
 
 
@@ -30,8 +30,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
     anything the model or user says in chat. So instead of exposing the
     src.* functions directly as tools (which would put both in their
     tool-calling schema), each tool here is a thin wrapper with both
-    already bound and dropped from the signature the model sees (see
-    APPCE-47/APPCE-48).
+    already bound and dropped from the signature the model sees.
 
     One Agent per (owner_uid, tenant_id) also means project management —
     creating, renaming, deleting a tenant — isn't something this agent can
@@ -55,7 +54,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
     def _get_github_status() -> dict:
         # ADK doesn't turn a raised exception into a tool result the model
         # can read and explain — an uncaught one crashes the whole turn
-        # (see APPCE-83). So no linked repo, no GitHub connection, and a real GitHub API failure (e.g. an expired
+        # So no linked repo, no GitHub connection, and a real GitHub API failure (e.g. an expired
         # token, surfaced as an HTTP error) must all become a result, not
         # a crash — catching broadly on purpose, not just ValueError.
         try:
@@ -72,7 +71,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         try:
             credentials = get_jira_credentials(owner_uid)
         except ValueError as e:
-            # A saved token the current key can't read (APPCE-103): say so
+            # A saved token the current key can't read: say so
             # instead of crashing the turn.
             return {"error": str(e)}
         if credentials is None:
@@ -235,15 +234,15 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         name='root_agent',
         before_model_callback=make_history_limiter(),
         description="Answers questions about one of the user's personal projects, records new facts about it, and checks its live Jira/GitHub status.",
-        # Prompting strategy (APPCE-84): a flat list of condition -> action
+        # Prompting strategy: a flat list of condition -> action
         # rules, one per user intent, each naming the exact tool and how to
         # fill its arguments. Deliberately not few-shot or explicit
         # chain-of-thought — every task here is single-step tool dispatch
         # (pick the one tool this intent maps to, fill its arguments from
         # the message or by asking), not multi-step planning, and
         # gemini-2.5-flash's function-calling handles that reliably from
-        # rules alone (verified via APPCE-81's 12 live prompt-injection
-        # scenarios and the tenant-isolation testing in APPCE-83). Fact
+        # rules alone (verified via 12 live prompt-injection scenarios and
+        # separate tenant-isolation testing). Fact
         # extraction from GitHub activity already has its own separate
         # LLM call and prompt (src/integrations/github/fact_extraction.py) rather than
         # going through this agent, so it isn't a gap this instruction
@@ -341,10 +340,10 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         ),
         tools=[
             _get_tenant_facts,
-            # Wrapped with require_confirmation=True (APPCE-91): this
+            # Wrapped with require_confirmation=True: this
             # writes state, and the instruction's "ask the user
             # first" rule alone isn't enough — a live prompt-injection
-            # test (APPCE-92) got a naturally-phrased request embedded in
+            # test got a naturally-phrased request embedded in
             # a GitHub issue title to call publish_fact with zero actual
             # user confirmation. ADK pauses the turn and requires an
             # explicit approve/reject from the client before running the
@@ -355,7 +354,7 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
             _get_jira_recently_done,
             _get_github_history,
             _get_pending_facts,
-            # No side effects (APPCE-107): the result is only a proposal
+            # No side effects: the result is only a proposal
             # the chat UI draws as a card. The link is made by the user
             # pressing its button, which calls the validated REST endpoint.
             _propose_link,
