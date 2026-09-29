@@ -197,9 +197,11 @@ def mark_github_poll_failed(tenant_id: str, kind: str) -> None:
     runs system-wide across every owner (see list_tenants_with_github_repo),
     the same trust boundary that function already documents.
 
-    kind is a coarse classification ("auth", "not_found", "other"), never
-    the raw exception text — this is surfaced in the Admin panel, and the
-    raw error could echo a token or other credential.
+    Args:
+        kind (str): A coarse classification of the failure — "auth",
+            "not_found", or "other" — never the raw exception text; this is
+            surfaced in the Admin panel, and the raw error could echo a
+            token or other credential.
     """
     client = get_client()
     client.collection("tenants").document(tenant_id).update(

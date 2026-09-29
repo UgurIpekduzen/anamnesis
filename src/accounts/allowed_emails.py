@@ -68,6 +68,11 @@ def get_extra_allowed_emails(force_refresh: bool = False) -> set[str]:
     Unlike src.facts.categories' config doc, a missing document here just means
     no extra emails have been added yet — not a broken deployment — so
     this returns an empty set instead of raising.
+
+    Args:
+        force_refresh (bool): Bypass the cache and re-read Firestore even if
+            the cached value hasn't expired yet — used right after a write,
+            so the caller doesn't see stale data.
     """
     global _cache, _cache_loaded_at
 
@@ -144,14 +149,16 @@ def get_role(email: str, force_refresh: bool = False) -> str:
     otherwise "user" or "tester" for an extra allowed one (the default, for
     an email that has no role set yet, or isn't on the allowlist at all).
 
-    force_refresh: bypass the cache. Cloud Run runs several instances, each
-    with its own cache, so the instance that serves an owner's set_role call
-    sees the change immediately (it force-refreshes its own cache) but a
-    sibling instance can still have the old role for up to
-    _CACHE_TTL_SECONDS. That's fine for a display (admin usage/access views),
-    but src.accounts.usage's lifetime-cap check is what the role actually
-    gates — a demoted/removed "user" must lose the exemption right away, not
-    after a caching window, so it always passes True here.
+    Args:
+        force_refresh (bool): Bypass the cache. Cloud Run runs several
+            instances, each with its own cache, so the instance that serves
+            an owner's set_role call sees the change immediately (it
+            force-refreshes its own cache) but a sibling instance can still
+            have the old role for up to _CACHE_TTL_SECONDS. That's fine for
+            a display (admin usage/access views), but src.accounts.usage's
+            lifetime-cap check is what the role actually gates — a
+            demoted/removed "user" must lose the exemption right away, not
+            after a caching window, so it always passes True here.
     """
     if email in OWNER_EMAILS:
         return "admin"

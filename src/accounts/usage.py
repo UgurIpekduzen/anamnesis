@@ -51,10 +51,10 @@ class DailyLimitExceeded(Exception):
 
     def __init__(self, limit: int, scope: str):
         """Args:
-            scope: which limit was hit — "user" (this caller's own daily
-                limit), "global" (everyone's combined), or "lifetime" (the
-                tester lifetime cap). Callers show a different message for
-                each.
+            scope (str): which limit was hit — "user" (this caller's own
+                daily limit), "global" (everyone's combined), or "lifetime"
+                (the tester lifetime cap). Callers show a different message
+                for each.
         """
         super().__init__(f"Daily message limit of {limit} reached ({scope})")
         self.limit = limit

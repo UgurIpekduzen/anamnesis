@@ -132,9 +132,10 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         value, and the link is made when they press its button.
 
         Args:
-            kind: "github_repo" (value is "owner/name") or "jira_project_key"
-                (value is a key such as "APPCE").
-            value: The repo or key to suggest, exactly as the user gave it.
+            kind (str): "github_repo" (value is "owner/name") or
+                "jira_project_key" (value is a key such as "APPCE").
+            value (str): The repo or key to suggest, exactly as the user
+                gave it.
 
         Returns:
             The proposal, or {"error": "..."} if the value isn't a valid repo
@@ -159,9 +160,10 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         the new text, and the change is made when they press its button.
 
         Args:
-            fact_id: The fact_id from get_tenant_facts, exactly as returned.
-            content: The new text, if it should change.
-            category: The new category, if it should change.
+            fact_id (str): The fact_id from get_tenant_facts, exactly as
+                returned.
+            content (str | None): The new text, if it should change.
+            category (str | None): The new category, if it should change.
 
         Returns:
             The proposal, or {"error": "..."} if there is no such fact or
@@ -192,7 +194,8 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
         and it is deleted when they press its button.
 
         Args:
-            fact_id: The fact_id from get_tenant_facts, exactly as returned.
+            fact_id (str): The fact_id from get_tenant_facts, exactly as
+                returned.
 
         Returns:
             The proposal, or {"error": "..."} if there is no such fact.
