@@ -139,6 +139,31 @@
   padding: 12px 0;
 }
 
+.admin-connections-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-connections-item {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.admin-connections-name {
+  font-weight: 600;
+}
+
+.admin-connections-detail {
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
 .alerts-mute-row {
   display: flex;
   align-items: center;

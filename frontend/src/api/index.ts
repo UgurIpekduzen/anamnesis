@@ -6,6 +6,7 @@ export * from "./facts";
 export * from "./chat";
 export * from "./usage";
 export * from "./connections";
+export * from "./adminConnections";
 export * from "./access";
 export * from "./alerts";
 export * from "./status";

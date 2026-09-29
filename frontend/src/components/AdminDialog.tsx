@@ -2,6 +2,7 @@
 // settings-field, settings-hint, ...) rather than duplicating them — this
 // is a second, owner-only dialog of the same shape, not a different design.
 import AlertsSection from "./settings/AlertsSection";
+import BrokenConnectionsSection from "./settings/BrokenConnectionsSection";
 import MessageSettingsSection from "./settings/MessageSettingsSection";
 import UsersSection from "./settings/UsersSection";
 import "./AdminDialog.css";
@@ -25,6 +26,7 @@ function AdminDialog({ idToken, onClose }: Props) {
 
         <UsersSection idToken={idToken} />
         <MessageSettingsSection idToken={idToken} />
+        <BrokenConnectionsSection idToken={idToken} />
         <AlertsSection idToken={idToken} />
       </div>
     </div>
