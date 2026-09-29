@@ -44,6 +44,11 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:
     do at all: those are cross-project operations with nothing to scope
     them to, so they live in plain UI/REST instead (see
     api/routers/tenants.py), never in chat.
+
+    Args:
+        tenant_id (str): The project this agent instance is scoped to,
+            taken from the chat connection it was opened on — never
+            something the model or user supplies in chat.
     """
 
     def _get_tenant_facts() -> list[dict]:

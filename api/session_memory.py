@@ -27,6 +27,14 @@ async def restore_session(
     load_turns is only called when there is actually a session to rebuild,
     so a connection to a warm session costs no Firestore reads.
 
+    Args:
+        runner (unannotated): The ADK Runner whose session_service holds
+            the in-memory session to seed.
+        session_id (str): The ADK session id to look up or create.
+        load_turns (Callable[[], list[dict]]): Called only when no
+            in-memory session exists yet; returns the saved question/answer
+            turns to replay, oldest first.
+
     Returns True if it seeded a session, False if there was nothing to do:
     a session already in memory (never overwrite a live one), no saved
     turns, or another connection restoring it first.

@@ -55,6 +55,16 @@ class CachedCertsRequest:
 
         Any method other than GET is passed straight through to the inner
         transport, uncached.
+
+        Args:
+            url (unannotated): The URL to request; also the cache key for
+                GET responses.
+            method (unannotated): The HTTP method; only "GET" responses are
+                cached, anything else is passed straight through.
+            body (unannotated): The request body, passed through to the
+                inner transport.
+            headers (unannotated): The request headers, passed through to
+                the inner transport.
         """
         if method != "GET":
             return self._inner(url, method=method, body=body, headers=headers, **kwargs)
@@ -82,6 +92,10 @@ class CachedCertsRequest:
 
         Returns whether anything was dropped, i.e. whether a retry can see
         fresher data than the attempt that just failed.
+
+        Args:
+            seconds (float): The age threshold, in seconds — entries
+                fetched at or before this many seconds ago are dropped.
         """
         cutoff = self._clock() - seconds
         with self._lock:
@@ -117,6 +131,10 @@ def verify_token(token: str) -> str:
     public — we verify against Google's own public keys
     and check the audience matches our OAuth client, then enforce the
     allowlist ourselves (replacing the Google Group membership check).
+
+    Args:
+        token (str): The bearer token's raw JWT, as sent in the
+            Authorization header (without the "Bearer " prefix).
     """
     def verify():
         """Call Google's verifier with this module's client id and clock skew allowance."""
@@ -157,6 +175,10 @@ def verify_token(token: str) -> str:
 
 def get_current_owner_uid(authorization: str | None = Header(default=None)) -> str:
     """FastAPI dependency: verify the caller's bearer token and return their email.
+
+    Args:
+        authorization (str | None): The raw Authorization header value,
+            expected as "Bearer <token>"; None if the header was absent.
 
     Raises:
         HTTPException: 401 if the Authorization header is missing or isn't

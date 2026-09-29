@@ -33,6 +33,12 @@ def trim_to_last_turns(contents: list[types.Content], max_turns: int) -> list[ty
     function_call and its function_response makes Gemini reject the
     request, and a turn's tool-call loop must stay intact while it's
     still in progress.
+
+    Args:
+        contents (list[types.Content]): The full conversation history, in
+            Gemini's Content format, to trim.
+        max_turns (int): The number of most recent user turns to keep
+            (everything from that point on is kept too).
     """
     starts = [i for i, content in enumerate(contents) if _starts_user_turn(content)]
     if len(starts) <= max_turns:
@@ -50,7 +56,15 @@ def make_history_limiter():
     """
 
     def limit_history(callback_context: CallbackContext, llm_request: LlmRequest) -> None:
-        """Trim llm_request.contents in place to the current history_turns setting."""
+        """Trim llm_request.contents in place to the current history_turns setting.
+
+        Args:
+            callback_context (CallbackContext): ADK's per-invocation callback
+                context (unused here beyond satisfying the callback
+                signature).
+            llm_request (LlmRequest): ADK's request object for this model
+                call; its contents list is mutated in place.
+        """
         max_turns = get_settings()["history_turns"]
         llm_request.contents = trim_to_last_turns(llm_request.contents, max_turns)
         return None

@@ -50,7 +50,15 @@ _CONTENT_SECURITY_POLICY = "; ".join(
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     """Add the response headers CORSMiddleware doesn't cover: MIME sniffing,
-    clickjacking, referrer, and Content-Security-Policy protections."""
+    clickjacking, referrer, and Content-Security-Policy protections.
+
+    Args:
+        request (Request): The incoming request; unused beyond satisfying
+            the middleware signature — the headers added are the same for
+            every response.
+        call_next (unannotated): The next handler in the middleware chain,
+            awaited to get the response these headers are added to.
+    """
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -66,6 +74,13 @@ async def log_request_duration(request: Request, call_next):
     Only the path is logged, never the query string. CORS preflights are
     skipped as noise, and the chat WebSocket isn't an HTTP request (it stays
     open for a whole conversation, so a duration would mean nothing).
+
+    Args:
+        request (Request): The incoming request; its method and path are
+            logged (never the query string).
+        call_next (unannotated): The next handler in the middleware chain,
+            awaited to get the response whose status code is logged, and
+            to measure elapsed time.
     """
     started = time.perf_counter()
     response = await call_next(request)

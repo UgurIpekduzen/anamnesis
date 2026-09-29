@@ -23,6 +23,10 @@ def verify_scheduler_token(authorization: str | None = Header(default=None)) -> 
     test files import api.main (and transitively this module) with
     different env vars set, and whichever one runs first in a shared
     test process would otherwise "win" for the rest of the session.
+
+    Args:
+        authorization (str | None): The raw Authorization header value,
+            expected as "Bearer <token>"; None if the header was absent.
     """
     # The service account Cloud Scheduler signs its OIDC token as when it
     # calls this endpoint — set once the Terraform-side service
