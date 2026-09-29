@@ -9,7 +9,7 @@ interface Props {
 }
 
 // Deleting a user's data is permanent and spans several collections
-// (APPCE-123) — a single click, the way ConfirmDialog works, isn't enough
+// — a single click, the way ConfirmDialog works, isn't enough
 // friction for that. Delete only enables once the owner retypes the exact
 // email, the same confirm-by-retyping db_backup's --confirm-project uses.
 function WipeUserDialog({ email, onConfirm, onCancel }: Props) {

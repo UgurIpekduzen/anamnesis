@@ -38,7 +38,7 @@ export async function disconnectGithub(idToken: string): Promise<GithubConnectio
 
 export interface JiraConnection {
   connected: boolean;
-  // The workspace address, only sent by GET while connected (APPCE-105);
+  // The workspace address, only sent by GET while connected;
   // it lets the UI link a project's Jira key.
   base_url?: string | null;
 }

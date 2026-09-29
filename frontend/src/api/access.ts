@@ -1,7 +1,7 @@
 import { API_BASE } from "./client";
 
 // "admin" is the owner (from Terraform), never settable here. An invited
-// email is "user" (exempt from the tester lifetime message cap, APPCE-123)
+// email is "user" (exempt from the tester lifetime message cap)
 // or "tester" (the default).
 export type Role = "user" | "tester";
 
@@ -12,7 +12,7 @@ export interface AllowedEmails {
 
 // A 403 here means the signed-in user isn't an owner — expected for
 // everyone but the Terraform-configured owner(s), not an error the caller
-// needs to report (APPCE-94). Callers use this to decide whether to show
+// needs to report. Callers use this to decide whether to show
 // the admin section at all, so null (not a thrown error) means "hidden".
 export async function getAllowedEmails(idToken: string): Promise<AllowedEmails | null> {
   const res = await fetch(`${API_BASE}/admin/allowed_emails`, {
@@ -64,7 +64,7 @@ export async function setRole(
 
 // Permanently deletes email's data (projects, connections, usage,
 // preferences) and their allowlist entry — not just access removal
-// (APPCE-123). confirmEmail must repeat email exactly; the backend refuses
+// confirmEmail must repeat email exactly; the backend refuses
 // otherwise, the same retype-to-confirm friction as removing a project.
 export async function wipeUser(
   idToken: string,
@@ -84,7 +84,7 @@ export async function wipeUser(
 }
 
 // history_turns and daily_message_warning_threshold used to be each user's
-// own setting; APPCE-124 moved them here as one shared value for everyone
+// own setting; they were moved here as one shared value for everyone
 // (owner-only) — history_turns is a cost lever, the same kind of knob as
 // the daily/global message limits, not a per-user preference.
 export interface SharedSettingsValues {
@@ -123,7 +123,7 @@ export async function setSharedSettings(
 
 // One row per allowed email — merges what getAllowedEmails/getAdminUsage
 // each separately expose, plus the display name the owner can set
-// (APPCE-126), searchable and pageable server-side.
+// searchable and pageable server-side.
 export interface AdminUserRow {
   email: string;
   role: Role | "admin";

@@ -26,9 +26,8 @@ type SidebarTab = "facts" | "pending" | "status" | "trace";
 
 // Re-prompts in the background well before a token's ~1 hour lifetime
 // runs out, so the user is (usually) never asked to sign in again
-// mid-session — see APPCE-54 for the tradeoffs behind this. Lives at
-// the app level (not Auth.tsx) since it must keep running after the
-// sign-in screen unmounts.
+// mid-session. Lives at the app level (not Auth.tsx) since it must keep
+// running after the sign-in screen unmounts.
 const SILENT_REFRESH_INTERVAL_MS = 50 * 60 * 1000;
 
 // When to re-read the facts after a fact was published: the write goes
@@ -81,7 +80,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   // Why the user landed back on the sign-in screen (the chat socket was
-  // rejected, APPCE-69, or the account isn't allowed in, APPCE-114).
+  // rejected, or the account isn't allowed in).
   const [signInNotice, setSignInNotice] = useState<string | null>(takeParkedNotice);
 
   // The token is refreshed silently about every 50 minutes; the account it
@@ -118,7 +117,7 @@ function App() {
       setGoogleReady(true);
       const refreshInterval = setInterval(() => {
         // The notification carries no user data, just why nothing was
-        // shown — logged so a silently-failing refresh (see APPCE-69) is
+        // shown — logged so a silently-failing refresh is
         // diagnosable from the console instead of invisible.
         window.google?.accounts.id.prompt((notification) => {
           const outcome = describePromptMoment(notification);
@@ -135,7 +134,7 @@ function App() {
     dispatchTrace({ ...event, at: Date.now() });
     // On send, and again when the turn ends: the server counts the message
     // alongside the model call, so the count read right after sending can
-    // still be the old one (APPCE-72).
+    // still be the old one.
     if (event.type === "sent" || event.type === "answered" || event.type === "failed") {
       bumpUsage();
     }

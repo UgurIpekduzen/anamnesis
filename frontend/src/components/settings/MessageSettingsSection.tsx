@@ -18,7 +18,7 @@ const FIELDS: FieldSpec[] = [
 ];
 
 // Owner-only, shared by every user — replaces the old self-service
-// Settings fields (APPCE-124): history_turns scales the tokens resent to
+// Settings fields: history_turns scales the tokens resent to
 // the shared agent_sa on every message, so it's one knob the owner sets,
 // not something each invited user tunes for themselves.
 function MessageSettingsSection({ idToken }: Props) {

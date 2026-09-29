@@ -1,6 +1,6 @@
 import { API_BASE } from "./client";
 
-// A tenant whose last GitHub poll failed (APPCE-125) — owner-only, drops
+// A tenant whose last GitHub poll failed — owner-only, drops
 // off the list on its own once a later poll succeeds.
 export interface BrokenConnection {
   owner_uid: string;

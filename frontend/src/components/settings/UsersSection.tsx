@@ -27,13 +27,13 @@ function formatInvitedAt(iso: string): string {
 // One table instead of a separate "Usage today" list and "Access" list —
 // both were keyed by the same set of emails, so showing them side by side
 // per row (rather than looking a name up twice) is the more direct read.
-// Backed by GET /admin/users (APPCE-126), which also carries the owner-set
+// Backed by GET /admin/users, which also carries the owner-set
 // display name and supports a search query — the table scrolls within a
 // fixed height instead of pushing the rest of the dialog down as the
 // invited list grows.
 function UsersSection({ idToken }: Props) {
   // null: not an owner (or still loading) — the whole section stays
-  // hidden, since a non-owner can't use it anyway (APPCE-94).
+  // hidden, since a non-owner can't use it anyway.
   const [page, setPage] = useState<AdminUsersPage | null>(null);
   const [query, setQuery] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -43,7 +43,7 @@ function UsersSection({ idToken }: Props) {
   // every keystroke — committed on blur/Enter instead.
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
   // The email a "Delete data" click is about to wipe, or null when the
-  // confirmation dialog is closed (APPCE-123).
+  // confirmation dialog is closed.
   const [wipeTarget, setWipeTarget] = useState<string | null>(null);
   // The email a Tester → User click is about to exempt from the lifetime
   // cap, or null when that confirmation is closed.

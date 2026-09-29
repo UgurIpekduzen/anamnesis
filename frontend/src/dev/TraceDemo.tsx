@@ -5,7 +5,7 @@ import TracePanel from "../components/TracePanel";
 import { traceReducer, type TraceAction, type TraceTurn } from "../trace";
 import { FIXTURE_TURNS, LIVE_TURN_STEPS, fillerTurns } from "./traceFixtures";
 
-// Dev-only (APPCE-75): the real Trace panel in the real sidebar styles,
+// Dev-only: the real Trace panel in the real sidebar styles,
 // filled from static data. No sign-in, no API, no model calls.
 type DemoAction = TraceAction | { type: "replace"; turns: TraceTurn[]; at: number } | { type: "append"; turns: TraceTurn[]; at: number };
 

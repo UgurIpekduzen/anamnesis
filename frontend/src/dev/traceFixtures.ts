@@ -1,4 +1,4 @@
-// Static data for the dev-only Trace demo page (APPCE-75). Every scenario
+// Static data for the dev-only Trace demo page. Every scenario
 // goes through the real traceReducer, so the demo shows exactly what a live
 // conversation would produce, without signing in or spending a model call.
 import { traceReducer, type ChatEvent, type TraceTurn } from "../trace";

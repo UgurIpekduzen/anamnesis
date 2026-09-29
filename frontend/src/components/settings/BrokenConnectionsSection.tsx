@@ -20,7 +20,7 @@ function formatFailedAt(iso: string): string {
 }
 
 // A tenant drops off this list on its own once its next poll succeeds
-// (APPCE-125) — nothing here needs to be dismissed or cleared by hand.
+// — nothing here needs to be dismissed or cleared by hand.
 function BrokenConnectionsSection({ idToken }: Props) {
   const [connections, setConnections] = useState<BrokenConnection[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ function BrokenConnectionsSection({ idToken }: Props) {
   // Distinct from AlertsSection/UsersSection's "stay hidden until loaded"
   // gate: those never fail this visibly, but a fetch failure here still
   // needs to reach the owner, so it can't hide behind the same
-  // connections-only check (that left the error unreachable — see APPCE-127).
+  // connections-only check (that left the error unreachable).
   if (!connections && !error) return null;
 
   return (

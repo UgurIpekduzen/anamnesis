@@ -8,7 +8,7 @@ import { describeArgs } from "../traceView";
 import ConfirmDialog from "./ConfirmDialog";
 import "./Chat.css";
 
-// Shown instead of the raw tool name (APPCE-91) — every entry here is a
+// Shown instead of the raw tool name — every entry here is a
 // tool wrapped with require_confirmation=True in agent/agent.py.
 const CONFIRM_TOOL_LABELS: Record<string, string> = {
   publish_fact: "Save this fact",
@@ -37,7 +37,7 @@ interface Props {
   // out (expired, not on the allowlist, ...) or the project doesn't belong
   // to this user, and a fresh connect keeps failing the same way, so this
   // is the app's cue to stop reconnecting quietly and ask the user to sign
-  // in again instead (APPCE-69).
+  // in again instead.
   onAuthFailed?: () => void;
   // A proposal card's button changed the project (linked a repo or key,
   // edited or deleted a fact), so the project list and the facts must be
@@ -133,21 +133,21 @@ interface PendingConfirmation {
   toolName: string;
   args: unknown;
   // Saved facts that say (nearly) the same as the one awaiting approval —
-  // computed by the server, only for publish_fact (APPCE-111).
+  // computed by the server, only for publish_fact.
   similar: SimilarFact[];
 }
 
 function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  // Browsing earlier messages with ↑/↓ (APPCE-112): where in the list, and
+  // Browsing earlier messages with ↑/↓: where in the list, and
   // the draft to come back to when browsing goes past the newest one.
   const [recallIndex, setRecallIndex] = useState<number | null>(null);
   const draftRef = useRef("");
   const [isThinking, setIsThinking] = useState(false);
   // Clear chat asks first: it deletes the saved conversation for good.
   const [confirmingClear, setConfirmingClear] = useState(false);
-  // Set when a require_confirmation=True tool (APPCE-91) is waiting on an
+  // Set when a require_confirmation=True tool is waiting on an
   // approve/reject — blocks the input row until answered, since the agent
   // can't do anything else until this one round trip resolves.
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
@@ -176,7 +176,7 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
   // conversation the user just cleared.
   const clearedRef = useRef(false);
 
-  // Saved conversation (APPCE-60): survives page reloads, live-reload
+  // Saved conversation: survives page reloads, live-reload
   // during development, switching projects, and other devices.
   useEffect(() => {
     if (!tenantId) return;
@@ -266,7 +266,7 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
       };
 
       // A closed socket usually means the ID token expired mid-session
-      // (see APPCE-54) — idToken itself gets refreshed in the
+      // idToken itself gets refreshed in the
       // background by Auth.tsx, so reconnecting picks up the new one
       // automatically instead of forcing the user to sign in again.
       // Code 1008 (policy violation) means the backend rejected the

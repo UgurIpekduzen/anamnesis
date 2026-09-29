@@ -1,7 +1,7 @@
 import { API_BASE } from "./client";
 
 // Whether a broken GitHub connection's poll failures reach the owner's
-// inbox (APPCE-125) — owner-only, same as everything else in this file.
+// inbox — owner-only, same as everything else in this file.
 export interface AlertsState {
   github_poll_alert_muted: boolean;
 }

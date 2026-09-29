@@ -11,7 +11,7 @@ interface Props {
 }
 
 // Conversation memory and the daily message warning used to live here too,
-// until APPCE-124 moved them to the owner-only Admin window — each of the
+// until they were moved to the owner-only Admin window — each of the
 // sections below already saves itself as it's changed, so nothing here
 // needs a form/Save/Cancel of its own anymore.
 function SettingsDialog({ idToken, onClose }: Props) {

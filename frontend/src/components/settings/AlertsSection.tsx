@@ -9,7 +9,7 @@ interface Props {
 
 // Owner-only: the alert email only ever reaches the owner's own inbox
 // (terraform/monitoring.tf's notification channel), so muting it is
-// purely their own call (APPCE-125).
+// purely their own call.
 function AlertsSection({ idToken }: Props) {
   const [state, setState] = useState<AlertsState | null>(null);
   const [busy, setBusy] = useState(false);

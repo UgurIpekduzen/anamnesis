@@ -15,7 +15,7 @@ export async function getTenantFacts(idToken: string, tenantId: string): Promise
   return res.json();
 }
 
-// What a chat proposal card's button calls (APPCE-107). A 400 carries the
+// What a chat proposal card's button calls. A 400 carries the
 // reason (e.g. an unknown category) — surface it.
 export async function updateFact(
   idToken: string,
@@ -59,7 +59,7 @@ export async function getPendingFacts(idToken: string, tenantId: string): Promis
   return res.json();
 }
 
-// How the staged facts were decided (APPCE-110); the approval rate is
+// How the staged facts were decided; the approval rate is
 // approved / (approved + rejected).
 export interface PendingFactStats {
   pending: number;

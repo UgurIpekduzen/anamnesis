@@ -4,7 +4,7 @@ export interface Usage {
   count: number;
   // Soft warning the user sets themselves; nothing is blocked at it.
   threshold: number;
-  // Hard daily ceiling: messages past it are refused (APPCE-102).
+  // Hard daily ceiling: messages past it are refused.
   limit: number;
   // ISO timestamp of the next midnight UTC, when the count starts over.
   resets_at: string;

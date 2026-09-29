@@ -14,7 +14,7 @@ import "./PendingFacts.css";
 interface Props {
   idToken: string;
   tenantId: string;
-  // Bumped by the parent to refetch — a poll (APPCE-80) can add new
+  // Bumped by the parent to refetch — a poll can add new
   // pending facts outside of any action taken in this UI.
   refreshKey: number;
   // Reported up so the sidebar tab can show a count badge, and so
