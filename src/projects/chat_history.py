@@ -1,3 +1,7 @@
+"""Persists finished chat turns per tenant, with a TTL-backed expiry, so a
+conversation's recent history can be resent to the model on later turns
+without keeping every tool call and result it produced along the way."""
+
 import os
 from datetime import datetime, timedelta, timezone
 

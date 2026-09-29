@@ -1,3 +1,7 @@
+"""Per-user fact categories: each user either follows the built-in suggested
+list or customizes their own, stored and cached separately here since the
+names feed directly into the model's prompts (see the module comment below)."""
+
 import re
 import time
 
@@ -84,6 +88,8 @@ def get_categories(owner_uid: str) -> list[str]:
 
 
 def get_category_settings(owner_uid: str) -> dict:
+    """owner_uid's category settings for the Categories tab: their current
+    list, the suggested list, whether they've customized it, and the cap."""
     stored = _stored_categories(owner_uid)
     return {
         "categories": list(stored or SUGGESTED_CATEGORIES),

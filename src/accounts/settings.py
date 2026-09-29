@@ -1,3 +1,7 @@
+"""Shared, owner-configurable settings (history length, warning threshold)
+that apply to every user of this deployment, as opposed to a per-user
+preference — set once by the owner rather than tuned individually."""
+
 import os
 import time
 

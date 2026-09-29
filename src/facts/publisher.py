@@ -1,3 +1,8 @@
+"""The event-driven entry point for creating a fact: publishes to Pub/Sub
+rather than writing to Firestore directly, so a caller doesn't depend on
+Firestore's availability. src.facts.facts.create_fact does the actual
+write, on the subscriber side of that same event."""
+
 import json
 
 from src.facts.categories import validate_category_for

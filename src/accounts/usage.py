@@ -1,3 +1,8 @@
+"""Tracks and enforces per-user, global, and tester-lifetime message counts
+against a single shared agent_sa — a cost backstop rather than a product
+quota, since Vertex AI calls made through that service account are billed
+to the owner regardless of which invited user triggered them."""
+
 import os
 from datetime import datetime, time, timedelta, timezone
 
@@ -41,9 +46,16 @@ TESTER_LIFETIME_MESSAGE_LIMIT = int(os.environ.get("TESTER_LIFETIME_MESSAGE_LIMI
 
 
 class DailyLimitExceeded(Exception):
+    """Raised by record_message when a message would push some limit
+    (user, global, or tester lifetime) over its cap."""
+
     def __init__(self, limit: int, scope: str):
-        # scope: "user" (this caller's own limit) or "global" (everyone's,
-        # combined) — callers show a different message for each.
+        """Args:
+            scope: which limit was hit — "user" (this caller's own daily
+                limit), "global" (everyone's combined), or "lifetime" (the
+                tester lifetime cap). Callers show a different message for
+                each.
+        """
         super().__init__(f"Daily message limit of {limit} reached ({scope})")
         self.limit = limit
         self.scope = scope

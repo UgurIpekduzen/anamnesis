@@ -1,3 +1,7 @@
+"""Staging area for facts a person hasn't seen or approved yet (currently
+just GitHub-derived ones), reviewed in the Pending tab before they become
+real facts via src.facts.publisher.publish_fact."""
+
 from datetime import datetime, timezone
 
 from google.cloud import firestore

@@ -1,3 +1,7 @@
+"""CRUD for facts stored under a tenant in Firestore. Writes here are
+called from the Pub/Sub subscriber, not directly by code that wants the
+event-driven path — see src.facts.publisher for that entry point."""
+
 from datetime import datetime, timezone
 
 from google.cloud import firestore

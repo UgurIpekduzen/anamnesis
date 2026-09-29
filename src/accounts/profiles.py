@@ -1,3 +1,6 @@
+"""Owner-set display names for allowed emails, shown in the admin Users
+table once email addresses alone aren't enough to tell people apart."""
+
 from src.core.firestore_client import get_client
 
 # A display name for an allowed email, set by the owner from the Admin

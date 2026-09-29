@@ -1,3 +1,8 @@
+"""Tenants (projects) and their ownership, the unit every other collection
+(facts, chat turns, pending facts) is scoped under. Collection names for
+those subcollections are defined here rather than in their own modules to
+avoid circular imports between this module and theirs."""
+
 import re
 from datetime import datetime, timezone
 

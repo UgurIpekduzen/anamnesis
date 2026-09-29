@@ -1,3 +1,7 @@
+"""Detects near-duplicate facts by plain text comparison, so the UI can warn
+before saving a fact that already exists in another wording — deliberately
+not a model call, since it needs to give the same answer every time."""
+
 import re
 from difflib import SequenceMatcher
 

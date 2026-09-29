@@ -1,3 +1,12 @@
+"""Who is allowed to use this deployment, and with what role.
+
+The owner set (from Terraform's owner_email) is always allowed and is fixed
+at deploy time; everyone else is an "extra" email that can be invited,
+removed, and assigned a role ("user" or "tester") at runtime, stored in
+Firestore instead of requiring a redeploy. src.accounts.usage depends on
+get_role to decide who is exempt from the tester lifetime message cap.
+"""
+
 import os
 import time
 from datetime import datetime, timezone
@@ -72,6 +81,11 @@ def get_extra_allowed_emails(force_refresh: bool = False) -> set[str]:
 
 
 def add_allowed_email(email: str) -> None:
+    """Grant email access, recording when it was invited.
+
+    Raises:
+        ValueError: email is empty, or already has permanent owner access.
+    """
     email = email.strip()
     if not email:
         raise ValueError("Email can't be empty.")
@@ -86,6 +100,7 @@ def add_allowed_email(email: str) -> None:
 
 
 def remove_allowed_email(email: str) -> None:
+    """Revoke email's access, dropping its role and invited-at record too."""
     client = get_client()
     doc_ref = _doc_ref(client)
     # Also drops any "user" role, so it can't linger for an email that is
