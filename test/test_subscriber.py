@@ -1,3 +1,5 @@
+"""Tests for the Pub/Sub push subscriber that writes incoming facts."""
+
 import base64
 import http.client
 import json
@@ -16,11 +18,13 @@ def _push_envelope(payload: dict) -> bytes:
 
 
 def test_returns_400_on_invalid_json():
+    """A push body that isn't valid JSON is rejected with a 400."""
     status = _process_push_message(b"not valid json")
     assert status == 400
 
 
 def test_returns_400_on_missing_required_field(monkeypatch):
+    """A decoded message missing a required field is rejected with a 400 instead of crashing, and create_fact is never called."""
     monkeypatch.setattr("src.subscriber.create_fact", lambda **_: (_ for _ in ()).throw(AssertionError))
     # Missing "category" — this used to crash the streaming-pull callback
     # and take down the whole subscriber process (APPCE-30).

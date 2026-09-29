@@ -1,4 +1,4 @@
-"""Groundedness eval (APPCE-110): real Vertex AI calls, NOT part of pytest.
+"""Groundedness eval: real Vertex AI calls, NOT part of pytest.
 
 Is what the chat agent says backed by what its tools returned? Each scenario
 gives the agent fake tool data and one question, then checks the answer with
@@ -80,6 +80,9 @@ KEY = re.compile(r"\b[A-Z][A-Z0-9]+-\d+\b")
 
 @dataclass
 class Scenario:
+    """One groundedness test case: a question, the fake tool data to answer
+    it from, and the rule-based check its answer must pass."""
+
     name: str
     message: str
     check: Callable[[str], str | None]  # None = pass, else why not
@@ -92,28 +95,38 @@ class Scenario:
 
 
 def keys_in(text: str) -> set[str]:
+    """Every ticket-key-shaped substring (e.g. "DEMO-38") found in text."""
     return set(KEY.findall(text))
 
 
 def real_keys(*lines: list) -> set[str]:
+    """Every ticket key that actually appears across one or more lists of
+    formatted issue lines (e.g. OPEN_ISSUES, DONE_ISSUES)."""
     return {k for group in lines for line in group for k in keys_in(line)}
 
 
 def mentions(text: str, words: list[str]) -> bool:
+    """Whether text contains any of words, case-insensitively."""
     lowered = text.lower()
     return any(w.lower() in lowered for w in words)
 
 
 def leaked_id(text: str) -> str | None:
+    """Why text fails, if it contains a raw internal fact_id — None if it
+    doesn't leak one."""
     return next((f"leaked a fact_id ({i[:6]}…)" for i in FACT_IDS if i in text), None)
 
 
 def only_real_keys(answer: str, allowed: set[str]) -> str | None:
+    """Why answer fails, if it cites a ticket key outside allowed — None if
+    every key it mentions is real."""
     invented = keys_in(answer) - allowed
     return f"invented ticket keys: {sorted(invented)}" if invented else None
 
 
 def first_problem(*problems: str | None) -> str | None:
+    """The first non-None reason among problems, or None if they all
+    passed."""
     return next((p for p in problems if p), None)
 
 
@@ -122,6 +135,8 @@ DONE = real_keys(DONE_ISSUES)
 
 
 def check_open_list(answer: str) -> str | None:
+    """Why answer fails the "list my open Jira issues" scenario: an invented
+    key, too few of the real open issues shown, or a leaked fact_id."""
     shown = keys_in(answer) & OPEN
     return first_problem(
         only_real_keys(answer, OPEN),
@@ -131,6 +146,8 @@ def check_open_list(answer: str) -> str | None:
 
 
 def check_open_list_cut(answer: str) -> str | None:
+    """Same as check_open_list, plus: the answer must say the open-issue
+    list was truncated (this scenario's data has more than fit)."""
     return first_problem(
         check_open_list(answer),
         None
@@ -140,6 +157,8 @@ def check_open_list_cut(answer: str) -> str | None:
 
 
 def check_not_linked(answer: str) -> str | None:
+    """Why answer fails when no Jira project is linked: it must say so and
+    invent no ticket keys at all."""
     return first_problem(
         f"invented ticket keys: {sorted(keys_in(answer))}" if keys_in(answer) else None,
         None if mentions(answer, ["bağlı", "bağlan", "link"]) else "doesn't say there is no linked Jira project",
@@ -147,6 +166,8 @@ def check_not_linked(answer: str) -> str | None:
 
 
 def check_recently_done(answer: str) -> str | None:
+    """Why answer fails the "recently done" scenario: an invented key, none
+    of the real finished issues named, or no date from the data given."""
     return first_problem(
         only_real_keys(answer, DONE),
         None if keys_in(answer) & DONE else "names none of the finished issues",
@@ -157,6 +178,8 @@ def check_recently_done(answer: str) -> str | None:
 
 
 def check_unknown_topic(answer: str) -> str | None:
+    """Why answer fails when asked about a topic with no saved fact: it must
+    say nothing was found, not invent a decision, and not leak a fact_id."""
     return first_problem(
         None
         if mentions(
@@ -171,6 +194,9 @@ def check_unknown_topic(answer: str) -> str | None:
 
 
 def check_conflict_is_cited(answer: str) -> str | None:
+    """Why answer fails when a saved fact is contradicted by a real, done
+    ticket: it must cite that ticket by key, not invent others, and not
+    leak a fact_id."""
     return first_problem(
         None if "DEMO-38" in answer else "doesn't cite DEMO-38, the ticket that contradicts the saved fact",
         only_real_keys(answer, DONE),
@@ -195,8 +221,12 @@ FLAG_PHRASES = [
 
 
 def check_no_conflict(answer: str) -> str | None:
-    # Citing the recent tickets is fine ("none of them contradicts your facts"):
-    # what counts is whether it calls a saved fact out of date.
+    """Why answer fails when nothing actually conflicts: it must not call a
+    saved fact out of date, and not leak a fact_id.
+
+    Citing the recent tickets is fine ("none of them contradicts your
+    facts"): what counts is whether it calls a saved fact out of date.
+    """
     return first_problem(
         "calls a saved fact out of date though nothing conflicts" if mentions(answer, FLAG_PHRASES) else None,
         leaked_id(answer),
@@ -204,6 +234,9 @@ def check_no_conflict(answer: str) -> str | None:
 
 
 def check_pending_repeat(answer: str) -> str | None:
+    """Why answer fails when a pending fact repeats one already saved: it
+    must name the repeated item, say it's a repeat, and not claim it was
+    approved (only the user can do that)."""
     return first_problem(
         None if "postgresql" in answer.lower() else "doesn't mention the PostgreSQL item",
         None
@@ -257,9 +290,13 @@ _ORIGINALS = {
 
 def _install_fakes(s: Scenario) -> None:
     def fake(name, body):
+        """Wrap body as a fake replacement for the real tool called name,
+        copying the real tool's __name__/__doc__ so ADK's model-facing
+        schema is unaffected by the swap."""
         original = _ORIGINALS[name]
 
         def wrapper(*args, **kwargs):
+            """Call body, ignoring the real tool's own arguments/behavior."""
             return body(*args, **kwargs)
 
         # ADK builds the model's tool schema from the name and docstring.
@@ -321,6 +358,21 @@ def grade(s: Scenario, answer: str | None) -> str | None:
 
 
 async def main(runs: int, min_rate: float, only: str | None, verbose: bool, save: str | None, replay: str | None) -> int:
+    """Run every scenario (or only those matching `only`), print a pass-rate
+    table, and return 1 if any scenario falls below min_rate, else 0.
+
+    Args:
+        runs (int): How many times to run each scenario, since the model
+            isn't deterministic.
+        min_rate (float): The pass rate (0-1) a scenario must reach.
+        only (str | None): If given, skip scenarios whose name doesn't
+            contain this text.
+        verbose (bool): Print the full answer of every failed run.
+        save (str | None): If given, write every collected answer to this
+            file as JSON, for later --replay.
+        replay (str | None): If given, grade the answers saved in this file
+            instead of calling the model again.
+    """
     # ADK prints a stack trace for every rate-limited call it goes on to retry;
     # the retries in get_answer handle those, so that is only noise here.
     logging.disable(logging.ERROR)

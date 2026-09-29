@@ -1,3 +1,5 @@
+"""Tests for restoring saved chat turns into an ADK session on cold start."""
+
 import asyncio
 from types import SimpleNamespace
 
@@ -34,6 +36,7 @@ def _restore(runner, load_turns):
 
 
 def test_saved_turns_become_alternating_user_and_agent_events_in_order():
+    """Saved turns are restored as alternating user/agent events, in the same order and with the same text."""
     runner = _runner()
 
     assert _restore(runner, lambda: TURNS) is True
@@ -54,6 +57,7 @@ def test_saved_turns_become_alternating_user_and_agent_events_in_order():
 
 
 def test_a_question_and_its_answer_share_an_invocation():
+    """Each restored question and its answer share one invocation id, and different turns get different invocation ids."""
     runner = _runner()
     _restore(runner, lambda: TURNS)
 
@@ -64,6 +68,7 @@ def test_a_question_and_its_answer_share_an_invocation():
 
 
 def test_nothing_saved_means_no_session_is_created():
+    """When there are no saved turns to load, restore_session returns False and no session is created."""
     runner = _runner()
 
     assert _restore(runner, lambda: []) is False
@@ -72,12 +77,14 @@ def test_nothing_saved_means_no_session_is_created():
 
 
 def test_a_live_session_is_never_overwritten_and_saved_turns_are_not_even_read():
+    """restore_session leaves an already-existing session untouched and never even calls the loader for saved turns."""
     runner = _runner()
     _restore(runner, lambda: TURNS)
     before = len(_events(runner))
     reads = []
 
     def load():
+        """Record that it was called, and return the saved turns."""
         reads.append(1)
         return TURNS
 
@@ -88,8 +95,12 @@ def test_a_live_session_is_never_overwritten_and_saved_turns_are_not_even_read()
 
 
 def test_losing_the_race_to_another_connection_is_not_an_error():
+    """When another connection creates the session first, restore_session treats the resulting AlreadyExistsError as a normal loss, not a failure."""
     class RacyService(InMemorySessionService):
+        """A session service whose create_session always loses the race to an existing session."""
+
         async def create_session(self, **kwargs):
+            """Simulate another connection having already created this session."""
             raise AlreadyExistsError("someone else got there first")
 
     assert _restore(_runner(RacyService()), lambda: TURNS) is False

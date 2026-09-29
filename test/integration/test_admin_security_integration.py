@@ -49,6 +49,8 @@ def _attempt(owner_uid):
 
 
 def test_concurrent_messages_never_push_a_user_past_their_own_limit(monkeypatch):
+    """Ten concurrent record_message calls against a per-user limit of 5 never
+    persist more than 5 successes, and the stored count matches exactly."""
     monkeypatch.setattr(usage, "DAILY_MESSAGE_HARD_LIMIT", 5)
     monkeypatch.setattr(usage, "GLOBAL_DAILY_MESSAGE_LIMIT", 1000)
     monkeypatch.setattr(allowed_emails, "OWNER_EMAILS", {"owner@example.com"})
@@ -69,6 +71,8 @@ def test_concurrent_messages_never_push_a_user_past_their_own_limit(monkeypatch)
 
 
 def test_concurrent_messages_never_push_the_global_count_past_its_limit(monkeypatch):
+    """Ten concurrent record_message calls from different users against a
+    global limit of 5 never persist more than 5 successes globally."""
     monkeypatch.setattr(usage, "DAILY_MESSAGE_HARD_LIMIT", 1000)
     monkeypatch.setattr(usage, "GLOBAL_DAILY_MESSAGE_LIMIT", 5)
     monkeypatch.setattr(allowed_emails, "OWNER_EMAILS", {"owner@example.com"})
@@ -83,6 +87,8 @@ def test_concurrent_messages_never_push_the_global_count_past_its_limit(monkeypa
 
 
 def test_concurrent_messages_never_push_a_tester_past_their_lifetime_cap(monkeypatch):
+    """Ten concurrent record_message calls for the same tester against a
+    lifetime cap of 5 never let more than 5 succeed."""
     monkeypatch.setattr(usage, "TESTER_LIFETIME_MESSAGE_LIMIT", 5)
     monkeypatch.setattr(usage, "DAILY_MESSAGE_HARD_LIMIT", 1000)
     monkeypatch.setattr(usage, "GLOBAL_DAILY_MESSAGE_LIMIT", 1000)
@@ -101,6 +107,9 @@ def test_concurrent_messages_never_push_a_tester_past_their_lifetime_cap(monkeyp
 
 
 def test_a_non_owner_is_refused_before_any_data_is_touched():
+    """A non-owner caller gets a 403 from every admin endpoint, with no
+    dependency on the emulator being reachable.
+    """
     # No emulator env needed for this one: require_owner rejects the caller
     # from the token's claims alone, before any src function runs.
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: NON_OWNER
@@ -112,6 +121,8 @@ def test_a_non_owner_is_refused_before_any_data_is_touched():
 
 
 def test_the_owner_is_really_refused_from_being_given_a_role(monkeypatch):
+    """A PUT that targets the owner's own email is rejected with 400 through
+    the real router, and the owner's role stays "admin"."""
     owner = f"owner-{uuid.uuid4().hex[:8]}@example.com"
     monkeypatch.setattr(allowed_emails, "OWNER_EMAILS", {owner})
     monkeypatch.setattr(api.deps, "OWNER_EMAILS", {owner})
@@ -125,6 +136,8 @@ def test_the_owner_is_really_refused_from_being_given_a_role(monkeypatch):
 
 
 def test_an_email_not_on_the_allowlist_is_really_refused(monkeypatch):
+    """A PUT that targets an email not on the allowlist is rejected with 400,
+    and its role still reads back as the "tester" default."""
     owner = f"owner-{uuid.uuid4().hex[:8]}@example.com"
     monkeypatch.setattr(allowed_emails, "OWNER_EMAILS", {owner})
     monkeypatch.setattr(api.deps, "OWNER_EMAILS", {owner})
@@ -139,6 +152,8 @@ def test_an_email_not_on_the_allowlist_is_really_refused(monkeypatch):
 
 
 def test_setting_the_role_to_user_end_to_end_actually_exempts_the_email(monkeypatch):
+    """Setting a tester's role to "user" through the real router lets
+    record_message succeed past what the tester lifetime cap would allow."""
     owner = f"owner-{uuid.uuid4().hex[:8]}@example.com"
     monkeypatch.setattr(allowed_emails, "OWNER_EMAILS", {owner})
     monkeypatch.setattr(api.deps, "OWNER_EMAILS", {owner})
@@ -160,6 +175,8 @@ def test_setting_the_role_to_user_end_to_end_actually_exempts_the_email(monkeypa
 
 
 def test_extra_fields_on_the_allowed_email_body_are_rejected(monkeypatch):
+    """A POST to /admin/allowed_emails with an extra, unrecognized field in
+    the body is rejected with 422 rather than silently ignored."""
     monkeypatch.setattr(api.deps, "OWNER_EMAILS", {"owner@example.com"})
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: "owner@example.com"
     client = TestClient(api_main.app)

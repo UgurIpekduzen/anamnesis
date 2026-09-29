@@ -1,3 +1,5 @@
+"""Tests for summarizing pending facts awaiting review."""
+
 import src.facts.pending_facts as pending_facts
 
 
@@ -11,6 +13,7 @@ def _serve(monkeypatch, pending, saved=()):
 
 
 def test_each_pending_fact_is_listed_with_its_category_and_no_ids_or_urls(monkeypatch):
+    """Each pending fact appears with its content and category, and no ids, sources, or URLs are included."""
     _serve(monkeypatch, [_pending("Adds a cache layer", "decision")])
 
     assert pending_facts.get_pending_facts_summary("t", "o") == {
@@ -20,6 +23,7 @@ def test_each_pending_fact_is_listed_with_its_category_and_no_ids_or_urls(monkey
 
 
 def test_a_pending_fact_that_repeats_a_saved_one_is_marked_by_code(monkeypatch):
+    """A pending fact that duplicates an already-saved fact is annotated with the matching saved content; a non-duplicate is not."""
     saved = [{"fact_id": "f1", "content": "Uses PostgreSQL", "category": "architecture"}]
     _serve(monkeypatch, [_pending("uses postgresql."), _pending("Deploys on Cloud Run")], saved)
 
@@ -30,6 +34,7 @@ def test_a_pending_fact_that_repeats_a_saved_one_is_marked_by_code(monkeypatch):
 
 
 def test_the_list_is_capped_and_says_when_there_are_more(monkeypatch):
+    """When more pending facts exist than MAX_PENDING_FOR_REVIEW, the list is capped and marked truncated."""
     _serve(monkeypatch, [_pending(f"Fact number {n}") for n in range(pending_facts.MAX_PENDING_FOR_REVIEW + 5)])
 
     result = pending_facts.get_pending_facts_summary("t", "o")
@@ -39,6 +44,7 @@ def test_the_list_is_capped_and_says_when_there_are_more(monkeypatch):
 
 
 def test_a_long_pending_text_is_cut_off(monkeypatch):
+    """A pending fact's content longer than MAX_PENDING_CONTENT_CHARS is truncated and ends with an ellipsis."""
     _serve(monkeypatch, [_pending("x" * 500)])
 
     (item,) = pending_facts.get_pending_facts_summary("t", "o")["pending"]
@@ -47,6 +53,7 @@ def test_a_long_pending_text_is_cut_off(monkeypatch):
 
 
 def test_nothing_pending_is_an_empty_list(monkeypatch):
+    """No pending facts produces an empty, untruncated list."""
     _serve(monkeypatch, [])
 
     assert pending_facts.get_pending_facts_summary("t", "o") == {"pending": [], "truncated": False}

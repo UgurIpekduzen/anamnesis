@@ -1,3 +1,5 @@
+"""Tests for the combined Jira/GitHub project status lookups."""
+
 import pytest
 import requests
 
@@ -19,6 +21,7 @@ def linked(monkeypatch):
 
 
 def test_jira_issues_are_split_into_fields_and_linked_to_the_issue(linked, monkeypatch):
+    """Each Jira issue line is split into key/type/status/summary fields and given a browse URL."""
     monkeypatch.setattr(
         status,
         "get_jira_status",
@@ -44,6 +47,7 @@ def test_jira_issues_are_split_into_fields_and_linked_to_the_issue(linked, monke
 
 
 def test_a_project_with_no_jira_key_is_not_linked(monkeypatch):
+    """A project with no Jira key and no GitHub repo configured reports "not_linked" for both statuses."""
     monkeypatch.setattr(status, "get_owned_tenant", lambda tenant_id, owner_uid: {})
 
     assert status.get_project_jira_status("t", "o") == {"state": "not_linked"}
@@ -51,13 +55,16 @@ def test_a_project_with_no_jira_key_is_not_linked(monkeypatch):
 
 
 def test_no_jira_account_is_not_connected(linked, monkeypatch):
+    """A project linked to Jira but with no saved Jira credentials reports "not_connected"."""
     monkeypatch.setattr(status, "get_jira_credentials", lambda owner_uid: None)
 
     assert status.get_project_jira_status("t", "o") == {"state": "not_connected"}
 
 
 def test_a_saved_token_that_cannot_be_read_says_to_reconnect(linked, monkeypatch):
+    """A saved Jira token that fails to decrypt is reported as an error with a message telling the user to reconnect."""
     def unreadable(owner_uid):
+        """Simulate the saved token failing to decrypt."""
         raise ValueError("The saved token can't be decrypted. Reconnect it in Settings.")
 
     monkeypatch.setattr(status, "get_jira_credentials", unreadable)
@@ -69,10 +76,12 @@ def test_a_saved_token_that_cannot_be_read_says_to_reconnect(linked, monkeypatch
 
 
 def test_a_failing_jira_call_is_an_error_without_the_libraries_text(linked, monkeypatch):
+    """A 401 from Jira is turned into a generic reconnect message, and the underlying error text (which contains a secret) never leaks into the result."""
     response = requests.Response()
     response.status_code = 401
 
     def rejected(key, **credentials):
+        """Simulate Jira rejecting the request with a 401, in an error whose text contains a secret."""
         raise requests.HTTPError("401 for https://x.atlassian.net/?token=SECRET", response=response)
 
     monkeypatch.setattr(status, "get_jira_status", rejected)
@@ -84,7 +93,9 @@ def test_a_failing_jira_call_is_an_error_without_the_libraries_text(linked, monk
 
 
 def test_a_network_failure_is_reported_plainly(linked, monkeypatch):
+    """A connection failure while reaching Jira is reported as a plain "Couldn't reach Jira." error."""
     def down(key, **credentials):
+        """Simulate a DNS/connection failure while reaching Jira."""
         raise requests.ConnectionError("dns failure for host x")
 
     monkeypatch.setattr(status, "get_jira_status", down)
@@ -93,6 +104,7 @@ def test_a_network_failure_is_reported_plainly(linked, monkeypatch):
 
 
 def test_github_returns_numbers_titles_and_links_only(linked, monkeypatch):
+    """GitHub pull requests and issues are reduced to just their number, title, and URL, dropping state and updated_at."""
     monkeypatch.setattr(
         status,
         "get_github_status",
@@ -111,13 +123,16 @@ def test_github_returns_numbers_titles_and_links_only(linked, monkeypatch):
 
 
 def test_no_github_account_is_not_connected(linked, monkeypatch):
+    """A project linked to GitHub but with no connected GitHub account reports "not_connected"."""
     monkeypatch.setattr(status, "has_github_connection", lambda owner_uid: False)
 
     assert status.get_project_github_status("t", "o") == {"state": "not_connected"}
 
 
 def test_a_failing_github_call_is_an_error(linked, monkeypatch):
+    """An unexpected failure reading GitHub status is reported as a generic error, without leaking the underlying error text."""
     def broken(owner_uid, tenant_id):
+        """Simulate a GitHub call failing with an error whose text contains a secret."""
         raise RuntimeError("boom with a token ghp_SECRET")
 
     monkeypatch.setattr(status, "get_github_status", broken)
@@ -128,7 +143,9 @@ def test_a_failing_github_call_is_an_error(linked, monkeypatch):
 
 
 def test_someone_elses_project_is_refused(monkeypatch):
+    """A project not owned by the requesting user raises PermissionError for both Jira and GitHub status lookups."""
     def not_yours(tenant_id, owner_uid):
+        """Simulate the tenant lookup refusing a project the caller doesn't own."""
         raise PermissionError("No project")
 
     monkeypatch.setattr(status, "get_owned_tenant", not_yours)
@@ -149,6 +166,7 @@ def test_someone_elses_project_is_refused(monkeypatch):
     ],
 )
 def test_common_http_failures_say_what_to_check(code, service, expected):
+    """`_failure` turns common HTTP status codes into a service-specific message telling the user what to check."""
     response = requests.Response()
     response.status_code = code
 

@@ -1,3 +1,5 @@
+"""Integration tests for tenant (project) lifecycle, ownership, and GitHub/Jira link management."""
+
 from datetime import datetime, timezone
 import uuid
 
@@ -26,12 +28,14 @@ OTHER_UID = "someone-else@example.com"
 
 @pytest.fixture
 def tenant_name():
+    """Return a unique tenant name so repeated test runs don't collide in the persistent emulator."""
     # A random suffix keeps repeated test runs from colliding on the same
     # tenant_id in the emulator, which persists state across runs.
     return f"Integration Test Tenant {uuid.uuid4().hex[:8]}"
 
 
 def test_add_tenant_creates_a_listed_tenant(tenant_name):
+    """A newly added tenant appears in the owner's tenant list with its given name."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         tenants = list_tenants(OWNER_UID)
@@ -41,6 +45,7 @@ def test_add_tenant_creates_a_listed_tenant(tenant_name):
 
 
 def test_rename_tenant_updates_the_name(tenant_name):
+    """Renaming a tenant updates the name shown in the owner's tenant list."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         rename_tenant(tenant_id, "Renamed Tenant", OWNER_UID)
@@ -51,6 +56,7 @@ def test_rename_tenant_updates_the_name(tenant_name):
 
 
 def test_delete_tenant_removes_it_from_the_list(tenant_name):
+    """Deleting a tenant removes it from the owner's tenant list."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     delete_tenant(tenant_id, OWNER_UID)
 
@@ -59,6 +65,7 @@ def test_delete_tenant_removes_it_from_the_list(tenant_name):
 
 
 def test_set_jira_project_key(tenant_name):
+    """Setting a Jira project key on a tenant is reflected in the owner's tenant list."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         set_jira_project_key(tenant_id, "APPCE", OWNER_UID)
@@ -71,6 +78,7 @@ def test_set_jira_project_key(tenant_name):
 
 
 def test_set_github_repo(tenant_name):
+    """Setting a GitHub repo on a tenant is reflected in the owner's tenant list."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         set_github_repo(tenant_id, "UgurIpekduzen/anamnesis", OWNER_UID)
@@ -94,6 +102,7 @@ def test_set_github_repo(tenant_name):
     ],
 )
 def test_set_github_repo_rejects_anything_that_is_not_owner_slash_name(tenant_name, bad):
+    """Setting a GitHub repo value that isn't in owner/name form raises ValueError."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         with pytest.raises(ValueError):
@@ -103,6 +112,7 @@ def test_set_github_repo_rejects_anything_that_is_not_owner_slash_name(tenant_na
 
 
 def test_list_tenants_excludes_other_owners_tenants(tenant_name):
+    """Listing tenants for one owner does not include a tenant created by another owner."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         tenants = list_tenants("someone-else@example.com")
@@ -112,6 +122,7 @@ def test_list_tenants_excludes_other_owners_tenants(tenant_name):
 
 
 def test_delete_tenant_rejects_a_non_owner(tenant_name):
+    """Deleting a tenant as a user who isn't its owner raises PermissionError."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         with pytest.raises(PermissionError):
@@ -125,6 +136,7 @@ def _tenant_doc(tenant_id):
 
 
 def test_set_jira_project_key_rejects_an_invalid_key_and_saves_nothing(tenant_name):
+    """Setting a Jira project key with invalid characters raises ValueError and stores nothing."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         with pytest.raises(ValueError):
@@ -136,6 +148,7 @@ def test_set_jira_project_key_rejects_an_invalid_key_and_saves_nothing(tenant_na
 
 
 def test_a_jira_project_key_can_be_set_and_cleared(tenant_name):
+    """A Jira project key can be set, then cleared, leaving the tenant document and listing without it."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         set_jira_project_key(tenant_id, "APPCE", OWNER_UID)
@@ -151,6 +164,7 @@ def test_a_jira_project_key_can_be_set_and_cleared(tenant_name):
 
 
 def test_a_github_repo_can_be_cleared_and_its_poll_cut_off_goes_with_it(tenant_name):
+    """Clearing a tenant's GitHub repo also removes its recorded poll cut-off timestamp."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         set_github_repo(tenant_id, "owner/repo", OWNER_UID)
@@ -166,6 +180,7 @@ def test_a_github_repo_can_be_cleared_and_its_poll_cut_off_goes_with_it(tenant_n
 
 
 def test_switching_to_another_repo_resets_the_poll_cut_off(tenant_name):
+    """Switching a tenant to a different GitHub repo drops the previous repo's poll cut-off timestamp."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         set_github_repo(tenant_id, "owner/old-repo", OWNER_UID)
@@ -182,6 +197,7 @@ def test_switching_to_another_repo_resets_the_poll_cut_off(tenant_name):
 
 
 def test_mark_github_poll_failed_records_the_failure(tenant_name):
+    """Marking a GitHub poll as failed records the failure kind and a failure timestamp on the tenant."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         mark_github_poll_failed(tenant_id, "auth")
@@ -194,6 +210,7 @@ def test_mark_github_poll_failed_records_the_failure(tenant_name):
 
 
 def test_a_successful_poll_clears_a_previously_recorded_failure(tenant_name):
+    """Recording a successful poll clears a previously recorded GitHub poll failure."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         mark_github_poll_failed(tenant_id, "auth")
@@ -208,6 +225,7 @@ def test_a_successful_poll_clears_a_previously_recorded_failure(tenant_name):
 
 
 def test_list_broken_github_connections_includes_a_failed_tenant(tenant_name):
+    """A tenant with a recorded GitHub poll failure appears in the list of broken connections with its details."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         mark_github_poll_failed(tenant_id, "not_found")
@@ -224,6 +242,7 @@ def test_list_broken_github_connections_includes_a_failed_tenant(tenant_name):
 
 
 def test_list_broken_github_connections_excludes_a_healthy_tenant(tenant_name):
+    """A tenant with no recorded GitHub poll failure does not appear in the list of broken connections."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         assert tenant_id not in {c["tenant_id"] for c in list_broken_github_connections()}
@@ -232,6 +251,7 @@ def test_list_broken_github_connections_excludes_a_healthy_tenant(tenant_name):
 
 
 def test_saving_the_same_repo_again_keeps_the_poll_cut_off(tenant_name):
+    """Setting a tenant's GitHub repo to the same value it already has keeps the existing poll cut-off."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         set_github_repo(tenant_id, "owner/repo", OWNER_UID)
@@ -247,6 +267,7 @@ def test_saving_the_same_repo_again_keeps_the_poll_cut_off(tenant_name):
 
 @pytest.mark.parametrize("clear", [clear_github_repo, clear_jira_project_key])
 def test_clearing_a_link_rejects_a_non_owner(tenant_name, clear):
+    """Clearing a tenant's GitHub repo or Jira project key as a non-owner raises PermissionError."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         with pytest.raises(PermissionError):
@@ -258,6 +279,7 @@ def test_clearing_a_link_rejects_a_non_owner(tenant_name, clear):
 # APPCE-117: the project id comes from the name and is shared by every user, so
 # creating a project must never take over one that already exists.
 def test_a_second_user_cannot_take_over_a_project_with_the_same_name(tenant_name):
+    """A second user cannot create a project whose name slugifies to an existing tenant's id, and the original is unaffected."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         create_fact(tenant_id, "the first user's note", "note")
@@ -275,6 +297,7 @@ def test_a_second_user_cannot_take_over_a_project_with_the_same_name(tenant_name
 
 
 def test_creating_the_same_name_twice_keeps_the_first_project_as_it_was(tenant_name):
+    """Creating a tenant with a name that already exists for the same owner fails without overwriting the original tenant's data."""
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         set_github_repo(tenant_id, "some-org/some-repo", OWNER_UID)

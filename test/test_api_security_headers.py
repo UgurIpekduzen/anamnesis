@@ -1,9 +1,12 @@
+"""Tests for the security headers middleware applied to every response."""
+
 from starlette.testclient import TestClient
 
 import api.main as api_main
 
 
 def test_every_response_carries_the_security_headers():
+    """A successful response carries the nosniff, frame-deny, and strict referrer-policy headers."""
     response = TestClient(api_main.app).get("/health")
 
     assert response.headers["x-content-type-options"] == "nosniff"
@@ -12,6 +15,7 @@ def test_every_response_carries_the_security_headers():
 
 
 def test_the_content_security_policy_is_enforced():
+    """The Content-Security-Policy is enforced (not report-only), restricts default-src and framing, allows Google sign-in, and forbids unsafe-eval."""
     # It ran report-only first and showed no violation on the live app (sign-in,
     # sign-out, chat, saving a fact), so it is enforced now (APPCE-119).
     response = TestClient(api_main.app).get("/health")
@@ -26,6 +30,7 @@ def test_the_content_security_policy_is_enforced():
 
 
 def test_an_error_response_carries_them_too():
+    """A 401 error response still carries the security headers."""
     response = TestClient(api_main.app).get("/tenants")  # 401: no token
 
     assert response.status_code == 401

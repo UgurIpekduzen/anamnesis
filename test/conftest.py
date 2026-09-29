@@ -1,4 +1,4 @@
-"""Setup shared by every test (APPCE-106)."""
+"""Setup shared by every test."""
 
 import json
 import os
@@ -22,6 +22,7 @@ def log_lines():
     """Reads the structured log lines (src.core.log) out of what a test captured."""
 
     def read(captured_out: str) -> list[dict]:
+        """Parse each line of captured stdout as JSON, skipping lines that aren't."""
         lines = []
         for line in captured_out.splitlines():
             try:

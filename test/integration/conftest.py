@@ -1,3 +1,7 @@
+"""Shared fixtures for the integration test suite: skip tests when the
+Firestore/Pub-Sub emulators aren't reachable, and provision the Pub/Sub
+topic/subscription they need."""
+
 import os
 import socket
 

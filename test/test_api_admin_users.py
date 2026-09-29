@@ -1,3 +1,5 @@
+"""Tests for the GET /admin/users endpoint."""
+
 from datetime import datetime, timezone
 
 import pytest
@@ -18,6 +20,7 @@ BOB_INVITED_AT = datetime(2026, 6, 1, tzinfo=timezone.utc)
 
 @pytest.fixture
 def api(monkeypatch):
+    """Patch the user-listing dependencies with Alice/Bob fixture data (roles, names, usage, invite times) and a global usage count, then yield a TestClient for api.main.app."""
     monkeypatch.setattr(admin, "get_extra_allowed_emails", lambda: {ALICE, BOB})
     monkeypatch.setattr(admin, "get_roles", lambda emails: {e: "tester" for e in emails})
     monkeypatch.setattr(admin, "get_names", lambda emails: {ALICE: "Ada Lovelace"})
@@ -33,6 +36,7 @@ def api(monkeypatch):
 
 
 def test_owner_can_list_users(api):
+    """The owner can list users, sorted oldest-invite-first with the owner (no invite record) sorting first, each with role/name/count/invited_at."""
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
 
     response = api.get("/admin/users")
@@ -58,6 +62,7 @@ def test_owner_can_list_users(api):
 
 
 def test_a_newly_invited_email_sorts_last(api, monkeypatch):
+    """A newly-invited email (simulating add_allowed_email having just run) sorts after the existing users, by invite time."""
     # Simulates add_allowed_email having just run for a brand new email.
     newest = datetime(2026, 9, 29, tzinfo=timezone.utc)
     monkeypatch.setattr(admin, "get_extra_allowed_emails", lambda: {ALICE, BOB, "carol@example.com"})
@@ -74,6 +79,7 @@ def test_a_newly_invited_email_sorts_last(api, monkeypatch):
 
 
 def test_search_matches_name_case_insensitively(api):
+    """The q search param matches a user's display name case-insensitively."""
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
 
     response = api.get("/admin/users", params={"q": "lovelace"})
@@ -84,6 +90,7 @@ def test_search_matches_name_case_insensitively(api):
 
 
 def test_search_matches_email_when_no_name_is_set(api):
+    """The q search param falls back to matching a user's email when they have no name set."""
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
 
     response = api.get("/admin/users", params={"q": "bob@"})
@@ -92,6 +99,7 @@ def test_search_matches_email_when_no_name_is_set(api):
 
 
 def test_search_with_no_match_returns_an_empty_list(api):
+    """A q search param that matches nobody returns an empty user list with total 0."""
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
 
     response = api.get("/admin/users", params={"q": "nobody"})
@@ -106,6 +114,7 @@ def test_search_with_no_match_returns_an_empty_list(api):
 
 
 def test_limit_and_offset_page_through_the_results(api):
+    """limit and offset page through the user list without duplicating or skipping any user."""
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
 
     first_page = api.get("/admin/users", params={"limit": 2, "offset": 0}).json()
@@ -118,6 +127,7 @@ def test_limit_and_offset_page_through_the_results(api):
 
 
 def test_non_owner_cannot_list_users(api):
+    """A non-owner gets a 403 from GET /admin/users."""
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: NON_OWNER
 
     assert api.get("/admin/users").status_code == 403
@@ -125,6 +135,7 @@ def test_non_owner_cannot_list_users(api):
 
 @pytest.mark.parametrize("params", [{"limit": 0}, {"limit": 201}, {"offset": -1}])
 def test_out_of_range_paging_params_are_rejected(api, params):
+    """A limit of 0, a limit over 200, or a negative offset is rejected with a 422."""
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
 
     assert api.get("/admin/users", params=params).status_code == 422

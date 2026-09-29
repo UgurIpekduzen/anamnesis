@@ -51,6 +51,7 @@ def seeded_user():
 
 
 def test_a_dry_run_reports_without_deleting_anything(seeded_user):
+    """A dry run reports the user's tenants, name, and allowlist status without deleting anything."""
     email, tenant_id, project_name = seeded_user
 
     result = wipe_user(email)
@@ -68,6 +69,7 @@ def test_a_dry_run_reports_without_deleting_anything(seeded_user):
 
 
 def test_a_confirmed_wipe_clears_every_collection(seeded_user):
+    """A confirmed wipe deletes the user's tenants, connections, usage, categories, name, and allowlist entry."""
     email, tenant_id, _ = seeded_user
 
     result = wipe_user(email, confirm=True)
@@ -105,6 +107,7 @@ def test_wiping_a_user_never_touches_the_shared_settings(seeded_user):
 
 
 def test_the_owner_cannot_be_wiped(monkeypatch):
+    """Calling wipe_user with an owner email raises ValueError instead of deleting anything."""
     owner = f"owner-{uuid.uuid4().hex[:8]}@example.com"
     # wipe_user.py imports OWNER_EMAILS into its own module namespace (`from
     # ... import OWNER_EMAILS`), a separate binding from
@@ -127,6 +130,7 @@ def test_a_retry_after_a_partial_failure_finishes_the_job(seeded_user, monkeypat
     calls = []
 
     def flaky_delete_tenant(tid, owner_uid):
+        """Raise on the first call to simulate a transient Firestore failure, then delegate to the real delete_tenant."""
         calls.append(tid)
         if len(calls) == 1:
             raise RuntimeError("simulated Firestore failure")

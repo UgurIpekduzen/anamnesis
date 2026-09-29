@@ -1,3 +1,6 @@
+"""Integration tests for per-project chat history storage and retention
+against a real Firestore emulator."""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -17,6 +20,8 @@ def _new_tenant():
 
 @pytest.fixture
 def tenant_id():
+    """Create a real tenant owned by OWNER and yield its id, deleting the
+    tenant afterwards (tolerating a test that already deleted it)."""
     tenant_id = _new_tenant()
     yield tenant_id
     try:
@@ -31,6 +36,8 @@ def _stored_turn_count(tenant_id):
 
 
 def test_turns_come_back_oldest_first_with_their_text(tenant_id):
+    """load_recent_turns returns appended turns oldest-first, each with its
+    question, answer, and a real created_at timestamp."""
     append_turn(tenant_id, OWNER, "first question", "first answer")
     append_turn(tenant_id, OWNER, "second question", "second answer")
 
@@ -44,6 +51,8 @@ def test_turns_come_back_oldest_first_with_their_text(tenant_id):
 
 
 def test_the_limit_keeps_the_most_recent_turns_in_order(tenant_id):
+    """load_recent_turns with a limit smaller than the stored history returns
+    only the most recent turns, still oldest-first."""
     for n in range(1, 5):
         append_turn(tenant_id, OWNER, f"q{n}", f"a{n}")
 
@@ -53,11 +62,15 @@ def test_the_limit_keeps_the_most_recent_turns_in_order(tenant_id):
 
 
 def test_a_zero_limit_returns_nothing(tenant_id):
+    """load_recent_turns with limit=0 returns an empty list even though a
+    turn exists."""
     append_turn(tenant_id, OWNER, "q", "a")
     assert load_recent_turns(tenant_id, OWNER, limit=0) == []
 
 
 def test_each_turn_is_stamped_to_expire_after_the_retention_period(tenant_id):
+    """append_turn stores an expire_at timestamp RETENTION_DAYS after the
+    turn is created, for Firestore's TTL sweep."""
     before = datetime.now(timezone.utc)
     append_turn(tenant_id, OWNER, "q", "a")
 
@@ -69,6 +82,8 @@ def test_each_turn_is_stamped_to_expire_after_the_retention_period(tenant_id):
 
 
 def test_an_expired_turn_is_not_returned_even_if_the_ttl_sweep_has_not_run(tenant_id):
+    """load_recent_turns filters out a turn whose expire_at is already in the
+    past, even though Firestore's TTL sweep hasn't deleted it yet."""
     append_turn(tenant_id, OWNER, "still live", "yes")
     ref = get_client().collection("tenants").document(tenant_id).collection(CHAT_TURNS_COLLECTION)
     ref.add(
@@ -84,12 +99,16 @@ def test_an_expired_turn_is_not_returned_even_if_the_ttl_sweep_has_not_run(tenan
 
 
 def test_clearing_removes_the_saved_turns(tenant_id):
+    """clear_turns deletes a project's saved turns so load_recent_turns
+    returns nothing afterwards."""
     append_turn(tenant_id, OWNER, "q", "a")
     clear_turns(tenant_id, OWNER)
     assert load_recent_turns(tenant_id, OWNER, limit=10) == []
 
 
 def test_clearing_one_project_leaves_another_projects_turns_alone(tenant_id):
+    """clear_turns on one project's history doesn't remove another project's
+    turns."""
     other = _new_tenant()
     try:
         append_turn(tenant_id, OWNER, "mine", "a")
@@ -112,6 +131,9 @@ def test_clearing_one_project_leaves_another_projects_turns_alone(tenant_id):
     ids=["append", "load", "clear"],
 )
 def test_someone_elses_project_is_off_limits(tenant_id, operation):
+    """append_turn, load_recent_turns, and clear_turns each raise
+    PermissionError for a caller who isn't the project's owner, and leave the
+    owner's existing turns untouched."""
     append_turn(tenant_id, OWNER, "private", "a")
 
     with pytest.raises(PermissionError):
@@ -122,6 +144,7 @@ def test_someone_elses_project_is_off_limits(tenant_id, operation):
 
 
 def test_deleting_a_project_deletes_its_saved_turns(tenant_id):
+    """delete_tenant also deletes the project's saved chat turns."""
     append_turn(tenant_id, OWNER, "q", "a")
     assert _stored_turn_count(tenant_id) == 1
 

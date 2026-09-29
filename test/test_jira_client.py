@@ -1,3 +1,5 @@
+"""Tests for the Jira REST client: status queries, recently-done queries, and credential validation."""
+
 import pytest
 import requests
 
@@ -11,20 +13,27 @@ from src.integrations.jira.client import (
 
 
 class FakeResponse:
+    """A stand-in for a `requests.Response` with a configurable status and JSON body."""
+
     def __init__(self, payload=None, status=200):
+        """Store the JSON payload and status code to return."""
         self._payload = payload or {}
         self.status_code = status
 
     def raise_for_status(self):
+        """Raise an HTTPError when the configured status code is an error."""
         if self.status_code >= 400:
             raise requests.HTTPError(f"status {self.status_code}")
 
     def json(self):
+        """Return the configured JSON payload."""
         return self._payload
 
 
 def test_get_jira_status_maps_the_expected_fields(monkeypatch):
+    """get_jira_status builds the expected JQL and auth, and maps each issue into a single summary line."""
     def fake_get(url, auth, params, timeout, allow_redirects):
+        """Assert the request URL, auth, and JQL, then return one fake issue."""
         assert url == "https://example.atlassian.net/rest/api/3/search/jql"
         assert auth == ("user@example.com", "secret-token")
         assert 'project = "APPCE"' in params["jql"]
@@ -57,6 +66,7 @@ def _serving(monkeypatch, issues):
     seen = {}
 
     def fake_get(url, auth, params, timeout, allow_redirects):
+        """Record the request params and return up to maxResults issues, like the real Jira API."""
         seen["params"] = params
         # Like Jira: never more than was asked for.
         return FakeResponse({"issues": issues[: params["maxResults"]]})
@@ -66,6 +76,7 @@ def _serving(monkeypatch, issues):
 
 
 def test_only_the_most_recent_issues_up_to_the_limit_are_returned(monkeypatch):
+    """When more issues exist than DEFAULT_LIMIT, only the first DEFAULT_LIMIT are returned and the result is marked truncated."""
     _serving(monkeypatch, [_issue(n) for n in range(1, 41)])
 
     result = get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net")
@@ -76,6 +87,7 @@ def test_only_the_most_recent_issues_up_to_the_limit_are_returned(monkeypatch):
 
 
 def test_it_asks_jira_for_one_more_than_the_limit_only_to_detect_more(monkeypatch):
+    """get_jira_status requests limit + 1 issues from Jira, so it can tell whether the result was truncated."""
     seen = _serving(monkeypatch, [_issue(n) for n in range(1, 41)])
 
     get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net", limit=5)
@@ -84,6 +96,7 @@ def test_it_asks_jira_for_one_more_than_the_limit_only_to_detect_more(monkeypatc
 
 
 def test_exactly_the_limit_is_not_reported_as_truncated(monkeypatch):
+    """When the issue count exactly equals DEFAULT_LIMIT, the result is not marked truncated."""
     _serving(monkeypatch, [_issue(n) for n in range(1, DEFAULT_LIMIT + 1)])
 
     result = get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net")
@@ -93,6 +106,7 @@ def test_exactly_the_limit_is_not_reported_as_truncated(monkeypatch):
 
 
 def test_a_project_with_no_open_issues_returns_an_empty_list(monkeypatch):
+    """A project with no matching issues returns an empty, untruncated issue list."""
     _serving(monkeypatch, [])
 
     assert get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net") == {
@@ -102,6 +116,7 @@ def test_a_project_with_no_open_issues_returns_an_empty_list(monkeypatch):
 
 
 def test_a_long_summary_is_cut_off_with_an_ellipsis(monkeypatch):
+    """A summary longer than MAX_SUMMARY_CHARS is truncated to that length and ends with an ellipsis."""
     _serving(monkeypatch, [_issue(1, summary="x" * 500)])
 
     line = get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net")["issues"][0]
@@ -112,6 +127,7 @@ def test_a_long_summary_is_cut_off_with_an_ellipsis(monkeypatch):
 
 
 def test_a_summary_at_the_limit_is_left_alone(monkeypatch):
+    """A summary exactly at MAX_SUMMARY_CHARS is left untouched, with no ellipsis added."""
     _serving(monkeypatch, [_issue(1, summary="y" * MAX_SUMMARY_CHARS)])
 
     line = get_jira_status("APPCE", "u@example.com", "t", "https://example.atlassian.net")["issues"][0]
@@ -121,7 +137,9 @@ def test_a_summary_at_the_limit_is_left_alone(monkeypatch):
 
 
 def test_get_jira_status_strips_a_trailing_slash_from_the_base_url(monkeypatch):
+    """A trailing slash on the configured base URL is stripped before building the request URL."""
     def fake_get(url, auth, params, timeout, allow_redirects):
+        """Assert the URL has no double slash from a trailing slash on the base URL."""
         assert url == "https://example.atlassian.net/rest/api/3/search/jql"
         return FakeResponse({"issues": []})
 
@@ -131,12 +149,14 @@ def test_get_jira_status_strips_a_trailing_slash_from_the_base_url(monkeypatch):
 
 
 def test_validate_jira_credentials_accepts_a_successful_response(monkeypatch):
+    """A successful response from Jira does not raise."""
     monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda url, auth, timeout, allow_redirects: FakeResponse())
 
     validate_jira_credentials("user@example.com", "secret-token", "https://example.atlassian.net")
 
 
 def test_validate_jira_credentials_rejects_a_401(monkeypatch):
+    """A 401 response from Jira is turned into a ValueError."""
     monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda url, auth, timeout, allow_redirects: FakeResponse(status=401))
 
     with pytest.raises(ValueError):
@@ -144,7 +164,9 @@ def test_validate_jira_credentials_rejects_a_401(monkeypatch):
 
 
 def test_validate_jira_credentials_wraps_a_connection_failure(monkeypatch):
+    """A connection failure while reaching Jira is wrapped in a ValueError."""
     def fake_get(url, auth, timeout, allow_redirects):
+        """Simulate a DNS/connection failure."""
         raise requests.ConnectionError("no such host")
 
     monkeypatch.setattr("src.integrations.jira.client.requests.get", fake_get)
@@ -154,7 +176,9 @@ def test_validate_jira_credentials_wraps_a_connection_failure(monkeypatch):
 
 
 def test_a_bad_key_saved_earlier_never_reaches_jira(monkeypatch):
+    """An invalid project key is rejected before any request is made to Jira."""
     def unexpected(*args, **kwargs):
+        """Fail the test if a request is made at all."""
         raise AssertionError("no request may be made with an invalid key")
 
     monkeypatch.setattr("src.integrations.jira.client.requests.get", unexpected)
@@ -164,9 +188,11 @@ def test_a_bad_key_saved_earlier_never_reaches_jira(monkeypatch):
 
 
 def test_get_jira_recently_done_asks_for_done_issues_and_shows_the_resolution_date(monkeypatch):
+    """get_jira_recently_done queries for done issues and formats each with its resolution date, or "no date" when absent."""
     seen = {}
 
     def fake_get(url, auth, params, timeout, allow_redirects):
+        """Record the request params and return two fake done issues."""
         seen.update(params)
         return FakeResponse(
             {
@@ -201,6 +227,7 @@ def test_get_jira_recently_done_asks_for_done_issues_and_shows_the_resolution_da
 
 
 def test_get_jira_recently_done_is_capped_and_says_when_there_is_more(monkeypatch):
+    """When more done issues exist than DEFAULT_LIMIT, the result is capped and marked truncated."""
     _serving(monkeypatch, [_issue(n) for n in range(1, DEFAULT_LIMIT + 5)])
 
     result = get_jira_recently_done("APPCE", "u@example.com", "t", "https://example.atlassian.net")
@@ -209,7 +236,9 @@ def test_get_jira_recently_done_is_capped_and_says_when_there_is_more(monkeypatc
 
 
 def test_a_bad_key_never_reaches_jira_when_asking_for_done_issues(monkeypatch):
+    """An invalid project key is rejected before any request is made to Jira for done issues."""
     def no_network(*args, **kwargs):
+        """Fail the test if a request is made at all."""
         raise AssertionError("a bad key must not reach Jira")
 
     monkeypatch.setattr("src.integrations.jira.client.requests.get", no_network)
@@ -241,6 +270,7 @@ BAD_ADDRESSES = [
 
 @pytest.mark.parametrize("base_url", BAD_ADDRESSES)
 def test_validate_jira_credentials_refuses_an_address_that_is_not_jira_cloud(monkeypatch, base_url):
+    """An address that isn't a plain https Jira Cloud URL is rejected without ever making a request."""
     calls = []
     monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda *args, **kwargs: calls.append(args) or FakeResponse())
 
@@ -252,15 +282,18 @@ def test_validate_jira_credentials_refuses_an_address_that_is_not_jira_cloud(mon
 
 @pytest.mark.parametrize("base_url", ["https://example.atlassian.net", "https://Example.Atlassian.net/", "https://my-team2.atlassian.net"])
 def test_validate_jira_credentials_accepts_a_jira_cloud_address(monkeypatch, base_url):
+    """A plain https Jira Cloud address, in any case and with or without a trailing slash, is accepted."""
     monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda *args, **kwargs: FakeResponse())
 
     validate_jira_credentials("user@example.com", "secret-token", base_url)
 
 
 def test_the_requests_never_follow_a_redirect(monkeypatch):
+    """Both validate_jira_credentials and get_jira_status disable redirect following."""
     seen = []
 
     def fake_get(url, **kwargs):
+        """Record whether the caller allowed redirects."""
         seen.append(kwargs.get("allow_redirects"))
         return FakeResponse()
 
@@ -273,6 +306,7 @@ def test_the_requests_never_follow_a_redirect(monkeypatch):
 
 
 def test_a_saved_bad_address_is_not_called_when_reading_the_status(monkeypatch):
+    """A previously saved base URL that is not a valid Jira Cloud address is rejected before any request is made."""
     calls = []
     monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda *args, **kwargs: calls.append(args) or FakeResponse())
 
@@ -284,6 +318,7 @@ def test_a_saved_bad_address_is_not_called_when_reading_the_status(monkeypatch):
 
 @pytest.mark.parametrize("status", [302, 403, 404, 500])
 def test_validate_jira_credentials_turns_any_other_failure_into_a_value_error(monkeypatch, status):
+    """Any non-200 status from Jira, not just 401, is turned into a ValueError."""
     monkeypatch.setattr("src.integrations.jira.client.requests.get", lambda *args, **kwargs: FakeResponse(status=status))
 
     with pytest.raises(ValueError):

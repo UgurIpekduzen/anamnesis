@@ -32,6 +32,7 @@ FACT_ID = g.FACT_IDS[1]
     ],
 )
 def test_a_right_answer_passes(check, answer):
+    """A correctly grounded model answer passes its matching check function."""
     assert check(answer) is None
 
 
@@ -55,10 +56,14 @@ def test_a_right_answer_passes(check, answer):
     ],
 )
 def test_a_wrong_answer_is_caught(check, answer, why):
+    """A wrong or ungrounded model answer fails its matching check function
+    with a message naming the specific reason."""
     assert why in check(answer)
 
 
 def test_a_crashed_turn_is_not_a_failed_answer():
+    """grade() reports a None answer as CRASHED and an empty answer as
+    "no answer", distinct outcomes rather than a plain grading failure."""
     scenario = g.SCENARIOS[0]
 
     assert g.grade(scenario, None) == g.CRASHED
@@ -66,6 +71,8 @@ def test_a_crashed_turn_is_not_a_failed_answer():
 
 
 def test_replaying_grades_saved_answers_without_a_model(tmp_path, monkeypatch):
+    """main(replay=...) grades previously saved answers from a file and
+    never calls the model."""
     import asyncio
     import json
 
@@ -74,6 +81,7 @@ def test_replaying_grades_saved_answers_without_a_model(tmp_path, monkeypatch):
     path.write_text(json.dumps(saved), encoding="utf-8")
 
     def no_model(*args, **kwargs):
+        """Fail the test if replay mode calls the model instead of reusing saved answers."""
         raise AssertionError("replay must not call the model")
 
     monkeypatch.setattr(g, "get_answer", no_model)

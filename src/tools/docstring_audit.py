@@ -1,13 +1,13 @@
-"""List modules and public functions/classes in src/, api/ and agent/ that
-have no docstring — run via `python -m src.tools.docstring_audit`. Exits
-non-zero if anything is missing, so it can gate the documentation pass the
-same way a test does.
+"""List modules and public functions/classes in src/, api/, agent/, eval/
+and test/ that have no docstring — run via
+`python -m src.tools.docstring_audit`. Exits non-zero if anything is
+missing, so it can gate the documentation pass the same way a test does.
 
-Private helpers (a leading underscore) and test files are skipped: the
-ticket's acceptance criterion is "every public module and function",
-not every internal detail — a private helper's purpose should already be
-clear from where it's called and its name, or a "why" comment where it
-isn't (see CLAUDE.md's comment guidance), not a docstring.
+Private helpers (a leading underscore) are skipped: the acceptance
+criterion is "every public module and function", not every internal
+detail — a private helper's purpose should already be clear from where
+it's called and its name, or a "why" comment where it isn't (see
+CLAUDE.md's comment guidance), not a docstring.
 """
 
 import ast
@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-SCAN_DIRS = ["src", "api", "agent"]
+SCAN_DIRS = ["src", "api", "agent", "eval", "test"]
 
 
 def _is_private(name: str) -> bool:

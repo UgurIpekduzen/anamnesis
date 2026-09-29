@@ -1,3 +1,5 @@
+"""Tests for the /ws/chat WebSocket endpoint."""
+
 from contextlib import contextmanager
 import threading
 import time
@@ -17,25 +19,32 @@ WS_URL = "/ws/chat/some_tenant"
 
 
 class FakeEvent:
+    """A fake ADK event carrying a final text response, with no tool calls."""
+
     def __init__(self, text):
+        """Store the final response text as the event's content."""
         self.content = SimpleNamespace(parts=[SimpleNamespace(text=text)])
 
     def get_function_calls(self):
+        """Report no function calls."""
         return []
 
     def get_function_responses(self):
+        """Report no function responses."""
         return []
 
     def is_final_response(self):
+        """Report this event as the turn's final response."""
         return True
 
 
 class FakeConfirmationEvent:
     """Mimics the synthetic event ADK yields for a require_confirmation=True
-    tool (APPCE-91) — a lone adk_request_confirmation function call wrapping
-    the real tool's name/args, no final content yet."""
+    tool — a lone adk_request_confirmation function call wrapping the real
+    tool's name/args, no final content yet."""
 
     def __init__(self, request_id, original_name, original_args):
+        """Wrap the original tool call in a synthetic adk_request_confirmation function call."""
         self.content = None
         self._call = SimpleNamespace(
             name="adk_request_confirmation",
@@ -44,27 +53,37 @@ class FakeConfirmationEvent:
         )
 
     def get_function_calls(self):
+        """Report the single synthetic adk_request_confirmation call."""
         return [self._call]
 
     def get_function_responses(self):
+        """Report no function responses."""
         return []
 
     def is_final_response(self):
+        """Report this event as not final — the turn is still waiting on the confirmation."""
         return False
 
 
 class FakeSessionService:
+    """A fake ADK session service that records which sessions were deleted."""
+
     def __init__(self):
+        """Start with no deleted sessions recorded."""
         self.deleted = []
 
     async def delete_session(self, *, app_name, user_id, session_id):
+        """Record the deleted session's identifying arguments."""
         self.deleted.append((app_name, user_id, session_id))
 
 
 class FakeRunner:
+    """A fake ADK Runner that records each run() call and yields a scripted or default sequence of events."""
+
     app_name = "anamnesis"
 
     def __init__(self):
+        """Start with no calls recorded, not failing, not silent, and no scripted events."""
         self.calls = []
         self.fail = False
         self.silent = False  # runs to completion without ever producing an answer
@@ -75,6 +94,7 @@ class FakeRunner:
         self.script: list[list] | None = None
 
     def run(self, *, user_id, session_id, new_message, run_config):
+        """Record the call's arguments, then raise, yield the scripted events, or yield a default "hi" reply."""
         # A confirm_response resumes with a function_response Part, not
         # text — new_message.parts[0].text would be None for those, which
         # is fine for the assertions that care (they check .args instead).
@@ -119,14 +139,17 @@ def spies():
 
 @pytest.fixture
 def chat(monkeypatch, spies):
+    """Wire a FakeRunner and no-op/spying persistence functions into api.main.app, and yield (TestClient, runner, recorded_owner_uids)."""
     runner = FakeRunner()
     recorded = []
 
     async def fake_restore(runner_, owner_uid, session_id, load_turns):
+        """Record the restore call's arguments and report that nothing was restored."""
         spies.restores.append({"owner": owner_uid, "session_id": session_id, "load_turns": load_turns})
         return False
 
     def fake_load(tenant_id, owner_uid, limit):
+        """Record the load call's arguments and return no turns."""
         spies.loads.append((tenant_id, owner_uid, limit))
         return []
 
@@ -147,6 +170,7 @@ def chat(monkeypatch, spies):
 
 
 def test_a_normal_message_reaches_the_agent_with_a_call_cap(chat):
+    """A normal chat message reaches the agent once, with the turn's max_llm_calls capped and the message recorded for usage."""
     client, runner, recorded = chat
     with open_chat(client) as ws:
         ws.send_json({"message": "hello"})
@@ -158,6 +182,7 @@ def test_a_normal_message_reaches_the_agent_with_a_call_cap(chat):
 
 
 def test_an_oversized_message_is_rejected_before_the_agent_and_the_socket_survives(chat):
+    """A message over MAX_MESSAGE_CHARS gets an error frame without reaching the agent, and the socket still accepts the next message."""
     client, runner, recorded = chat
     with open_chat(client) as ws:
         ws.send_json({"message": "x" * (chat_router.MAX_MESSAGE_CHARS + 1)})
@@ -171,6 +196,7 @@ def test_an_oversized_message_is_rejected_before_the_agent_and_the_socket_surviv
 
 @pytest.mark.parametrize("payload", [["not", "a", "dict"], {"message": "   "}, {"message": 42}, {}])
 def test_malformed_or_empty_messages_get_an_error_frame(chat, payload):
+    """A non-dict frame, a blank message, a non-string message, or a missing message field all get an error frame without reaching the agent."""
     client, runner, _ = chat
     with open_chat(client) as ws:
         ws.send_json(payload)
@@ -179,6 +205,7 @@ def test_malformed_or_empty_messages_get_an_error_frame(chat, payload):
 
 
 def test_an_agent_failure_becomes_an_error_frame_and_keeps_the_socket_open(chat):
+    """A raised agent error becomes an error frame, and the socket still accepts and answers the next message once the agent recovers."""
     client, runner, _ = chat
     runner.fail = True
     with open_chat(client) as ws:
@@ -191,6 +218,7 @@ def test_an_agent_failure_becomes_an_error_frame_and_keeps_the_socket_open(chat)
 
 
 def test_a_confirmation_request_is_sent_and_not_leaked_into_the_trace(chat):
+    """A require_confirmation tool call is sent as a confirm_required frame, with no tool_call frame for the synthetic adk_request_confirmation call and no final frame yet."""
     client, runner, _ = chat
     runner.script = [[FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})]]
 
@@ -207,6 +235,7 @@ def test_a_confirmation_request_is_sent_and_not_leaked_into_the_trace(chat):
 
 
 def test_confirming_resumes_the_turn_and_saves_the_original_question(chat, spies):
+    """Confirming resumes the turn with a function response (not text) and saves the turn under the user's original question, not "confirm_response"."""
     client, runner, _ = chat
     runner.script = [
         [FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})],
@@ -229,6 +258,7 @@ def test_confirming_resumes_the_turn_and_saves_the_original_question(chat, spies
 
 
 def test_rejecting_resumes_the_turn_too(chat):
+    """Rejecting a confirmation also resumes the turn, and the model's follow-up reply is sent as the final frame."""
     client, runner, _ = chat
     runner.script = [
         [FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})],
@@ -244,6 +274,7 @@ def test_rejecting_resumes_the_turn_too(chat):
 
 
 def test_a_confirm_response_with_nothing_pending_is_rejected(chat):
+    """A confirm_response frame with no pending confirmation gets an error frame and never reaches the agent."""
     client, runner, _ = chat
     with open_chat(client) as ws:
         ws.send_json({"type": "confirm_response", "confirmed": True})
@@ -252,6 +283,7 @@ def test_a_confirm_response_with_nothing_pending_is_rejected(chat):
 
 
 def test_a_new_message_while_a_confirmation_is_pending_is_rejected(chat):
+    """A new chat message sent while a confirmation is pending gets an error frame instead of reaching the agent."""
     client, runner, _ = chat
     runner.script = [[FakeConfirmationEvent("req-1", "delete_fact", {"fact_id": "f1"})]]
 
@@ -268,6 +300,7 @@ def test_a_new_message_while_a_confirmation_is_pending_is_rejected(chat):
 
 
 def test_reset_deletes_the_server_side_session(chat):
+    """A reset frame deletes the user's server-side ADK session before the next message is processed."""
     client, runner, _ = chat
     with open_chat(client) as ws:
         ws.send_json({"type": "reset"})
@@ -280,6 +313,7 @@ def test_reset_deletes_the_server_side_session(chat):
 
 
 def test_tool_events_carry_ids_so_results_can_be_paired_with_their_calls():
+    """_event_to_messages turns a function call and its response into a tool_call/tool_result pair sharing the same id."""
     call = SimpleNamespace(id="call-1", name="get_tenant_facts", args={"tenant_id": "t"})
     result = SimpleNamespace(id="call-1", name="get_tenant_facts", response={"result": []})
     event = SimpleNamespace(get_function_calls=lambda: [call], get_function_responses=lambda: [result])
@@ -291,6 +325,7 @@ def test_tool_events_carry_ids_so_results_can_be_paired_with_their_calls():
 
 
 def test_the_model_sees_the_users_message_verbatim(chat):
+    """The agent receives the user's message text unchanged, with no "[Project: X]" prefix added."""
     # No "[Project: X]" prefix — the runner's Agent is already scoped to
     # this one tenant (see api/runner.py), so nothing needs disambiguating.
     client, runner, _ = chat
@@ -302,6 +337,7 @@ def test_the_model_sees_the_users_message_verbatim(chat):
 
 
 def test_the_length_limit_applies_to_the_full_message(chat):
+    """A message exactly at MAX_MESSAGE_CHARS is accepted and reaches the agent."""
     client, runner, _ = chat
     with open_chat(client) as ws:
         ws.send_json({"message": "x" * chat_router.MAX_MESSAGE_CHARS})
@@ -309,9 +345,11 @@ def test_the_length_limit_applies_to_the_full_message(chat):
 
 
 def test_connecting_to_a_project_the_user_does_not_own_is_refused(chat, monkeypatch):
+    """Connecting to a project the authenticated user doesn't own closes the socket with policy violation 1008 and never reaches the agent."""
     client, runner, _ = chat
 
     def not_owned(tenant_id, owner_uid):
+        """Simulate the tenant not being owned by the connecting user."""
         raise PermissionError("nope")
 
     monkeypatch.setattr(chat_router, "get_owned_tenant", not_owned)
@@ -325,6 +363,7 @@ def test_connecting_to_a_project_the_user_does_not_own_is_refused(chat, monkeypa
 
 
 def test_a_finished_turn_is_saved_as_plain_question_and_answer_text(chat, spies):
+    """A finished turn is saved as the plain question and answer text."""
     client, _, _ = chat
     with open_chat(client) as ws:
         ws.send_json({"message": "what do you know?"})
@@ -335,6 +374,7 @@ def test_a_finished_turn_is_saved_as_plain_question_and_answer_text(chat, spies)
 
 
 def test_a_turn_with_no_answer_is_not_saved(chat, spies):
+    """A turn that produces no final answer is reported as "(no response)" and is not saved."""
     client, runner, _ = chat
     runner.silent = True
     with open_chat(client) as ws:
@@ -345,9 +385,11 @@ def test_a_turn_with_no_answer_is_not_saved(chat, spies):
 
 
 def test_a_failing_save_does_not_break_the_conversation(chat, monkeypatch):
+    """A raised error while saving the turn doesn't stop the conversation from continuing."""
     client, _, _ = chat
 
     def broken(*args):
+        """Simulate the turn-saving write failing."""
         raise RuntimeError("firestore is down")
 
     monkeypatch.setattr(chat_router, "append_turn", broken)
@@ -360,6 +402,7 @@ def test_a_failing_save_does_not_break_the_conversation(chat, monkeypatch):
 
 
 def test_connecting_restores_the_models_memory_using_the_users_window_setting(chat, spies):
+    """Connecting restores the session's memory using the user's configured history_turns window."""
     client, _, _ = chat
     with open_chat(client):
         pass
@@ -374,9 +417,11 @@ def test_connecting_restores_the_models_memory_using_the_users_window_setting(ch
 
 
 def test_a_failing_restore_does_not_stop_the_user_from_chatting(chat, monkeypatch):
+    """A raised error while restoring session memory doesn't stop the user from chatting."""
     client, _, _ = chat
 
     async def broken_restore(*args):
+        """Simulate the session-restore read failing."""
         raise RuntimeError("firestore is down")
 
     monkeypatch.setattr(chat_router, "restore_session", broken_restore)
@@ -387,6 +432,7 @@ def test_a_failing_restore_does_not_stop_the_user_from_chatting(chat, monkeypatc
 
 
 def test_clear_chat_also_deletes_the_saved_turns(chat, spies):
+    """A reset frame also deletes the tenant's saved chat turns, not just the ADK session."""
     client, _, _ = chat
     with open_chat(client) as ws:
         ws.send_json({"type": "reset"})
@@ -397,9 +443,11 @@ def test_clear_chat_also_deletes_the_saved_turns(chat, spies):
 
 
 def test_a_failing_clear_does_not_break_the_conversation(chat, monkeypatch):
+    """A raised error while clearing saved turns doesn't stop the conversation from continuing."""
     client, _, _ = chat
 
     def broken(*args):
+        """Simulate the turn-clearing write failing."""
         raise RuntimeError("firestore is down")
 
     monkeypatch.setattr(chat_router, "clear_turns", broken)
@@ -411,11 +459,13 @@ def test_a_failing_clear_does_not_break_the_conversation(chat, monkeypatch):
 
 
 def test_a_running_turn_does_not_block_other_requests(chat, monkeypatch):
+    """A slow, in-flight turn doesn't block a concurrent REST request on the same event loop."""
     client, runner, _ = chat
 
     original_run = runner.run
 
     def slow_run(**kwargs):
+        """Delay before yielding the normal run() events, to simulate a slow model/tool call."""
         time.sleep(1.0)  # stands in for the model + Firestore-backed tools
         yield from original_run(**kwargs)
 
@@ -437,8 +487,9 @@ def test_a_running_turn_does_not_block_other_requests(chat, monkeypatch):
 
 
 def test_the_message_is_counted_before_the_model_is_called(chat, monkeypatch):
-    # The hard daily limit (APPCE-102) can only refuse a message if it is
-    # decided before the agent starts, so the count is waited for.
+    """The daily message count is recorded before the agent is called, so a hard limit can refuse the message before it starts."""
+    # The hard daily limit can only refuse a message if it is decided
+    # before the agent starts, so the count is waited for.
     client, runner, _ = chat
     order = []
 
@@ -446,6 +497,7 @@ def test_the_message_is_counted_before_the_model_is_called(chat, monkeypatch):
     original_run = runner.run
 
     def run(**kwargs):
+        """Record that the agent ran, then yield the normal run() events."""
         order.append("agent")
         yield from original_run(**kwargs)
 
@@ -460,12 +512,14 @@ def test_the_message_is_counted_before_the_model_is_called(chat, monkeypatch):
 
 def _over_the_limit(monkeypatch):
     def refuse(owner_uid):
+        """Simulate the user's daily message limit being exceeded."""
         raise DailyLimitExceeded(200, "user")
 
     monkeypatch.setattr(chat_router, "record_message", refuse)
 
 
 def test_a_message_over_the_daily_limit_never_reaches_the_agent(chat, spies, monkeypatch):
+    """A message over the user's daily limit gets an error frame naming the limit, never reaches the agent, and is not saved."""
     client, runner, _ = chat
     _over_the_limit(monkeypatch)
 
@@ -480,9 +534,11 @@ def test_a_message_over_the_daily_limit_never_reaches_the_agent(chat, spies, mon
 
 
 def test_a_message_over_the_global_limit_says_it_is_shared(chat, spies, monkeypatch):
+    """A message over the global daily limit gets an error frame that names the limit and says it's shared across users."""
     client, runner, _ = chat
 
     def refuse(owner_uid):
+        """Simulate the global daily message limit being exceeded."""
         raise DailyLimitExceeded(1000, "global")
 
     monkeypatch.setattr(chat_router, "record_message", refuse)
@@ -497,9 +553,11 @@ def test_a_message_over_the_global_limit_says_it_is_shared(chat, spies, monkeypa
 
 
 def test_a_message_over_the_lifetime_limit_says_it_never_resets(chat, spies, monkeypatch):
+    """A message over the lifetime limit gets an error frame that names the limit and never mentions a midnight reset."""
     client, runner, _ = chat
 
     def refuse(owner_uid):
+        """Simulate the lifetime message limit being exceeded."""
         raise DailyLimitExceeded(30, "lifetime")
 
     monkeypatch.setattr(chat_router, "record_message", refuse)
@@ -515,6 +573,7 @@ def test_a_message_over_the_lifetime_limit_says_it_never_resets(chat, spies, mon
 
 
 def test_the_connection_survives_a_refused_message(chat, monkeypatch):
+    """The socket stays open after a refused message, and a later message is judged on its own and reaches the agent."""
     client, runner, _ = chat
     _over_the_limit(monkeypatch)
 
@@ -531,6 +590,7 @@ def test_the_connection_survives_a_refused_message(chat, monkeypatch):
 
 
 def test_answering_a_confirmation_is_not_counted_as_another_message(chat, monkeypatch):
+    """Answering a pending confirmation is not counted as a second message toward usage."""
     client, runner, recorded = chat
     runner.script = [
         [FakeConfirmationEvent("call-1", "publish_fact", {"content": "x", "category": "decision"})],
@@ -547,9 +607,11 @@ def test_answering_a_confirmation_is_not_counted_as_another_message(chat, monkey
 
 
 def test_a_failing_usage_write_does_not_break_the_conversation(chat, monkeypatch):
+    """A raised error while recording usage doesn't stop the conversation from continuing."""
     client, _, _ = chat
 
     def broken(owner_uid):
+        """Simulate the usage-recording write failing."""
         raise RuntimeError("firestore is down")
 
     monkeypatch.setattr(chat_router, "record_message", broken)
@@ -562,16 +624,20 @@ def test_a_failing_usage_write_does_not_break_the_conversation(chat, monkeypatch
 
 
 def test_usage_save_and_clear_run_off_the_event_loop_thread(chat, monkeypatch):
+    """Usage recording, turn saving, and turn clearing all run on a worker thread, not the event loop's own thread."""
     client, _, _ = chat
     threads = {}
 
     async def fake_restore(*args):
+        """Record the event loop's thread id and report that nothing was restored."""
         # Runs on the event loop, so this is the loop's thread.
         threads["loop"] = threading.get_ident()
         return False
 
     def note(name):
+        """Return a fake that records the calling thread's id under name."""
         def fake(*args):
+            """Record the calling thread's id under the enclosing name."""
             threads[name] = threading.get_ident()
 
         return fake
@@ -597,7 +663,7 @@ def test_usage_save_and_clear_run_off_the_event_loop_thread(chat, monkeypatch):
         assert threads[name] != threads["loop"], name
 
 
-# --- Authentication happens in the first frame, never in the URL (APPCE-67)
+# --- Authentication happens in the first frame, never in the URL
 
 
 def _assert_closed_with_policy_violation(ws):
@@ -607,10 +673,12 @@ def _assert_closed_with_policy_violation(ws):
 
 
 def test_the_token_is_read_from_the_auth_frame_not_the_url(chat, monkeypatch):
+    """The auth token is read from the first WebSocket frame, not from the connection URL."""
     client, _, _ = chat
     seen = []
 
     def verify(token):
+        """Record the token verify_token was called with and report it as the owner."""
         seen.append(token)
         return OWNER
 
@@ -624,9 +692,11 @@ def test_the_token_is_read_from_the_auth_frame_not_the_url(chat, monkeypatch):
 
 
 def test_an_invalid_token_is_refused_and_never_reaches_the_agent(chat, monkeypatch):
+    """An invalid auth token closes the socket with policy violation 1008 and never reaches the agent."""
     client, runner, _ = chat
 
     def reject(token):
+        """Simulate verify_token rejecting an invalid token."""
         raise HTTPException(status_code=401, detail="Invalid token")
 
     monkeypatch.setattr(chat_router, "verify_token", reject)
@@ -638,6 +708,7 @@ def test_an_invalid_token_is_refused_and_never_reaches_the_agent(chat, monkeypat
 
 
 def test_a_chat_message_before_authenticating_is_refused(chat):
+    """A chat message sent before the auth frame closes the socket with policy violation 1008 and never reaches the agent."""
     client, runner, recorded = chat
     with client.websocket_connect(WS_URL) as ws:
         ws.send_json({"message": "hello"})
@@ -648,6 +719,7 @@ def test_a_chat_message_before_authenticating_is_refused(chat):
 
 @pytest.mark.parametrize("frame", [{"type": "auth"}, {"type": "auth", "token": ""}, {"type": "auth", "token": 5}, ["x"]])
 def test_a_malformed_auth_frame_is_refused(chat, frame):
+    """A missing, empty, non-string, or non-dict auth frame closes the socket with policy violation 1008."""
     client, runner, _ = chat
     with client.websocket_connect(WS_URL) as ws:
         ws.send_json(frame)
@@ -656,6 +728,7 @@ def test_a_malformed_auth_frame_is_refused(chat, frame):
 
 
 def test_a_first_frame_that_is_not_json_is_refused(chat):
+    """A first frame that isn't valid JSON closes the socket with policy violation 1008."""
     client, _, _ = chat
     with client.websocket_connect(WS_URL) as ws:
         ws.send_text("not json at all")
@@ -663,6 +736,7 @@ def test_a_first_frame_that_is_not_json_is_refused(chat):
 
 
 def test_an_oversized_first_frame_is_refused_without_verifying_it(chat, monkeypatch):
+    """An auth frame over MAX_AUTH_FRAME_CHARS is refused without ever calling verify_token."""
     client, _, _ = chat
     verified = []
     monkeypatch.setattr(chat_router, "verify_token", lambda token: verified.append(token) or OWNER)
@@ -674,6 +748,7 @@ def test_an_oversized_first_frame_is_refused_without_verifying_it(chat, monkeypa
 
 
 def test_a_connection_that_never_authenticates_is_dropped(chat, monkeypatch):
+    """A connection that sends no auth frame within AUTH_TIMEOUT_SECONDS is closed with policy violation 1008."""
     client, _, _ = chat
     monkeypatch.setattr(chat_router, "AUTH_TIMEOUT_SECONDS", 0.2)
 
@@ -681,10 +756,11 @@ def test_a_connection_that_never_authenticates_is_dropped(chat, monkeypatch):
         _assert_closed_with_policy_violation(ws)
 
 
-# --- Request duration log (APPCE-68)
+# --- Request duration log
 
 
 def test_each_rest_call_logs_its_duration(chat, capsys, log_lines):
+    """Each REST call logs a "request" event with its method, path, status, and a non-negative duration in milliseconds."""
     client, _, _ = chat
     assert client.get("/health").status_code == 200
 
@@ -694,6 +770,7 @@ def test_each_rest_call_logs_its_duration(chat, capsys, log_lines):
 
 
 def test_the_duration_log_never_includes_the_query_string(chat, capsys, log_lines):
+    """The request duration log records only the path, never the query string, so secrets in query params aren't logged."""
     client, _, _ = chat
     client.get("/health?token=super-secret&x=1")
 
@@ -705,6 +782,7 @@ def test_the_duration_log_never_includes_the_query_string(chat, capsys, log_line
 
 
 def test_cors_preflights_are_not_logged(chat, capsys):
+    """An OPTIONS CORS preflight request is not logged as a request event."""
     client, _, _ = chat
     client.options(
         "/health",
@@ -715,6 +793,7 @@ def test_cors_preflights_are_not_logged(chat, capsys):
 
 
 def test_a_fact_that_is_already_saved_is_flagged_on_its_confirmation(chat, monkeypatch):
+    """A publish_fact confirmation includes any already-saved facts similar to the proposed one."""
     client, runner, _ = chat
     saved = [
         {"fact_id": "f1", "content": "Uses PostgreSQL", "category": "architecture"},
@@ -734,6 +813,7 @@ def test_a_fact_that_is_already_saved_is_flagged_on_its_confirmation(chat, monke
 
 
 def test_a_new_fact_gets_an_empty_similar_list_and_other_tools_get_none(chat):
+    """A publish_fact confirmation for a genuinely new fact gets an empty similar list."""
     client, runner, _ = chat
     runner.script = [
         [FakeConfirmationEvent("req-1", "publish_fact", {"content": "Brand new", "category": "todo"})],
@@ -744,9 +824,11 @@ def test_a_new_fact_gets_an_empty_similar_list_and_other_tools_get_none(chat):
 
 
 def test_a_failed_duplicate_lookup_does_not_block_the_confirmation(chat, monkeypatch):
+    """A raised error while looking up similar facts still lets the confirmation through, with an empty similar list."""
     client, runner, _ = chat
 
     def down(tenant_id, owner_uid):
+        """Simulate the duplicate-fact lookup failing."""
         raise RuntimeError("Firestore unavailable")
 
     monkeypatch.setattr(chat_router, "get_tenant_facts", down)

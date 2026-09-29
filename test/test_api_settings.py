@@ -1,3 +1,5 @@
+"""Tests for the GET /usage endpoint."""
+
 from datetime import datetime, timezone
 
 from starlette.testclient import TestClient
@@ -9,12 +11,14 @@ OWNER = "test@example.com"
 
 
 def test_settings_require_authentication():
+    """GET /usage returns 401 without a valid auth token."""
     # No dependency override here: the real token check must run.
     client = TestClient(api_main.app)
     assert client.get("/usage").status_code == 401
 
 
 def test_usage_reports_the_users_own_threshold(monkeypatch, signed_in_owner):
+    """GET /usage reports the signed-in user's own message count and the configured warning threshold."""
     client = TestClient(api_main.app)
     monkeypatch.setattr(settings_router, "get_today_count", lambda owner_uid: 3)
     monkeypatch.setattr(
@@ -27,6 +31,7 @@ def test_usage_reports_the_users_own_threshold(monkeypatch, signed_in_owner):
 
 
 def test_usage_reports_the_hard_limit_and_when_it_resets(monkeypatch, signed_in_owner):
+    """GET /usage reports the configured hard limit and a reset time at the next UTC midnight."""
     client = TestClient(api_main.app)
     monkeypatch.setattr(settings_router, "get_today_count", lambda owner_uid: 3)
     monkeypatch.setattr(

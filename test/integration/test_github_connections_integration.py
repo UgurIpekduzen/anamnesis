@@ -1,3 +1,6 @@
+"""Integration tests for per-user GitHub token storage and encryption
+against a real Firestore emulator."""
+
 import uuid
 
 import pytest
