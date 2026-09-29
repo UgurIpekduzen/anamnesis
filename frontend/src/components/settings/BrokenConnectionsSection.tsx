@@ -31,7 +31,11 @@ function BrokenConnectionsSection({ idToken }: Props) {
       .catch(() => setError("Couldn't load connection status."));
   }, [idToken]);
 
-  if (!connections) return null;
+  // Distinct from AlertsSection/UsersSection's "stay hidden until loaded"
+  // gate: those never fail this visibly, but a fetch failure here still
+  // needs to reach the owner, so it can't hide behind the same
+  // connections-only check (that left the error unreachable — see APPCE-127).
+  if (!connections && !error) return null;
 
   return (
     <div className="settings-field">
@@ -40,21 +44,22 @@ function BrokenConnectionsSection({ idToken }: Props) {
         rough reason. A connection drops off this list on its own once it's fixed and polls successfully again.
       </HintLabel>
       {error && <small className="settings-hint invalid">{error}</small>}
-      {connections.length === 0 ? (
-        <small className="settings-hint">All connections are healthy.</small>
-      ) : (
-        <ul className="admin-connections-list">
-          {connections.map((c) => (
-            <li key={`${c.owner_uid}/${c.tenant_id}`} className="admin-connections-item">
-              <div className="admin-connections-name">{c.name ?? c.tenant_id}</div>
-              <div className="admin-connections-detail">
-                {KIND_LABEL[c.kind]}
-                {c.failed_at && ` — failing since ${formatFailedAt(c.failed_at)}`}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      {connections &&
+        (connections.length === 0 ? (
+          <small className="settings-hint">All connections are healthy.</small>
+        ) : (
+          <ul className="admin-connections-list">
+            {connections.map((c) => (
+              <li key={`${c.owner_uid}/${c.tenant_id}`} className="admin-connections-item">
+                <div className="admin-connections-name">{c.name ?? c.tenant_id}</div>
+                <div className="admin-connections-detail">
+                  {KIND_LABEL[c.kind]}
+                  {c.failed_at && ` — failing since ${formatFailedAt(c.failed_at)}`}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ))}
     </div>
   );
 }

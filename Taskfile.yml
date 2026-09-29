@@ -252,6 +252,11 @@ tasks:
     cmds:
       - docker compose exec -T frontend npx tsc -b
 
+  frontend:test:
+    desc: Run the frontend test suite (Vitest) in a one-off container (APPCE-127) — task frontend:test -- <vitest args>
+    cmds:
+      - docker compose run --rm frontend npx vitest run {{.CLI_ARGS}}
+
   frontend:down:
     desc: Stop the React dev server
     cmds:
