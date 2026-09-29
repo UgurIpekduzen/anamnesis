@@ -19,6 +19,7 @@ from src.accounts.allowed_emails import (
 from src.accounts.profiles import MAX_NAME_LENGTH, get_names, set_name
 from src.accounts.settings import BOUNDS, DEFAULTS, get_settings, save_settings
 from src.accounts.usage import GLOBAL_DAILY_MESSAGE_LIMIT, get_global_today_count, get_usage_for
+from src.integrations.github.alerts import is_github_poll_alert_muted, set_github_poll_alert_muted
 from src.tools.wipe_user import wipe_user
 
 
@@ -244,3 +245,26 @@ def set_user_name(email: str, body: NameUpdate, owner_uid: str = Depends(require
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"email": email, "name": name}
+
+
+class AlertsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    github_poll_alert_muted: bool = Field(strict=True)
+
+
+# Whether a broken GitHub connection's poll failures land in the owner's
+# inbox (via the Cloud Monitoring alert policy in terraform/monitoring.tf,
+# which only fires on severity=ERROR) or just Cloud Logging at WARNING
+# (APPCE-125) — muting doesn't touch that policy or need any new GCP
+# permission, it only changes what severity src.integrations.github.polling
+# logs a failed run at.
+@router.get("/admin/alerts")
+def get_alerts(owner_uid: str = Depends(require_owner)) -> dict:
+    return {"github_poll_alert_muted": is_github_poll_alert_muted()}
+
+
+@router.put("/admin/alerts")
+def set_alerts(body: AlertsUpdate, owner_uid: str = Depends(require_owner)) -> dict:
+    set_github_poll_alert_muted(body.github_poll_alert_muted)
+    return {"github_poll_alert_muted": body.github_poll_alert_muted}
