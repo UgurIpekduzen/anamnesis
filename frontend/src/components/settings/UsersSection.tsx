@@ -149,6 +149,18 @@ function UsersSection({ idToken }: Props) {
           </li>
         </ul>
       </HintLabel>
+      <div className="admin-users-add">
+        <input
+          placeholder="Email to grant access to"
+          value={newEmail}
+          onChange={(e) => setNewEmail(e.target.value)}
+          aria-invalid={!!error}
+        />
+        <button onClick={addEmail} disabled={!newEmail.trim() || busy}>
+          {busy ? "Adding…" : "Add"}
+        </button>
+      </div>
+      {error && <small className="settings-hint invalid">{error}</small>}
       <input
         className="admin-users-search"
         placeholder="Search by name or email"
@@ -245,18 +257,6 @@ function UsersSection({ idToken }: Props) {
         Everyone combined: {page.global.count} / {page.global.limit} — a shared daily ceiling on top of each user's
         own, so it resets at midnight UTC.
       </small>
-      <div className="admin-users-add">
-        <input
-          placeholder="Email to grant access to"
-          value={newEmail}
-          onChange={(e) => setNewEmail(e.target.value)}
-          aria-invalid={!!error}
-        />
-        <button onClick={addEmail} disabled={!newEmail.trim() || busy}>
-          {busy ? "Adding…" : "Add"}
-        </button>
-      </div>
-      {error && <small className="settings-hint invalid">{error}</small>}
       {wipeTarget && (
         <WipeUserDialog email={wipeTarget} onConfirm={confirmWipe} onCancel={() => setWipeTarget(null)} />
       )}
