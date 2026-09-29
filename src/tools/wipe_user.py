@@ -37,6 +37,12 @@ def wipe_user(email: str, confirm: bool = False) -> dict:
     identity that keeps this deployment from locking itself out, not
     invited-user data.
 
+    Args:
+        email (str): The invited user's email address to report on (and,
+            with confirm=True, delete).
+        confirm (bool): If False (default), only report what belongs to
+            email without deleting anything. If True, delete it all.
+
     Returns:
         {"tenants": [tenant_id, ...], "github_connection": bool,
          "jira_connection": bool, "usage_record": bool, "categories": bool,

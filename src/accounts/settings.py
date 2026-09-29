@@ -71,6 +71,11 @@ def save_settings(settings: dict) -> dict:
     """Validate and store the shared settings. Owner-only — see
     api/routers/admin.py.
 
+    Args:
+        settings (dict): The full settings mapping to validate and store —
+            must contain exactly the keys in DEFAULTS (history_turns,
+            daily_message_warning_threshold), each within BOUNDS.
+
     Raises:
         ValueError: on an unknown field, a missing field, or a value outside
             BOUNDS — rejected rather than silently clamped, so the caller

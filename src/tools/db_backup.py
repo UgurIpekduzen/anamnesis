@@ -69,6 +69,10 @@ def dump(path: str) -> int:
     it to path as JSON. Read-only against the database; overwrites path if
     it already exists.
 
+    Args:
+        path (str): Filesystem path to write the JSON dump to; overwritten
+            if it already exists.
+
     Returns:
         How many documents were written.
     """
@@ -102,6 +106,9 @@ def load(path: str) -> int:
     confirmation step. Refuses to run unless FIRESTORE_EMULATOR_HOST is set,
     so this can only ever write to the emulator, never the real database.
 
+    Args:
+        path (str): Filesystem path of the JSON dump to load.
+
     Returns:
         How many documents were written.
     """
@@ -124,6 +131,9 @@ def verify(path: str) -> dict:
     """Compare the database with a dump, document by document. Read-only, and
     unlike restore it doesn't care which project the dump came from, so it can
     check a dump that was loaded into the emulator.
+
+    Args:
+        path (str): Filesystem path of the JSON dump to compare against.
 
     Returns:
         {"same": n, "different": n, "missing": n, "extra": n}: missing are in the
@@ -155,6 +165,12 @@ def restore(path: str, confirm_project: str | None) -> dict:
     over what differs; what the dump doesn't have is left alone, never deleted.
     The dump must have been taken from this same project, so another project's
     data can't be written here by mistake.
+
+    Args:
+        path (str): Filesystem path of the JSON dump to write.
+        confirm_project (str | None): The project id to write to — must
+            equal the database's own project id to actually write. None
+            (the default) only reports what would change.
 
     Returns:
         {"new": n, "changed": n, "unchanged": n, "written": bool}
@@ -196,7 +212,13 @@ def restore(path: str, confirm_project: str | None) -> dict:
 
 def wipe(confirm_project: str | None) -> tuple[int, bool]:
     """Count (and, when confirm_project is this database's project id, delete)
-    every document. Returns (documents, deleted)."""
+    every document. Returns (documents, deleted).
+
+    Args:
+        confirm_project (str | None): The project id to delete from — must
+            equal the database's own project id to actually delete. None
+            (the default) only counts what would be deleted.
+    """
     client = get_client()
     refs = list(_document_refs(client))
     # The same number a dump reports: a parent with no fields of its own is only
@@ -216,7 +238,12 @@ def main(argv: list[str] | None = None) -> int:
     """Run the dump/load/verify/restore/wipe CLI described in this module's
     docstring. dump and verify only read the database; load, restore and
     wipe can write to or delete from it (load only against the emulator;
-    restore and wipe require --confirm-project against the real one)."""
+    restore and wipe require --confirm-project against the real one).
+
+    Args:
+        argv (list[str] | None): Command-line arguments to parse. None (the
+            default) reads from sys.argv; an explicit list is used in tests.
+    """
     parser = argparse.ArgumentParser(prog="python -m src.tools.db_backup")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("dump").add_argument("file")

@@ -19,19 +19,32 @@ MAX_NAME_LENGTH = 100
 
 def get_name(email: str) -> str | None:
     """The display name the owner set for email, or None if they haven't
-    set one (or it's been cleared)."""
+    set one (or it's been cleared).
+
+    Args:
+        email (str): The email address to look up.
+    """
     doc = get_client().collection(COLLECTION).document(email).get()
     return doc.to_dict().get("name") if doc.exists else None
 
 
 def get_names(emails: list[str]) -> dict[str, str]:
-    """get_name for several emails at once — the admin Users table."""
+    """get_name for several emails at once — the admin Users table.
+
+    Args:
+        emails (list[str]): The email addresses to look up.
+    """
     return {email: name for email in emails if (name := get_name(email)) is not None}
 
 
 def set_name(email: str, name: str) -> str | None:
     """Set (or, with an empty/whitespace-only name, clear) email's display
     name. Returns the stored name, or None if cleared.
+
+    Args:
+        email (str): The email address to set the display name for.
+        name (str): The display name to store, or an empty/whitespace-only
+            string to clear it.
 
     Raises:
         ValueError: name is longer than MAX_NAME_LENGTH.

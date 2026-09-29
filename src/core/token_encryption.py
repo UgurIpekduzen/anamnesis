@@ -48,13 +48,20 @@ def _get_fernet() -> MultiFernet:
 
 def encrypt_token(value: str) -> str:
     """Encrypt a secret (a GitHub PAT, a Jira API token, ...) for storage —
-    never store the raw value."""
+    never store the raw value.
+
+    Args:
+        value (str): The raw secret to encrypt.
+    """
     return _get_fernet().encrypt(value.encode()).decode()
 
 
 def decrypt_token(ciphertext: str) -> str:
     """Decrypt a stored secret. Call this only right before using it, and
     don't let the result linger in a variable longer than it has to.
+
+    Args:
+        ciphertext (str): The encrypted, stored token.
 
     Raises:
         UnreadableToken: no current key can decrypt it — the key was lost or
@@ -71,6 +78,10 @@ def rotate_token(ciphertext: str) -> str:
 
     Decrypts with whichever key made it, so it also moves secrets written
     under an older key. Used by the re-encryption step of a key rotation.
+
+    Args:
+        ciphertext (str): The encrypted, stored token — possibly encrypted
+            under an older key.
 
     Raises:
         UnreadableToken: no current key can decrypt it.

@@ -155,5 +155,9 @@ def delete_usage(owner_uid: str) -> None:
 
 def get_usage_for(emails: list[str]) -> list[dict]:
     """Today's count and role for each of the given emails, sorted by email —
-    the admin usage table's rows."""
+    the admin usage table's rows.
+
+    Args:
+        emails (list[str]): The email addresses to look up.
+    """
     return [{"email": email, "count": get_today_count(email), "role": get_role(email)} for email in sorted(emails)]

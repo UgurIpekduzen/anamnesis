@@ -26,6 +26,11 @@ def reencrypt_all_tokens(dry_run: bool = False) -> dict:
     A token no key can read is counted and reported, not fatal, so one
     broken record doesn't stop the rest from being moved.
 
+    Args:
+        dry_run (bool): If True, only decrypt each token to check it can
+            still be read, without writing anything. If False, re-encrypt
+            and store each token under the primary key.
+
     Returns:
         {"processed": int, "unreadable": int}
     """
@@ -54,7 +59,12 @@ def main(argv: list[str] | None = None) -> int:
     """Run the reencrypt/check CLI: reencrypt rewrites every stored token
     with the configured primary key, check only verifies every token is
     still readable without writing anything. Exits non-zero if any token
-    couldn't be read with the currently configured keys."""
+    couldn't be read with the currently configured keys.
+
+    Args:
+        argv (list[str] | None): Command-line arguments to parse. None (the
+            default) reads from sys.argv; an explicit list is used in tests.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "action",

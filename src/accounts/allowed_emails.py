@@ -88,6 +88,9 @@ def get_extra_allowed_emails(force_refresh: bool = False) -> set[str]:
 def add_allowed_email(email: str) -> None:
     """Grant email access, recording when it was invited.
 
+    Args:
+        email (str): The email address to grant access to.
+
     Raises:
         ValueError: email is empty, or already has permanent owner access.
     """
@@ -105,7 +108,11 @@ def add_allowed_email(email: str) -> None:
 
 
 def remove_allowed_email(email: str) -> None:
-    """Revoke email's access, dropping its role and invited-at record too."""
+    """Revoke email's access, dropping its role and invited-at record too.
+
+    Args:
+        email (str): The email address to revoke access from.
+    """
     client = get_client()
     doc_ref = _doc_ref(client)
     # Also drops any "user" role, so it can't linger for an email that is
@@ -122,7 +129,11 @@ def remove_allowed_email(email: str) -> None:
 def get_invited_ats(emails: list[str]) -> dict[str, datetime]:
     """When each of emails was invited — the Users table's join date column
     and default sort. An email with no record (the owner, or one added
-    before this existed) is simply absent from the result."""
+    before this existed) is simply absent from the result.
+
+    Args:
+        emails (list[str]): The email addresses to look up.
+    """
     client = get_client()
     result = {}
     for email in emails:
@@ -166,12 +177,21 @@ def get_role(email: str, force_refresh: bool = False) -> str:
 
 
 def get_roles(emails: list[str]) -> dict[str, str]:
-    """get_role for several emails at once — the admin usage/access views."""
+    """get_role for several emails at once — the admin usage/access views.
+
+    Args:
+        emails (list[str]): The email addresses to look up.
+    """
     return {email: get_role(email) for email in emails}
 
 
 def set_role(email: str, role: str) -> None:
     """Set an already-invited email's role to "user" or "tester".
+
+    Args:
+        email (str): The email address whose role to change.
+        role (str): The new role to set — must be one of ROLES ("user" or
+            "tester").
 
     Raises:
         ValueError: role isn't one of ROLES, email is the owner (always
