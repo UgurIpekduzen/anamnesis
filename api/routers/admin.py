@@ -46,6 +46,8 @@ router = APIRouter()
 # successful GET.
 @router.get("/admin/allowed_emails")
 def get_allowed_emails(owner_uid: str = Depends(require_owner)) -> dict:
+    """The owner(s) from Terraform, every invited extra email with its role,
+    and a display name for each (where one's been set)."""
     extra_users = _extra_users()
     all_emails = list(OWNER_EMAILS) + [u["email"] for u in extra_users]
     return {
@@ -60,6 +62,8 @@ def get_allowed_emails(owner_uid: str = Depends(require_owner)) -> dict:
 
 
 class AllowedEmailCreate(BaseModel):
+    """Body for POST /admin/allowed_emails: the email to invite."""
+
     model_config = ConfigDict(extra="forbid")
 
     email: str = Field(strict=True, min_length=1, max_length=320)
@@ -67,6 +71,7 @@ class AllowedEmailCreate(BaseModel):
 
 @router.post("/admin/allowed_emails")
 def add_allowed_email_endpoint(body: AllowedEmailCreate, owner_uid: str = Depends(require_owner)) -> dict:
+    """Invite an email, defaulting it to the tester role."""
     try:
         add_allowed_email(body.email)
     except ValueError as e:
@@ -76,11 +81,19 @@ def add_allowed_email_endpoint(body: AllowedEmailCreate, owner_uid: str = Depend
 
 @router.delete("/admin/allowed_emails/{email}")
 def remove_allowed_email_endpoint(email: str, owner_uid: str = Depends(require_owner)) -> dict:
+    """Revoke an invited email's access. A no-op if it was never invited.
+
+    Args:
+        email: The invited email to revoke.
+    """
     remove_allowed_email(email)
     return {"extra_users": _extra_users()}
 
 
 class RoleUpdate(BaseModel):
+    """Body for PUT /admin/allowed_emails/{email}/role: the new role, either
+    "user" or "tester"."""
+
     model_config = ConfigDict(extra="forbid")
 
     role: str = Field(strict=True, min_length=1, max_length=20)
@@ -92,6 +105,11 @@ class RoleUpdate(BaseModel):
 # from OWNER_EMAILS in Terraform.
 @router.put("/admin/allowed_emails/{email}/role")
 def set_role_endpoint(email: str, body: RoleUpdate, owner_uid: str = Depends(require_owner)) -> dict:
+    """Change an invited email's role.
+
+    Args:
+        email: The invited email to change.
+    """
     try:
         set_role(email, body.role)
     except ValueError as e:
@@ -100,6 +118,9 @@ def set_role_endpoint(email: str, body: RoleUpdate, owner_uid: str = Depends(req
 
 
 class UserWipeConfirm(BaseModel):
+    """Body for POST /admin/users/{email}/wipe: the email retyped back, as
+    confirmation for a destructive action."""
+
     model_config = ConfigDict(extra="forbid")
 
     confirm_email: str = Field(strict=True, min_length=1, max_length=320)
@@ -113,6 +134,12 @@ class UserWipeConfirm(BaseModel):
 # just turns that refusal into a 400 instead of a 500.
 @router.post("/admin/users/{email}/wipe")
 def wipe_user_endpoint(email: str, body: UserWipeConfirm, owner_uid: str = Depends(require_owner)) -> dict:
+    """Revoke an invited user's access and permanently delete their data.
+
+    Args:
+        email: The invited user's email. body.confirm_email must match it
+            exactly, or the request is refused.
+    """
     if body.confirm_email != email:
         raise HTTPException(status_code=400, detail="Confirmation email doesn't match.")
     try:
@@ -128,6 +155,8 @@ def wipe_user_endpoint(email: str, body: UserWipeConfirm, owner_uid: str = Depen
 # than a separate "users" collection.
 @router.get("/admin/usage")
 def get_usage(owner_uid: str = Depends(require_owner)) -> dict:
+    """Today's message count and role for every allowed user, plus the
+    shared daily ceiling and how much of it is used."""
     emails = OWNER_EMAILS | get_extra_allowed_emails()
     return {
         "users": get_usage_for(list(emails)),
@@ -136,6 +165,9 @@ def get_usage(owner_uid: str = Depends(require_owner)) -> dict:
 
 
 class SettingsUpdate(BaseModel):
+    """Body for PUT /admin/settings: the shared values applied to every
+    user."""
+
     # forbid: an unknown field is a client bug. strict: "5" or true must
     # not be quietly coerced into a valid int. Same shape the user's own
     # PUT /settings used before this setting moved here.
@@ -167,11 +199,14 @@ def _settings_response(settings: dict) -> dict:
 # invited user should tune for themselves.
 @router.get("/admin/settings")
 def get_shared_settings(owner_uid: str = Depends(require_owner)) -> dict:
+    """The shared settings applied to every user, plus their bounds and
+    defaults."""
     return _settings_response(get_settings())
 
 
 @router.put("/admin/settings")
 def set_shared_settings(body: SettingsUpdate, owner_uid: str = Depends(require_owner)) -> dict:
+    """Change the shared settings applied to every user."""
     return _settings_response(save_settings(body.model_dump()))
 
 
@@ -190,6 +225,16 @@ def list_users(
     offset: int = Query(0, ge=0),
     owner_uid: str = Depends(require_owner),
 ) -> dict:
+    """A searchable, paginated page of every allowed user — email, role,
+    display name, today's message count and invite date — oldest invite
+    first.
+
+    Args:
+        q: Case-insensitive search text, matched against email and display
+            name. Empty means no filtering.
+        limit: Maximum number of rows to return.
+        offset: How many matching rows to skip before returning `limit`.
+    """
     emails = OWNER_EMAILS | get_extra_allowed_emails()
     roles = get_roles(list(emails))
     names = get_names(list(emails))
@@ -225,6 +270,8 @@ def list_users(
 
 
 class NameUpdate(BaseModel):
+    """Body for PUT /admin/users/{email}/name: the display name to set."""
+
     model_config = ConfigDict(extra="forbid")
 
     # Not min_length=1: an empty/whitespace string is how the owner clears
@@ -239,6 +286,12 @@ class NameUpdate(BaseModel):
 # reasoning as /admin/settings, no lockout risk in a display name.
 @router.put("/admin/users/{email}/name")
 def set_user_name(email: str, body: NameUpdate, owner_uid: str = Depends(require_owner)) -> dict:
+    """Set or clear the display name shown for an allowed email.
+
+    Args:
+        email: Any owner or invited email — must already be on the
+            allowlist, or the request is refused.
+    """
     if not _known_email(email):
         raise HTTPException(status_code=400, detail="That email isn't on the allowlist.")
     try:
@@ -249,6 +302,9 @@ def set_user_name(email: str, body: NameUpdate, owner_uid: str = Depends(require
 
 
 class AlertsUpdate(BaseModel):
+    """Body for PUT /admin/alerts: whether to mute the poll-failure alert
+    email."""
+
     model_config = ConfigDict(extra="forbid")
 
     github_poll_alert_muted: bool = Field(strict=True)
@@ -261,11 +317,13 @@ class AlertsUpdate(BaseModel):
 # changes what severity src.integrations.github.polling logs a failed run at.
 @router.get("/admin/alerts")
 def get_alerts(owner_uid: str = Depends(require_owner)) -> dict:
+    """Whether the GitHub poll-failure alert email is currently muted."""
     return {"github_poll_alert_muted": is_github_poll_alert_muted()}
 
 
 @router.put("/admin/alerts")
 def set_alerts(body: AlertsUpdate, owner_uid: str = Depends(require_owner)) -> dict:
+    """Mute or unmute the GitHub poll-failure alert email."""
     set_github_poll_alert_muted(body.github_poll_alert_muted)
     return {"github_poll_alert_muted": body.github_poll_alert_muted}
 
@@ -277,6 +335,7 @@ def set_alerts(body: AlertsUpdate, owner_uid: str = Depends(require_owner)) -> d
 # clears the fields this reads).
 @router.get("/admin/connections/broken")
 def get_broken_connections(owner_uid: str = Depends(require_owner)) -> dict:
+    """Every tenant whose last GitHub poll failed, and roughly why."""
     connections = [
         {
             "owner_uid": c["owner_uid"],

@@ -23,10 +23,13 @@ router = APIRouter()
 
 @router.get("/tenants")
 def get_tenants(owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
+    """Every project owned by the signed-in user."""
     return list_tenants(owner_uid)
 
 
 class TenantCreate(BaseModel):
+    """Body for POST /tenants: the new project's name."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(strict=True, min_length=1, max_length=200)
@@ -34,6 +37,7 @@ class TenantCreate(BaseModel):
 
 @router.post("/tenants")
 def create_tenant(body: TenantCreate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Create a new, empty project owned by the signed-in user."""
     # Project lifecycle (create/rename/delete) is deliberately UI-only, not
     # a chat tool — see agent/agent.py's build_agent docstring for why.
     try:
@@ -45,6 +49,8 @@ def create_tenant(body: TenantCreate, owner_uid: str = Depends(get_current_owner
 
 
 class TenantRename(BaseModel):
+    """Body for PATCH /tenants/{tenant_id}: the project's new name."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(strict=True, min_length=1, max_length=200)
@@ -54,6 +60,11 @@ class TenantRename(BaseModel):
 def update_tenant(
     tenant_id: str, body: TenantRename, owner_uid: str = Depends(get_current_owner_uid)
 ) -> dict:
+    """Rename a project owned by the signed-in user.
+
+    Args:
+        tenant_id: The project identifier, e.g. "my_project".
+    """
     try:
         rename_tenant(tenant_id, body.name, owner_uid)
     except PermissionError:
@@ -63,6 +74,11 @@ def update_tenant(
 
 @router.delete("/tenants/{tenant_id}")
 def remove_tenant(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Delete a project owned by the signed-in user, and everything in it.
+
+    Args:
+        tenant_id: The project identifier, e.g. "my_project".
+    """
     try:
         delete_tenant(tenant_id, owner_uid)
     except PermissionError:
@@ -75,12 +91,18 @@ def remove_tenant(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid
 # with the user's token and what goes into a Jira query, and the agent reads
 # text other people wrote.
 class GithubRepoUpdate(BaseModel):
+    """Body for PUT /tenants/{tenant_id}/github_repo: the "owner/name" repo
+    to link."""
+
     model_config = ConfigDict(extra="forbid")
 
     github_repo: str = Field(strict=True, min_length=1, max_length=140)
 
 
 class JiraProjectKeyUpdate(BaseModel):
+    """Body for PUT /tenants/{tenant_id}/jira_project_key: the Jira project
+    key to link."""
+
     model_config = ConfigDict(extra="forbid")
 
     jira_project_key: str = Field(strict=True, min_length=1, max_length=60)
@@ -90,6 +112,11 @@ class JiraProjectKeyUpdate(BaseModel):
 def update_github_repo(
     tenant_id: str, body: GithubRepoUpdate, owner_uid: str = Depends(get_current_owner_uid)
 ) -> dict:
+    """Link a project to a GitHub repo, so it gets polled for facts.
+
+    Args:
+        tenant_id: The project identifier, e.g. "my_project".
+    """
     try:
         set_github_repo(tenant_id, body.github_repo, owner_uid)
     except PermissionError:
@@ -101,6 +128,11 @@ def update_github_repo(
 
 @router.delete("/tenants/{tenant_id}/github_repo")
 def remove_github_repo(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Unlink a project's GitHub repo, stopping it being polled.
+
+    Args:
+        tenant_id: The project identifier, e.g. "my_project".
+    """
     try:
         clear_github_repo(tenant_id, owner_uid)
     except PermissionError:
@@ -112,6 +144,11 @@ def remove_github_repo(tenant_id: str, owner_uid: str = Depends(get_current_owne
 def update_jira_project_key(
     tenant_id: str, body: JiraProjectKeyUpdate, owner_uid: str = Depends(get_current_owner_uid)
 ) -> dict:
+    """Link a project to a Jira project key.
+
+    Args:
+        tenant_id: The project identifier, e.g. "my_project".
+    """
     try:
         set_jira_project_key(tenant_id, body.jira_project_key, owner_uid)
     except PermissionError:
@@ -123,6 +160,11 @@ def update_jira_project_key(
 
 @router.delete("/tenants/{tenant_id}/jira_project_key")
 def remove_jira_project_key(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Unlink a project's Jira project key.
+
+    Args:
+        tenant_id: The project identifier, e.g. "my_project".
+    """
     try:
         clear_jira_project_key(tenant_id, owner_uid)
     except PermissionError:
