@@ -30,6 +30,11 @@ def _turns_ref(tenant_id: str):
 def append_turn(tenant_id: str, owner_uid: str, question: str, answer: str) -> None:
     """Save one finished turn under tenant_id.
 
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        question (str): The user's message for this turn.
+        answer (str): The agent's final answer for this turn.
+
     Raises:
         PermissionError: if the tenant isn't owner_uid's.
     """
@@ -47,6 +52,10 @@ def append_turn(tenant_id: str, owner_uid: str, question: str, answer: str) -> N
 
 def load_recent_turns(tenant_id: str, owner_uid: str, limit: int) -> list[dict]:
     """Return up to `limit` of the most recent unexpired turns, oldest first.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        limit (int): The most turns to return.
 
     Raises:
         PermissionError: if the tenant isn't owner_uid's.
@@ -70,6 +79,9 @@ def load_recent_turns(tenant_id: str, owner_uid: str, limit: int) -> list[dict]:
 
 def clear_turns(tenant_id: str, owner_uid: str) -> None:
     """Delete every saved turn under tenant_id.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
 
     Raises:
         PermissionError: if the tenant isn't owner_uid's.

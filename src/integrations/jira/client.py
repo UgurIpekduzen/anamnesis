@@ -28,6 +28,9 @@ _WORKSPACE_HOST = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}\.atlassian\.net$")
 def validate_base_url(base_url: str) -> None:
     """Accept only https://<workspace>.atlassian.net.
 
+    Args:
+        base_url (str): The candidate Jira workspace URL to check.
+
     Raises:
         ValueError: anything else — another scheme, host or port, credentials,
             a path, a query.
@@ -57,6 +60,12 @@ def validate_jira_credentials(email: str, token: str, base_url: str) -> None:
     """Verify email/token/base_url actually authenticate against Jira
     before storing them — a bad value should fail here,
     not silently on first use.
+
+    Args:
+        email (str): The Jira account's email to authenticate with.
+        token (str): The Jira API token to authenticate with.
+        base_url (str): The Jira workspace URL to authenticate against, e.g.
+            "https://example.atlassian.net".
 
     Raises:
         ValueError: the address isn't a Jira Cloud workspace, Jira rejected

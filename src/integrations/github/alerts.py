@@ -29,5 +29,10 @@ def is_github_poll_alert_muted() -> bool:
 
 
 def set_github_poll_alert_muted(muted: bool) -> None:
-    """Save whether the GitHub-poll failure alert should be muted."""
+    """Save whether the GitHub-poll failure alert should be muted.
+
+    Args:
+        muted (bool): True to log a failed poll at WARNING instead of
+            ERROR, silencing the Cloud Monitoring alert.
+    """
     _doc_ref().set({"github_poll_alert_muted": muted}, merge=True)

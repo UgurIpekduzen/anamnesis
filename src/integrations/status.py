@@ -44,6 +44,9 @@ def _jira_issue(line: str, base_url: str) -> dict:
 def get_project_jira_status(tenant_id: str, owner_uid: str) -> dict:
     """Open Jira issues of the project's linked Jira project.
 
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+
     Raises:
         PermissionError: the project isn't this user's.
     """
@@ -72,6 +75,9 @@ def get_project_jira_status(tenant_id: str, owner_uid: str) -> dict:
 
 def get_project_github_status(tenant_id: str, owner_uid: str) -> dict:
     """Open pull requests and issues of the project's linked GitHub repo.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
 
     Raises:
         PermissionError: the project isn't this user's.

@@ -74,6 +74,11 @@ def has_pending_fact_for_source(tenant_id: str, source_url: str) -> bool:
     item twice — and checking before the LLM extraction also skips its cost.
     No ownership check: callers are trusted server-side code that already
     resolved the tenant.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        source_url (str): The origin URL to check for an existing staged
+            fact (e.g. the PR/issue link).
     """
     query = _collection(tenant_id).where(filter=firestore.FieldFilter("source_url", "==", source_url)).limit(1)
     return any(True for _ in query.stream())
@@ -84,7 +89,11 @@ def _is_pending(data: dict) -> bool:
 
 
 def list_pending_facts(tenant_id: str, owner_uid: str) -> list[dict]:
-    """All facts awaiting approval for a project, oldest first."""
+    """All facts awaiting approval for a project, oldest first.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+    """
     get_owned_tenant(tenant_id, owner_uid)
     return [
         {
@@ -110,6 +119,11 @@ def _decide(doc_ref, status: str) -> None:
 def approve_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
     """Turn a pending fact into a real one via the normal publish path
     (src.facts.publisher.publish_fact), then mark the staged copy approved.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        pending_fact_id (str): The staged fact's document id within that
+            project.
     """
     get_owned_tenant(tenant_id, owner_uid)
     doc_ref = _collection(tenant_id).document(pending_fact_id)
@@ -124,7 +138,13 @@ def approve_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -
 
 def reject_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
     """Discard a pending fact without ever publishing it, remembering that it
-    was rejected. Rejecting one that is gone or already decided does nothing."""
+    was rejected. Rejecting one that is gone or already decided does nothing.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        pending_fact_id (str): The staged fact's document id within that
+            project.
+    """
     get_owned_tenant(tenant_id, owner_uid)
     doc_ref = _collection(tenant_id).document(pending_fact_id)
     doc = doc_ref.get()
@@ -135,7 +155,11 @@ def reject_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) ->
 def get_pending_fact_stats(tenant_id: str, owner_uid: str) -> dict:
     """How many staged facts are waiting, approved and rejected — the approval
     rate is approved / (approved + rejected). Counts start from when decisions
-    began to be kept; earlier ones were deleted."""
+    began to be kept; earlier ones were deleted.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+    """
     get_owned_tenant(tenant_id, owner_uid)
     counts = {PENDING: 0, APPROVED: 0, REJECTED: 0}
     for doc in _collection(tenant_id).select(["status"]).stream():
@@ -157,6 +181,9 @@ def get_pending_facts_summary(tenant_id: str, owner_uid: str) -> dict:
     says (nearly) the same, decided by code (src.facts.similar_facts) rather than
     left to the model, or None. Read-only; the pending facts themselves are
     approved or rejected only by the user, in the Pending tab.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
 
     Returns:
         {"pending": [{"content", "category", "similar_to_saved"}, ...],

@@ -16,6 +16,9 @@ FINE_GRAINED_PREFIX = "github_pat_"
 def validate_github_token(token: str) -> None:
     """Reject anything that isn't a live, fine-grained GitHub PAT.
 
+    Args:
+        token (str): The candidate GitHub personal access token to check.
+
     Raises:
         ValueError: the token is the wrong kind, or GitHub doesn't
             recognize it — either way, nothing gets stored.

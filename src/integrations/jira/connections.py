@@ -20,6 +20,13 @@ def save_jira_credentials(owner_uid: str, email: str, token: str, base_url: str)
     value. email and base_url aren't secret, but keeping them
     alongside the token means one document holds everything a call to
     Jira needs.
+
+    Args:
+        email (str): The connected Jira account's email.
+        token (str): The connected Jira account's API token, encrypted
+            before storage.
+        base_url (str): The connected Jira workspace's URL, e.g.
+            "https://example.atlassian.net".
     """
     client = get_client()
     client.collection(COLLECTION).document(owner_uid).set(

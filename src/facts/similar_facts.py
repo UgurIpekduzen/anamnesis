@@ -35,6 +35,11 @@ def find_similar_facts(content: str, facts: list[dict]) -> list[dict]:
     any category count — a duplicate filed under another category is still
     a duplicate.
 
+    Args:
+        content (str): The candidate fact text to compare against.
+        facts (list[dict]): The saved facts to compare against, each with
+            at least "content".
+
     Returns:
         Up to MAX_SIMILAR facts ({"fact_id", "content", "category"}), the
         most alike first; empty when nothing is close.

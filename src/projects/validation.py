@@ -23,6 +23,9 @@ _GITHUB_REPO_PATTERN = re.compile(r"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})/[a-zA-Z0-
 def validate_project_key(project_key: str) -> None:
     """Reject anything that isn't a plain Jira project key such as "APPCE".
 
+    Args:
+        project_key (str): The candidate Jira project key to check.
+
     Raises:
         ValueError: the key has characters a Jira project key can't have.
     """
@@ -35,6 +38,10 @@ def validate_project_key(project_key: str) -> None:
 
 def validate_github_repo(github_repo: str) -> None:
     """Reject anything that isn't a plain "owner/name" GitHub repo.
+
+    Args:
+        github_repo (str): The candidate GitHub repo to check, as
+            "owner/name".
 
     Raises:
         ValueError: github_repo isn't a plain "owner/name" string.

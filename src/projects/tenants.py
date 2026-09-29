@@ -33,6 +33,9 @@ def _slugify(name: str) -> str:
 def get_owned_tenant(tenant_id: str, owner_uid: str) -> dict:
     """Fetch a tenant document, enforcing that it belongs to owner_uid.
 
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+
     Raises:
         PermissionError: if the tenant doesn't exist or belongs to a
             different owner — callers must not distinguish between the
@@ -58,6 +61,10 @@ def add_tenant(name: str, owner_uid: str) -> str:
     parameter — a caller (human or agent) inventing an ID is exactly how
     the tenant_id mismatch that happened before; deriving it here removes
     the guesswork instead of relying on the caller to get it right.
+
+    Args:
+        name (str): The project's human-readable display name, e.g.
+            "My Project" — slugified into the tenant_id.
 
     Returns:
         The generated tenant_id, e.g. "My Project" -> "my_project".
@@ -89,6 +96,10 @@ def rename_tenant(tenant_id: str, new_name: str, owner_uid: str) -> None:
 
     The tenant_id itself (the Firestore document ID) is immutable — it
     stays derived from whatever name was used at add_tenant time.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        new_name (str): The project's new human-readable display name.
     """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
@@ -102,6 +113,9 @@ def delete_tenant(tenant_id: str, owner_uid: str) -> None:
     leaving orphans behind a deleted tenant would work against this
     project's data minimization principle for no benefit,
     since nothing can reference them once the tenant document is gone.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
@@ -117,6 +131,10 @@ def delete_tenant(tenant_id: str, owner_uid: str) -> None:
 def set_jira_project_key(tenant_id: str, jira_project_key: str, owner_uid: str) -> None:
     """Attach a Jira project key to an existing tenant.
 
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        jira_project_key (str): The Jira project key to attach, e.g. "APPCE".
+
     Raises:
         ValueError: jira_project_key isn't a plain project key such as "APPCE".
     """
@@ -129,7 +147,11 @@ def set_jira_project_key(tenant_id: str, jira_project_key: str, owner_uid: str) 
 
 
 def clear_jira_project_key(tenant_id: str, owner_uid: str) -> None:
-    """Detach the Jira project key from a tenant."""
+    """Detach the Jira project key from a tenant.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+    """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     client.collection("tenants").document(tenant_id).update({"jira_project_key": firestore.DELETE_FIELD})
@@ -138,6 +160,10 @@ def clear_jira_project_key(tenant_id: str, owner_uid: str) -> None:
 def set_github_repo(tenant_id: str, github_repo: str, owner_uid: str) -> None:
     """Attach a GitHub repo (owner/name) to an existing tenant, used to poll
     its PRs/issues for facts.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        github_repo (str): The GitHub repo to attach, as "owner/name".
 
     Raises:
         ValueError: github_repo isn't a plain "owner/name" string.
@@ -158,6 +184,9 @@ def clear_github_repo(tenant_id: str, owner_uid: str) -> None:
     """Detach the GitHub repo from a tenant, which stops it being polled.
 
     The poll cut-off goes with it, for the reason given in set_github_repo.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
@@ -177,6 +206,9 @@ def mark_github_polled(tenant_id: str, owner_uid: str) -> None:
     Also clears any github_poll_failed_at/github_poll_failure_kind left by a
     previous failed run — a poll only reaches this call once it
     has succeeded, so a prior failure no longer applies.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()

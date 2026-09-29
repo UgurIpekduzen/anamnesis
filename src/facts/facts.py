@@ -87,6 +87,10 @@ def get_tenant_facts(tenant_id: str, owner_uid: str, limit: int | None = None) -
 def get_fact(tenant_id: str, fact_id: str, owner_uid: str) -> dict:
     """Retrieve one fact, enforcing that its project belongs to owner_uid.
 
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        fact_id (str): The fact's document id within that project.
+
     Raises:
         PermissionError: the project isn't this user's (see get_owned_tenant).
         LookupError: the project has no fact with this id.
@@ -117,6 +121,14 @@ def update_fact(
 
     At least one of content/category should be given — omit the field
     you don't want to change instead of passing its old value back in.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        fact_id (str): The fact's document id within that project.
+        content (str | None): The fact's new text, or None to leave it
+            unchanged.
+        category (str | None): One of the allowed categories (architecture,
+            decision, bug, status, todo), or None to leave it unchanged.
     """
     get_owned_tenant(tenant_id, owner_uid)
     if category is not None:
@@ -135,7 +147,12 @@ def update_fact(
 
 
 def delete_fact(tenant_id: str, fact_id: str, owner_uid: str) -> None:
-    """Delete a single fact."""
+    """Delete a single fact.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        fact_id (str): The fact's document id within that project.
+    """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
     client.collection("tenants").document(tenant_id).collection("facts").document(

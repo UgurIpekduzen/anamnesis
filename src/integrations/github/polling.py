@@ -49,6 +49,11 @@ def poll_tenant_github_activity(
     Items that already have a pending fact are skipped before extraction so
     a retried or overlapping scheduler run doesn't stage them twice.
 
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        max_extractions (int): The most items to run LLM extraction on in
+            this run; the rest are dropped for this run (see above).
+
     Returns:
         How many pending facts were staged this run.
     """

@@ -123,6 +123,9 @@ def get_github_status(owner_uid: str, tenant_id: str) -> dict:
     kept out of that context as much as possible.
     Titles alone can't be fully avoided (the point is knowing what's
     open) — the agent's instruction frames them as data, not instructions.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
     """
     pull_requests = fetch_recent_pull_requests(owner_uid, tenant_id, state="open")
     issues = fetch_recent_issues(owner_uid, tenant_id, state="open")
@@ -145,6 +148,9 @@ def get_github_history(owner_uid: str, tenant_id: str) -> dict:
 
     Like get_github_status, bodies are dropped: only titles reach the model,
     which frames them as data (see that function for why).
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
 
     Returns:
         {"pull_requests": ["#12 · merged · 2026-09-20 · Title", ...],

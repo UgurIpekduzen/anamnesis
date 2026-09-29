@@ -15,7 +15,11 @@ COLLECTION = "github_connections"
 
 
 def save_github_token(owner_uid: str, token: str) -> None:
-    """Store a user's GitHub PAT, encrypted — never the raw value."""
+    """Store a user's GitHub PAT, encrypted — never the raw value.
+
+    Args:
+        token (str): The GitHub personal access token to encrypt and store.
+    """
     client = get_client()
     client.collection(COLLECTION).document(owner_uid).set(
         {
