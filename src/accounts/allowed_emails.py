@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import datetime, timezone
 
 from google.cloud import firestore
 
@@ -36,6 +37,16 @@ ROLES = ("user", "tester")
 
 _DOC_PATH = ("config", "allowed_emails")
 
+# When each extra email was invited (APPCE-126) — the Users table's default
+# sort, oldest first, and shown next to each row. One document per email
+# (the document ID, not a map key), same reasoning as user_role_emails
+# would have if it weren't an array: a "." in the key would be parsed as a
+# nested field path instead of one key. Not read/written through the same
+# 60s cache as the rest of this module — it's a display value, not
+# something an authorization check depends on, so a plain read is simpler
+# and correct.
+_INVITED_AT_COLLECTION = "user_invited_at"
+
 
 def _doc_ref(client: firestore.Client):
     collection, doc_id = _DOC_PATH
@@ -71,18 +82,34 @@ def add_allowed_email(email: str) -> None:
     doc_ref = _doc_ref(client)
     doc_ref.set({"emails": firestore.ArrayUnion([email])}, merge=True)
     get_extra_allowed_emails(force_refresh=True)
+    client.collection(_INVITED_AT_COLLECTION).document(email).set({"invited_at": datetime.now(timezone.utc)})
 
 
 def remove_allowed_email(email: str) -> None:
     client = get_client()
     doc_ref = _doc_ref(client)
     # Also drops any "user" role, so it can't linger for an email that is
-    # later re-added — re-adding always starts as a tester again.
+    # later re-added — re-adding always starts as a tester again (and gets
+    # today's date, not the original invite date).
     doc_ref.set(
         {"emails": firestore.ArrayRemove([email]), "user_role_emails": firestore.ArrayRemove([email])}, merge=True
     )
     get_extra_allowed_emails(force_refresh=True)
     _get_user_role_emails(force_refresh=True)
+    client.collection(_INVITED_AT_COLLECTION).document(email).delete()
+
+
+def get_invited_ats(emails: list[str]) -> dict[str, datetime]:
+    """When each of emails was invited — the Users table's join date column
+    and default sort. An email with no record (the owner, or one added
+    before this existed) is simply absent from the result."""
+    client = get_client()
+    result = {}
+    for email in emails:
+        doc = client.collection(_INVITED_AT_COLLECTION).document(email).get()
+        if doc.exists:
+            result[email] = doc.to_dict()["invited_at"]
+    return result
 
 
 def _get_user_role_emails(force_refresh: bool = False) -> set[str]:

@@ -1,6 +1,8 @@
 """Who may sign in beyond the owner(s) named in Terraform, and their role.
 Owner-only."""
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,6 +11,7 @@ from src.accounts.allowed_emails import (
     OWNER_EMAILS,
     add_allowed_email,
     get_extra_allowed_emails,
+    get_invited_ats,
     get_roles,
     remove_allowed_email,
     set_role,
@@ -189,10 +192,21 @@ def list_users(
     roles = get_roles(list(emails))
     names = get_names(list(emails))
     counts = {u["email"]: u["count"] for u in get_usage_for(list(emails))}
+    invited_ats = get_invited_ats(list(emails))
 
+    # Oldest first, so a newly-added email lands at the bottom instead of
+    # wherever it falls alphabetically. The owner has no invite record (they
+    # come from Terraform, not this flow) — datetime.min sorts them first,
+    # ahead of every actual invite.
     rows = [
-        {"email": email, "role": roles[email], "name": names.get(email), "count": counts.get(email, 0)}
-        for email in sorted(emails)
+        {
+            "email": email,
+            "role": roles[email],
+            "name": names.get(email),
+            "count": counts.get(email, 0),
+            "invited_at": invited_ats[email].isoformat() if email in invited_ats else None,
+        }
+        for email in sorted(emails, key=lambda e: invited_ats.get(e, datetime.min.replace(tzinfo=timezone.utc)))
     ]
 
     needle = q.strip().lower()

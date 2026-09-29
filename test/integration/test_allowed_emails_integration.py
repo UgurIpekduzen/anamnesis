@@ -1,9 +1,17 @@
 import uuid
+from datetime import datetime, timezone
 
 import pytest
 
 from src.accounts import allowed_emails
-from src.accounts.allowed_emails import add_allowed_email, get_extra_allowed_emails, get_role, remove_allowed_email, set_role
+from src.accounts.allowed_emails import (
+    add_allowed_email,
+    get_extra_allowed_emails,
+    get_invited_ats,
+    get_role,
+    remove_allowed_email,
+    set_role,
+)
 
 
 @pytest.fixture
@@ -58,6 +66,27 @@ def test_setting_a_role_for_an_email_not_on_the_allowlist_is_refused():
 def test_an_unrecognized_role_value_is_refused(email):
     with pytest.raises(ValueError):
         set_role(email, "owner")
+
+
+def test_adding_an_email_records_when_it_was_invited(email):
+    before = datetime.now(timezone.utc)
+
+    invited_at = get_invited_ats([email])[email]
+
+    assert abs((invited_at - before).total_seconds()) < 10
+
+
+def test_an_unknown_email_has_no_invited_at():
+    assert get_invited_ats([f"unknown-{uuid.uuid4().hex[:8]}@example.com"]) == {}
+
+
+def test_removing_an_email_also_clears_its_invited_at():
+    address = f"first.last-{uuid.uuid4().hex[:8]}@example.com"
+    add_allowed_email(address)
+
+    remove_allowed_email(address)
+
+    assert get_invited_ats([address]) == {}
 
 
 def test_removing_an_allowed_email_also_resets_its_role():
