@@ -10,6 +10,7 @@ import {
   type AdminUsersPage,
   type Role,
 } from "../../api";
+import ConfirmDialog from "../ConfirmDialog";
 import HintLabel from "./HintLabel";
 import WipeUserDialog from "../WipeUserDialog";
 
@@ -44,6 +45,14 @@ function UsersSection({ idToken }: Props) {
   // The email a "Delete data" click is about to wipe, or null when the
   // confirmation dialog is closed (APPCE-123).
   const [wipeTarget, setWipeTarget] = useState<string | null>(null);
+  // The email a Tester → User click is about to exempt from the lifetime
+  // cap, or null when that confirmation is closed.
+  const [userGrantTarget, setUserGrantTarget] = useState<string | null>(null);
+  // The email a User → Tester click is about to re-apply the cap to, or
+  // null when that confirmation is closed. The lifetime count never resets
+  // (it kept counting while they were exempt), so this can lock them out
+  // immediately if they're already past it — worth a heads-up either way.
+  const [testerRevertTarget, setTesterRevertTarget] = useState<string | null>(null);
 
   function refresh(q: string) {
     listUsers(idToken, { q })
@@ -185,7 +194,7 @@ function UsersSection({ idToken }: Props) {
                   ) : (
                     <button
                       className="settings-access-role"
-                      onClick={() => changeRole(email, role === "user" ? "tester" : "user")}
+                      onClick={() => (role === "user" ? setTesterRevertTarget(email) : setUserGrantTarget(email))}
                       disabled={busy}
                       aria-pressed={role === "user"}
                     >
@@ -250,6 +259,32 @@ function UsersSection({ idToken }: Props) {
       {error && <small className="settings-hint invalid">{error}</small>}
       {wipeTarget && (
         <WipeUserDialog email={wipeTarget} onConfirm={confirmWipe} onCancel={() => setWipeTarget(null)} />
+      )}
+      {userGrantTarget && (
+        <ConfirmDialog
+          title="Switch to User?"
+          message={`${userGrantTarget} will be exempt from the tester lifetime message cap. Use this for a trusted collaborator, not a one-off tester.`}
+          confirmLabel="Switch to User"
+          cancelLabel="Cancel"
+          onConfirm={() => {
+            changeRole(userGrantTarget, "user");
+            setUserGrantTarget(null);
+          }}
+          onCancel={() => setUserGrantTarget(null)}
+        />
+      )}
+      {testerRevertTarget && (
+        <ConfirmDialog
+          title="Switch to Tester?"
+          message={`The lifetime message cap applies to ${testerRevertTarget} again. It never reset while they were exempt, so if they're already past it, they'll be locked out immediately.`}
+          confirmLabel="Switch to Tester"
+          cancelLabel="Cancel"
+          onConfirm={() => {
+            changeRole(testerRevertTarget, "tester");
+            setTesterRevertTarget(null);
+          }}
+          onCancel={() => setTesterRevertTarget(null)}
+        />
       )}
     </div>
   );
