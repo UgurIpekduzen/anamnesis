@@ -247,7 +247,7 @@ def test_a_bad_key_never_reaches_jira_when_asking_for_done_issues(monkeypatch):
         get_jira_recently_done('X" OR project != "', "u@example.com", "t", "https://example.atlassian.net")
 
 
-# APPCE-118: the server calls whatever address the user typed, sending the
+# The server calls whatever address the user typed, sending the
 # credentials along, so only a Jira Cloud address is accepted.
 BAD_ADDRESSES = [
     "http://example.atlassian.net",  # not https

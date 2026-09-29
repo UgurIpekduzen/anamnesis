@@ -27,7 +27,7 @@ def test_returns_400_on_missing_required_field(monkeypatch):
     """A decoded message missing a required field is rejected with a 400 instead of crashing, and create_fact is never called."""
     monkeypatch.setattr("src.subscriber.create_fact", lambda **_: (_ for _ in ()).throw(AssertionError))
     # Missing "category" — this used to crash the streaming-pull callback
-    # and take down the whole subscriber process (APPCE-30).
+    # and take down the whole subscriber process.
     body = _push_envelope({"tenant_id": "x", "content": "y"})
 
     status = _process_push_message(body)
@@ -36,6 +36,7 @@ def test_returns_400_on_missing_required_field(monkeypatch):
 
 
 def test_returns_200_and_writes_fact_on_valid_payload(monkeypatch):
+    """A valid push message is written via create_fact with its fields passed through, and returns 200."""
     created = {}
     monkeypatch.setattr(
         "src.subscriber.create_fact",
@@ -52,6 +53,7 @@ def test_returns_200_and_writes_fact_on_valid_payload(monkeypatch):
 
 
 def test_a_message_published_before_source_existed_defaults_to_chat(monkeypatch):
+    """A message with no "source" field, as older messages predating that field would have, defaults to "chat"."""
     created = {}
     monkeypatch.setattr(
         "src.subscriber.create_fact",
@@ -65,10 +67,11 @@ def test_a_message_published_before_source_existed_defaults_to_chat(monkeypatch)
     assert created == {"source": "chat"}
 
 
-# APPCE-119: what the push endpoint does with a request that is not a normal
-# Pub/Sub delivery. It runs behind IAM, so this is depth, not the front door.
+# What the push endpoint does with a request that is not a normal Pub/Sub
+# delivery. It runs behind IAM, so this is depth, not the front door.
 @pytest.fixture
 def server(monkeypatch):
+    """Start a real HTTP server backed by the subscriber's request handler, with _process_push_message stubbed to record bodies and return 200; yield its port and the list of seen bodies."""
     seen = []
     monkeypatch.setattr(subscriber, "_process_push_message", lambda body: seen.append(body) or 200)
     httpd = HTTPServer(("127.0.0.1", 0), subscriber._Handler)
@@ -91,6 +94,7 @@ def _post(port, headers, body=b""):
 
 
 def test_a_normal_push_is_handled(server):
+    """A normal POST with a correct Content-Length is passed through to the message processor and returns 200."""
     port, seen = server
     assert _post(port, {"Content-Length": "2"}, b"{}") == 200
     assert seen == [b"{}"]
@@ -98,18 +102,21 @@ def test_a_normal_push_is_handled(server):
 
 @pytest.mark.parametrize("value", ["abc", "-5", "1.5", ""])
 def test_an_invalid_content_length_is_a_400_and_nothing_is_processed(server, value):
+    """A non-numeric, negative, or empty Content-Length header is rejected with a 400 without ever processing the body."""
     port, seen = server
     assert _post(port, {"Content-Length": value}) == 400
     assert seen == []
 
 
 def test_a_body_over_the_limit_is_a_413_and_is_never_read(server):
+    """A body whose Content-Length exceeds MAX_BODY_BYTES is rejected with a 413 without the body ever being read."""
     port, seen = server
     assert _post(port, {"Content-Length": str(subscriber.MAX_BODY_BYTES + 1)}) == 413
     assert seen == []
 
 
 def test_a_malformed_message_is_logged_without_its_content(monkeypatch):
+    """A message that isn't valid base64 is logged with its size only, never with its (potentially private) content."""
     logged = []
     monkeypatch.setattr(subscriber, "log", lambda severity, event, **fields: logged.append((event, fields)))
 

@@ -47,8 +47,8 @@ def test_the_hard_limit_starts_over_on_a_new_day(monkeypatch):
     assert record_message(owner_uid) == 1
 
 
-# APPCE-122: a system-wide ceiling on top of each user's own, so many users
-# hitting their own limits on the same day can't run the bill up without end.
+# A system-wide ceiling on top of each user's own, so many users hitting
+# their own limits on the same day can't run the bill up without end.
 def test_record_message_also_counts_toward_the_global_limit(monkeypatch):
     """Recording messages for different owners also increments the shared system-wide daily count."""
     monkeypatch.setattr(usage, "GLOBAL_DAILY_MESSAGE_LIMIT", 1000)
@@ -139,9 +139,9 @@ def test_get_usage_for_reports_zero_for_an_unseen_email():
     assert usage.get_usage_for([email]) == [{"email": email, "count": 0, "role": "tester"}]
 
 
-# A lifetime cap for invited (non-owner) testers, independent of the day
-# (APPCE-122): the owner is exempt, and it's on top of the daily limits
-# above — whichever is hit first refuses the message.
+# A lifetime cap for invited (non-owner) testers, independent of the day —
+# the owner is exempt, and it's on top of the daily limits above —
+# whichever is hit first refuses the message.
 def test_a_tester_is_refused_once_they_reach_the_lifetime_limit(monkeypatch):
     """A non-owner tester is refused with a lifetime-scoped error once they reach the lifetime message limit."""
     monkeypatch.setattr(usage, "TESTER_LIFETIME_MESSAGE_LIMIT", 2)

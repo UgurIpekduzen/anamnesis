@@ -1,5 +1,5 @@
-"""Security checks for the admin/usage additions (APPCE-122): the messaging
-ceilings are only worth building if they hold under real concurrency, and the
+"""Security checks for the admin/usage additions: the messaging ceilings
+are only worth building if they hold under real concurrency, and the
 owner-only endpoints are only safe if they refuse a non-owner and reject a
 malformed request before touching data. These run against the real router and
 the real src functions (no monkeypatching), so a wiring mistake between them
@@ -32,7 +32,7 @@ def _reset_overrides():
 #
 # record_message's guarantee only means something if two requests arriving at
 # the same instant can't both slip under a limit — a race here would quietly
-# defeat the whole point of APPCE-122's cost protection.
+# defeat the whole point of this cost protection.
 
 
 def _attempt(owner_uid):

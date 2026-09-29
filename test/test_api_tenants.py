@@ -123,7 +123,7 @@ def test_tenant_crud_requires_authentication():
     assert client.delete("/tenants/proj-1").status_code == 401
 
 
-# --- Which GitHub repo / Jira project a project is linked to (APPCE-107)
+# --- Which GitHub repo / Jira project a project is linked to
 
 
 @pytest.fixture

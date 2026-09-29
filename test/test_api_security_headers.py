@@ -17,7 +17,7 @@ def test_every_response_carries_the_security_headers():
 def test_the_content_security_policy_is_enforced():
     """The Content-Security-Policy is enforced (not report-only), restricts default-src and framing, allows Google sign-in, and forbids unsafe-eval."""
     # It ran report-only first and showed no violation on the live app (sign-in,
-    # sign-out, chat, saving a fact), so it is enforced now (APPCE-119).
+    # sign-out, chat, saving a fact), so it is enforced now.
     response = TestClient(api_main.app).get("/health")
 
     assert "content-security-policy-report-only" not in response.headers

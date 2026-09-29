@@ -65,5 +65,5 @@ def test_publish_fact_is_delivered_and_written_by_the_subscriber(tenant_id):
     assert facts[0]["content"] == "Published via the event-driven path"
     assert facts[0]["category"] == "decision"
     # Not passed explicitly above — should default to "chat" end to end,
-    # through the Pub/Sub payload and the subscriber's write (APPCE-81).
+    # through the Pub/Sub payload and the subscriber's write.
     assert facts[0]["source"] == "chat"

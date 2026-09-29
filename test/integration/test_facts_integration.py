@@ -37,7 +37,7 @@ def test_create_fact_is_retrievable_via_get_tenant_facts(tenant_id):
     assert len(facts) == 1
     assert facts[0]["content"] == "Uses React for the UI"
     assert facts[0]["category"] == "architecture"
-    assert facts[0]["source"] == "chat"  # the default when not given (APPCE-81)
+    assert facts[0]["source"] == "chat"  # the default when not given
 
 
 def test_create_fact_records_a_non_default_source(tenant_id):
@@ -52,8 +52,8 @@ def test_a_fact_with_no_source_field_at_all_does_not_crash(tenant_id):
     """get_tenant_facts doesn't crash on a document that has no source field
     at all (as a legacy or older-writer document might), and reports its
     source as None."""
-    # Simulates a fact written before APPCE-81 added the field (or by an
-    # older deployed writer) — Firestore's doc.get() raises KeyError for a
+    # Simulates a fact written before the "source" field existed (or by
+    # an older deployed writer) — Firestore's doc.get() raises KeyError for a
     # field that's entirely absent, unlike dict.get, so this is worth
     # pinning down explicitly.
     get_client().collection("tenants").document(tenant_id).collection("facts").add(

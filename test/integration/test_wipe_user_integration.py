@@ -1,4 +1,4 @@
-"""wipe_user (APPCE-123) against the real emulator — the boundary that
+"""wipe_user against the real emulator — the boundary that
 matters most for something permanent and irreversible: a dry run must never
 write anything, a confirmed run must actually clear every collection it
 claims to, the owner must never be a valid target, and a call that fails
@@ -77,8 +77,8 @@ def test_a_confirmed_wipe_clears_every_collection(seeded_user):
     assert result["deleted"] is True
     assert list_tenants(email) == []
     # The tenant doc itself is gone, so even asking for its facts now looks
-    # like "never existed" (get_owned_tenant, APPCE-48) — the strongest
-    # confirmation available that the facts really went with it.
+    # like "never existed" (get_owned_tenant) — the strongest confirmation
+    # available that the facts really went with it.
     with pytest.raises(PermissionError):
         get_tenant_facts(tenant_id, email)
     assert has_github_connection(email) is False
@@ -91,8 +91,8 @@ def test_a_confirmed_wipe_clears_every_collection(seeded_user):
 
 def test_wiping_a_user_never_touches_the_shared_settings(seeded_user):
     """history_turns/daily_message_warning_threshold are shared, owner-set
-    values (APPCE-124) — wiping one user's data must never reset them for
-    everyone else."""
+    values — wiping one user's data must never reset them for everyone
+    else."""
     email, _, _ = seeded_user
     settings_module._cache = None
     try:

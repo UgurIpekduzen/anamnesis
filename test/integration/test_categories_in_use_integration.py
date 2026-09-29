@@ -1,5 +1,5 @@
-"""Where a user's own category list is enforced (APPCE-116), and where it
-deliberately is not."""
+"""Where a user's own category list is enforced, and where it deliberately
+is not."""
 
 import json
 import uuid

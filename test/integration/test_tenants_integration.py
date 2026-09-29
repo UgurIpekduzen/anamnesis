@@ -276,7 +276,7 @@ def test_clearing_a_link_rejects_a_non_owner(tenant_name, clear):
         delete_tenant(tenant_id, OWNER_UID)
 
 
-# APPCE-117: the project id comes from the name and is shared by every user, so
+# The project id comes from the name and is shared by every user, so
 # creating a project must never take over one that already exists.
 def test_a_second_user_cannot_take_over_a_project_with_the_same_name(tenant_name):
     """A second user cannot create a project whose name slugifies to an existing tenant's id, and the original is unaffected."""

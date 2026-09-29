@@ -10,9 +10,9 @@ import api.deps as deps
 def no_extra_allowed_emails(monkeypatch):
     """Stub the runtime Firestore allowlist to an empty set so unit tests
     never need real Firestore access."""
-    # verify_token also consults the runtime allowlist in Firestore
-    # (APPCE-94) for any email outside the Terraform-configured owners —
-    # a unit test mustn't reach real Firestore for that.
+    # verify_token also consults the runtime allowlist in Firestore for
+    # any email outside the Terraform-configured owners — a unit test
+    # mustn't reach real Firestore for that.
     monkeypatch.setattr(deps, "get_extra_allowed_emails", lambda: set())
 
 
