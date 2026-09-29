@@ -52,6 +52,9 @@ def fetch_recent_pull_requests(
     Data minimization: no comments, no reviewer/assignee identities — those
     could name a third party who never consented to being summarized here.
     Only what's needed to describe the PR itself.
+
+    Args:
+        state (str): GitHub's own filter values: "open", "closed", or "all".
     """
     repo = _repo_for(tenant_id, owner_uid)
     response = requests.get(
@@ -83,6 +86,9 @@ def fetch_recent_issues(
     GitHub's /issues endpoint also returns pull requests (they share the
     same underlying object) — those are filtered out so this only returns
     real issues, matching fetch_recent_pull_requests' own scope.
+
+    Args:
+        state (str): GitHub's own filter values: "open", "closed", or "all".
     """
     repo = _repo_for(tenant_id, owner_uid)
     response = requests.get(

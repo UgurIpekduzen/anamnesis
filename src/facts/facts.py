@@ -17,12 +17,12 @@ def create_fact(tenant_id: str, content: str, category: str, source: str = "chat
     src.facts.publisher.publish_fact for that instead.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
-        content: The fact text.
-        category: One of the allowed categories (architecture, decision,
-            bug, status, todo).
-        source: Where this fact came from — "chat" (the agent, during a
-            conversation) or "github" (approved from the Pending review
+        tenant_id (str): The project identifier, e.g. "my_project".
+        content (str): The fact text.
+        category (str): One of the allowed categories (architecture,
+            decision, bug, status, todo).
+        source (str): Where this fact came from — "chat" (the agent, during
+            a conversation) or "github" (approved from the Pending review
             queue).
     """
     # Only the name's shape: the message came from publish_fact, which checked
@@ -48,7 +48,7 @@ def get_tenant_facts(tenant_id: str, owner_uid: str, limit: int | None = None) -
     needed.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
+        tenant_id (str): The project identifier, e.g. "my_project".
 
     Returns:
         A list of fact dicts with "fact_id" (use this exact value when

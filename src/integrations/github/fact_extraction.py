@@ -45,8 +45,8 @@ def extract_facts(title: str, body: str, kind: str, owner_uid: str) -> list[dict
     """Extract candidate facts from a GitHub PR or issue's title/body.
 
     Args:
-        kind: "pull request" or "issue", used only to phrase the prompt.
-        owner_uid: Whose categories the facts are sorted into.
+        kind (str): "pull request" or "issue", used only to phrase the prompt.
+        owner_uid (str): Whose categories the facts are sorted into.
 
     Returns:
         A list of {"content": str, "category": str} dicts. Never published

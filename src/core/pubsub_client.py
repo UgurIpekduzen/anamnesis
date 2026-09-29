@@ -35,7 +35,7 @@ def topic_path(topic_id: str) -> str:
     """Build the fully-qualified path for a topic in GCP_PROJECT_ID.
 
     Args:
-        topic_id: The topic's short name, e.g. "facts".
+        topic_id (str): The topic's short name, e.g. "facts".
     """
     return pubsub_v1.PublisherClient.topic_path(_project_id(), topic_id)
 
@@ -44,6 +44,6 @@ def subscription_path(subscription_id: str) -> str:
     """Build the fully-qualified path for a subscription in GCP_PROJECT_ID.
 
     Args:
-        subscription_id: The subscription's short name, e.g. "facts-sub".
+        subscription_id (str): The subscription's short name, e.g. "facts-sub".
     """
     return pubsub_v1.SubscriberClient.subscription_path(_project_id(), subscription_id)

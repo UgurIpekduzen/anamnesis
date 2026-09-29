@@ -126,12 +126,12 @@ def get_jira_status(
     issues only, one short line each, with long summaries cut off.
 
     Args:
-        project_key: The Jira project key, e.g. "APPCE".
-        email: The connected Jira account's email.
-        token: The connected Jira account's API token.
-        base_url: The connected Jira workspace's URL, e.g.
+        project_key (str): The Jira project key, e.g. "APPCE".
+        email (str): The connected Jira account's email.
+        token (str): The connected Jira account's API token.
+        base_url (str): The connected Jira workspace's URL, e.g.
             "https://example.atlassian.net".
-        limit: The most issues to return.
+        limit (int): The most issues to return.
 
     Returns:
         {"issues": ["KEY · Type · Status · Summary", ...], "truncated": bool}.
@@ -151,6 +151,14 @@ def get_jira_recently_done(
 
     Same data minimization and size limits as get_jira_status: key, type, status, resolution date and a cut-off summary,
     never people. The most recently updated `limit` done issues only.
+
+    Args:
+        project_key (str): The Jira project key, e.g. "APPCE".
+        email (str): The connected Jira account's email.
+        token (str): The connected Jira account's API token.
+        base_url (str): The connected Jira workspace's URL, e.g.
+            "https://example.atlassian.net".
+        limit (int): The most issues to return.
 
     Returns:
         {"issues": ["KEY · Type · Status · YYYY-MM-DD · Summary", ...],

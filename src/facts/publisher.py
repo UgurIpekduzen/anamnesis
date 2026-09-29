@@ -22,10 +22,10 @@ def publish_fact(tenant_id: str, content: str, category: str, owner_uid: str, so
     it, since only this function can have put it there.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
-        content: The fact text.
-        category: One of the owner's categories (see src.facts.categories).
-        source: Where this fact came from — "chat" or "github" (see
+        tenant_id (str): The project identifier, e.g. "my_project".
+        content (str): The fact text.
+        category (str): One of the owner's categories (see src.facts.categories).
+        source (str): Where this fact came from — "chat" or "github" (see
             src.facts.facts.create_fact).
 
     Returns:

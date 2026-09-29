@@ -40,9 +40,9 @@ def create_pending_fact(
     remembered and hasn't seen yet.
 
     Args:
-        source: Where this candidate fact came from, e.g. "github".
-        source_url: A link back to the origin (e.g. the PR/issue), shown
-            to the user so they can judge the fact in context before
+        source (str): Where this candidate fact came from, e.g. "github".
+        source_url (str): A link back to the origin (e.g. the PR/issue),
+            shown to the user so they can judge the fact in context before
             approving it.
 
     Returns:
