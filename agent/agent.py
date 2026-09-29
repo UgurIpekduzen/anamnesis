@@ -1,3 +1,10 @@
+"""Builds the Google ADK chat agent used by the chat endpoint: a Gemini
+model wired with tools to read and propose changes to a project's stored
+facts, check its live Jira/GitHub status and recent history, and propose
+linking it to a GitHub repo or Jira project, plus the system instruction
+that dispatches each user intent to the right tool.
+"""
+
 import os
 
 from google.adk.agents.llm_agent import Agent

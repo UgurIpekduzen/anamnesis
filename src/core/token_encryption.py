@@ -1,3 +1,8 @@
+"""Encrypts and decrypts stored secrets (GitHub PATs, Jira API tokens)
+with a rotatable Fernet key set, so callers never persist or handle a raw
+token except right before using it.
+"""
+
 import os
 from functools import lru_cache
 

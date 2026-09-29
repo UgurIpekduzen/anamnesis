@@ -1,3 +1,8 @@
+"""Trims the conversation history sent to the model on each turn, so a
+long-running chat session's token cost stays bounded by the user's
+configured history window instead of growing with the whole conversation.
+"""
+
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types
@@ -45,6 +50,7 @@ def make_history_limiter():
     """
 
     def limit_history(callback_context: CallbackContext, llm_request: LlmRequest) -> None:
+        """Trim llm_request.contents in place to the current history_turns setting."""
         max_turns = get_settings()["history_turns"]
         llm_request.contents = trim_to_last_turns(llm_request.contents, max_turns)
         return None

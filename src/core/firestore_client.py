@@ -1,3 +1,8 @@
+"""Provides the single shared Firestore client used by every module that
+reads or writes tenant data, so the client's connection setup and auth
+happen once per (project, endpoint) instead of on every call.
+"""
+
 import os
 from functools import lru_cache
 
