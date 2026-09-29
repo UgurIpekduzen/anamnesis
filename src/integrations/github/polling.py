@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from src.integrations.github.activity import fetch_recent_issues, fetch_recent_pull_requests
+from src.integrations.github.alerts import is_github_poll_alert_muted
 from src.integrations.github.fact_extraction import extract_facts
 from src.core.log import log
 from src.facts.pending_facts import create_pending_fact, has_pending_fact_for_source
@@ -99,8 +100,15 @@ def poll_all_tenants() -> dict:
     # One structured line per run so Cloud Logging can filter on it (and a
     # log-based alert can fire on a non-empty `errors`, see APPCE-101). The
     # error strings stay out of it in case they echo credentials.
+    #
+    # ERROR unless the owner muted this alert from the Admin window
+    # (APPCE-125) — the Cloud Monitoring alert policy in
+    # terraform/monitoring.tf only matches severity=ERROR, so WARNING here
+    # is what actually silences the emails, without touching that policy or
+    # needing any new GCP permission.
+    severity = "INFO" if not errors else ("WARNING" if is_github_poll_alert_muted() else "ERROR")
     log(
-        "ERROR" if errors else "INFO",
+        severity,
         "github_poll",
         polled=polled,
         created=created,

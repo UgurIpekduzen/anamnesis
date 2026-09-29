@@ -209,6 +209,7 @@ def all_wired(monkeypatch):
 
     monkeypatch.setattr(github_polling, "list_tenants_with_github_repo", lambda: state["tenants"])
     monkeypatch.setattr(github_polling, "poll_tenant_github_activity", fake_poll)
+    monkeypatch.setattr(github_polling, "is_github_poll_alert_muted", lambda: False)
     return state
 
 
@@ -260,6 +261,24 @@ def test_poll_all_tenants_logs_one_structured_summary_line(all_wired, capsys, lo
         "error_count": 1,
         "failed_tenants": ["boom"],
     }
+
+
+def test_a_muted_alert_logs_warning_instead_of_error(all_wired, monkeypatch, capsys, log_lines):
+    monkeypatch.setattr(github_polling, "is_github_poll_alert_muted", lambda: True)
+    all_wired["tenants"] = [{"owner_uid": "owner-a", "tenant_id": "boom"}]
+
+    github_polling.poll_all_tenants()
+
+    assert log_lines(capsys.readouterr().out)[-1]["severity"] == "WARNING"
+
+
+def test_muting_has_no_effect_on_a_run_with_no_failures(all_wired, monkeypatch, capsys, log_lines):
+    monkeypatch.setattr(github_polling, "is_github_poll_alert_muted", lambda: True)
+    all_wired["tenants"] = [{"owner_uid": "owner-a", "tenant_id": "t1"}]
+
+    github_polling.poll_all_tenants()
+
+    assert log_lines(capsys.readouterr().out)[-1]["severity"] == "INFO"
 
 
 def test_the_summary_line_never_includes_error_text(all_wired, monkeypatch, capsys):
