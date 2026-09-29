@@ -1,3 +1,6 @@
+"""Rebuilds an ADK session's in-memory conversation history from Firestore-
+saved chat turns, for when a process restart has dropped it."""
+
 import asyncio
 import uuid
 from collections.abc import Callable

@@ -19,6 +19,8 @@ router = APIRouter()
 
 @router.get("/usage")
 def get_usage(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Return the signed-in user's message count for today, alongside the
+    shared warning threshold, the hard limit, and when the count resets."""
     return {
         "count": get_today_count(owner_uid),
         "threshold": get_settings()["daily_message_warning_threshold"],

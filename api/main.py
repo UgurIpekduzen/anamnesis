@@ -1,3 +1,7 @@
+"""The FastAPI app entrypoint: builds the app instance, wires up CORS,
+security headers and request logging middleware, mounts each router, and
+(in production) serves the built frontend as static files."""
+
 import time
 from pathlib import Path
 
@@ -45,6 +49,8 @@ _CONTENT_SECURITY_POLICY = "; ".join(
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
+    """Add the response headers CORSMiddleware doesn't cover: MIME sniffing,
+    clickjacking, referrer, and Content-Security-Policy protections."""
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"

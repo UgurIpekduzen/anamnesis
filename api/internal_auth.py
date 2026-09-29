@@ -1,3 +1,7 @@
+"""Auth for the scheduler-only endpoint: verifies Cloud Scheduler's own
+OIDC identity, kept separate from api/deps.py's user-facing allowlist
+check since it authenticates a service account, not a signed-in user."""
+
 import os
 
 from fastapi import Header, HTTPException

@@ -13,6 +13,12 @@ router = APIRouter()
 # GitHub repo, read live with the user's own credentials, no model involved.
 @router.get("/tenants/{tenant_id}/jira_status")
 def get_jira_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Return what's open in the project's linked Jira project, read live
+    with the user's own credentials.
+
+    Raises:
+        HTTPException: 404 if tenant_id isn't a project this user owns.
+    """
     try:
         return get_project_jira_status(tenant_id, owner_uid)
     except PermissionError:
@@ -21,6 +27,12 @@ def get_jira_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_curren
 
 @router.get("/tenants/{tenant_id}/github_status")
 def get_github_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Return what's open in the project's linked GitHub repo, read live
+    with the user's own credentials.
+
+    Raises:
+        HTTPException: 404 if tenant_id isn't a project this user owns.
+    """
     try:
         return get_project_github_status(tenant_id, owner_uid)
     except PermissionError:

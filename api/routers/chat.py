@@ -45,6 +45,12 @@ MAX_AUTH_FRAME_CHARS = 8192
 
 @router.get("/tenants/{tenant_id}/history")
 def get_history(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
+    """Return the project's most recent saved chat turns, for the UI to show
+    when a conversation is opened.
+
+    Raises:
+        HTTPException: 404 if tenant_id isn't a project this user owns.
+    """
     try:
         return load_recent_turns(tenant_id, owner_uid, CHAT_HISTORY_DISPLAY_TURNS)
     except PermissionError:
@@ -197,12 +203,20 @@ async def _authenticate(websocket: WebSocket) -> str | None:
 # `monkeypatch.setattr(chat, "get_runner", ...)` keeps working — a
 # local import would shadow the patched attribute instead of using it.
 def get_runner(owner_uid: str, tenant_id: str):
+    """Lazily import and delegate to api.runner.get_runner.
+
+    Deferred so only an actual chat connection pays for pulling in ADK's
+    import chain (see the module-level comment above for why this stays a
+    real function rather than a local import).
+    """
     from api.runner import get_runner as _get_runner
 
     return _get_runner(owner_uid, tenant_id)
 
 
 async def restore_session(*args, **kwargs):
+    """Lazily import and delegate to api.session_memory.restore_session,
+    deferred for the same import-cost reason as get_runner above."""
     from api.session_memory import restore_session as _restore_session
 
     return await _restore_session(*args, **kwargs)
@@ -210,6 +224,14 @@ async def restore_session(*args, **kwargs):
 
 @router.websocket("/ws/chat/{tenant_id}")
 async def chat(websocket: WebSocket, tenant_id: str):
+    """Run one project's conversation over a WebSocket: authenticate the
+    first frame, then for each following message run an agent turn,
+    streaming back tool calls/results, confirmation requests, and the
+    final answer, until the client disconnects.
+
+    Args:
+        tenant_id: The project this conversation is scoped to.
+    """
     # Also deferred for startup speed — not part of the
     # monkeypatch surface above, so a plain local import is enough.
     from google.adk.agents.run_config import RunConfig

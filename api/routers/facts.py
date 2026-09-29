@@ -11,6 +11,9 @@ router = APIRouter()
 
 
 class FactUpdate(BaseModel):
+    """Request body for PATCH .../facts/{fact_id}: the fields to change,
+    omitting either one to leave it as is."""
+
     model_config = ConfigDict(extra="forbid")
 
     # Omitted means unchanged, same as update_fact — but an empty body would
@@ -21,6 +24,8 @@ class FactUpdate(BaseModel):
 
 @router.get("/tenants/{tenant_id}/facts")
 def get_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
+    """Return every fact stored for the project — the Facts tab's data
+    source (see get_tenant_facts for the shape of each entry)."""
     return get_tenant_facts(tenant_id, owner_uid)
 
 
@@ -30,6 +35,15 @@ def get_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -
 def edit_fact(
     tenant_id: str, fact_id: str, body: FactUpdate, owner_uid: str = Depends(get_current_owner_uid)
 ) -> dict:
+    """Apply a partial update to one fact and confirm it was updated.
+
+    Args:
+        fact_id: The fact's document id, as returned by get_tenant_facts.
+
+    Raises:
+        HTTPException: 422 if neither content nor category is given, 404 if
+            the fact doesn't exist, 400 if the new category is invalid.
+    """
     if body.content is None and body.category is None:
         raise HTTPException(status_code=422, detail="Give a content or a category to change")
     try:
@@ -44,6 +58,14 @@ def edit_fact(
 
 @router.delete("/tenants/{tenant_id}/facts/{fact_id}")
 def remove_fact(tenant_id: str, fact_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Delete one fact and confirm it was deleted.
+
+    Args:
+        fact_id: The fact's document id, as returned by get_tenant_facts.
+
+    Raises:
+        HTTPException: 404 if the fact doesn't exist.
+    """
     try:
         get_fact(tenant_id, fact_id, owner_uid)
         delete_fact(tenant_id, fact_id, owner_uid)

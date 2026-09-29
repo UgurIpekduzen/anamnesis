@@ -1,3 +1,7 @@
+"""FastAPI auth dependencies: verify a caller's Google ID token against
+Google's public keys and this app's allowlist, and expose the verified
+email as owner_uid to route handlers."""
+
 import os
 import re
 import threading
@@ -33,12 +37,25 @@ class CachedCertsRequest:
     """
 
     def __init__(self, inner=None, clock=time.monotonic):
+        """Wrap a transport (or build a default one) with an empty cache.
+
+        Args:
+            inner: The transport to delegate actual requests to; defaults
+                to a fresh google.auth Request.
+            clock: Time source used to judge cache freshness; overridable
+                so tests can control expiry without sleeping.
+        """
         self._inner = inner or google_requests.Request()
         self._clock = clock
         self._lock = threading.Lock()
         self._entries = {}  # url -> (response, fetched_at, expires_at)
 
     def __call__(self, url, method="GET", body=None, headers=None, **kwargs):
+        """Serve a cached GET response if it hasn't expired, else fetch and cache it.
+
+        Any method other than GET is passed straight through to the inner
+        transport, uncached.
+        """
         if method != "GET":
             return self._inner(url, method=method, body=body, headers=headers, **kwargs)
 
@@ -102,6 +119,7 @@ def verify_token(token: str) -> str:
     allowlist ourselves (replacing the Google Group membership check).
     """
     def verify():
+        """Call Google's verifier with this module's client id and clock skew allowance."""
         return id_token.verify_oauth2_token(
             token, _request, _CLIENT_ID, clock_skew_in_seconds=CLOCK_SKEW_SECONDS
         )
@@ -138,6 +156,13 @@ def verify_token(token: str) -> str:
 
 
 def get_current_owner_uid(authorization: str | None = Header(default=None)) -> str:
+    """FastAPI dependency: verify the caller's bearer token and return their email.
+
+    Raises:
+        HTTPException: 401 if the Authorization header is missing or isn't
+            a bearer token (verify_token raises its own 401/403 for a
+            token that's invalid or not on the allowlist).
+    """
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
     return verify_token(authorization[len("Bearer "):])
