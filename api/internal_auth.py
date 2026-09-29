@@ -21,7 +21,7 @@ def verify_scheduler_token(authorization: str | None = Header(default=None)) -> 
     test process would otherwise "win" for the rest of the session.
     """
     # The service account Cloud Scheduler signs its OIDC token as when it
-    # calls this endpoint (APPCE-80) — set once the Terraform-side service
+    # calls this endpoint — set once the Terraform-side service
     # account + scheduler job exist. Deliberately a *different* check from
     # api.deps's user-facing ALLOWED_EMAILS: this endpoint is never meant
     # to be reachable by a signed-in user, only by the scheduler itself.

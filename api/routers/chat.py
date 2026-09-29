@@ -23,7 +23,7 @@ from src.projects.tenants import get_owned_tenant
 
 router = APIRouter()
 
-# Token-cost guards (see APPCE-59). A message stays in the session history
+# Token-cost guards. A message stays in the session history
 # and is resent on every model call of the following turns, so an
 # unbounded one is the most expensive input a user can send. A normal
 # turn takes 3-4 model calls; ADK's own default cap is 500.
@@ -31,11 +31,11 @@ MAX_MESSAGE_CHARS = int(os.environ.get("MAX_MESSAGE_CHARS", 4000))
 MAX_LLM_CALLS_PER_TURN = int(os.environ.get("MAX_LLM_CALLS_PER_TURN", 10))
 
 # How many saved turns the UI loads when it opens a conversation. Bounds the
-# Firestore reads of one history load (APPCE-60); the model's own memory is
+# Firestore reads of one history load; the model's own memory is
 # governed separately, by the user's history_turns setting.
 CHAT_HISTORY_DISPLAY_TURNS = int(os.environ.get("CHAT_HISTORY_DISPLAY_TURNS", 50))
 
-# The chat socket authenticates with its first frame (APPCE-67), so an
+# The chat socket authenticates with its first frame, so an
 # unauthenticated connection is a resource an anonymous caller can hold:
 # give it seconds, and a frame size no real token comes close to (a Google
 # ID token is 1-2 KB).
@@ -59,7 +59,7 @@ async def _iterate_off_loop(generator):
 
     Runner.run is a sync generator: each next() waits on the model and on
     Firestore-backed tools. Called directly from the async handler that
-    froze every other request on the server for the whole turn (APPCE-62);
+    froze every other request on the server for the whole turn;
     a worker thread per step keeps the loop free.
     """
     while True:
@@ -74,7 +74,7 @@ async def _best_effort(func, *args, what: str) -> None:
 
     Usage counting, saving and clearing history all touch Firestore
     (~0.3-1 s each, sequentially). None of them is worth breaking a
-    conversation over, and none may stall the loop (APPCE-64), so they run
+    conversation over, and none may stall the loop, so they run
     in a worker thread and a failure is logged, not raised.
     """
     try:
@@ -84,7 +84,7 @@ async def _best_effort(func, *args, what: str) -> None:
 
 
 # ADK's own name for the synthetic function call it generates when a
-# require_confirmation=True tool is invoked (APPCE-91) — never a real tool
+# require_confirmation=True tool is invoked — never a real tool
 # in agent/agent.py's tools list, so it's filtered out of the Trace tab's
 # tool_call/tool_result messages and handled separately (see chat() below).
 _REQUEST_CONFIRMATION_FUNCTION_CALL_NAME = "adk_request_confirmation"
@@ -117,7 +117,7 @@ def _confirmation_request(event) -> dict | None:
     Simplification: only the first confirmation request in the event is
     handled if more than one is present (the model calling two
     confirmation-gated tools in the same turn) — not something this
-    agent's single-step-per-turn instruction (APPCE-84) does in practice.
+    agent's single-step-per-turn instruction does in practice.
     """
     for call in event.get_function_calls():
         if call.name == _REQUEST_CONFIRMATION_FUNCTION_CALL_NAME:
@@ -133,7 +133,7 @@ def _confirmation_request(event) -> dict | None:
 
 async def _similar_saved_facts(tenant_id: str, owner_uid: str, content) -> list[dict]:
     """Facts already saved that say (nearly) what a fact awaiting approval
-    says, so the confirmation can warn about a duplicate (APPCE-111).
+    says, so the confirmation can warn about a duplicate.
 
     Best effort, like the other side jobs of a turn: a failed lookup means
     no warning, never a failed confirmation.
@@ -154,10 +154,10 @@ async def _authenticate(websocket: WebSocket) -> str | None:
     Native browser WebSockets can't send custom headers, and a token in the
     URL ends up in every access log (uvicorn's, and Cloud Logging's on Cloud
     Run, where the app can't filter it), so the ID token travels in the first
-    message instead — APPCE-67. It is verified the same way as on the REST
+    message instead. It is verified the same way as on the REST
     endpoints (see api/deps.py), once, at connect time; a token that expires
     mid-conversation is only noticed when the socket reconnects, which the
-    frontend does with its background-refreshed token (see APPCE-54).
+    frontend does with its background-refreshed token.
 
     Returns the owner, or None after closing the socket with 1008.
     """
@@ -188,7 +188,7 @@ async def _authenticate(websocket: WebSocket) -> str | None:
 
 
 # Thin, lazily-importing wrappers around api.runner.get_runner and
-# api.session_memory.restore_session (APPCE-50): both modules pull in
+# api.session_memory.restore_session: both modules pull in
 # ADK's import chain, heavy enough to noticeably slow server startup if
 # imported at module level, and only the chat socket below needs them —
 # every other endpoint (e.g. /tenants, /usage, which the UI calls first)
@@ -210,7 +210,7 @@ async def restore_session(*args, **kwargs):
 
 @router.websocket("/ws/chat/{tenant_id}")
 async def chat(websocket: WebSocket, tenant_id: str):
-    # Also deferred for startup speed (APPCE-50) — not part of the
+    # Also deferred for startup speed — not part of the
     # monkeypatch surface above, so a plain local import is enough.
     from google.adk.agents.run_config import RunConfig
     from google.genai import types
@@ -248,7 +248,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
     except Exception as exc:
         log("WARNING", "chat_memory_restore_failed", error=repr(exc))
 
-    # Set while a require_confirmation=True tool (APPCE-91) is waiting on
+    # Set while a require_confirmation=True tool is waiting on
     # the user's approve/reject — the id of ADK's own synthetic
     # adk_request_confirmation call, not the original tool call's id.
     # pending_question carries the original question across the round trip,
@@ -318,7 +318,7 @@ async def chat(websocket: WebSocket, tenant_id: str):
                     )
                     continue
 
-                # The hard daily limit (APPCE-102) has to be decided before
+                # The hard daily limit has to be decided before
                 # any model call is made, so — unlike the other Firestore
                 # calls here — this one is waited for. Counting and checking
                 # are one transaction, so concurrent messages can't both

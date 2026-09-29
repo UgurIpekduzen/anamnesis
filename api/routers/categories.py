@@ -18,7 +18,7 @@ class CategoriesUpdate(BaseModel):
     categories: list[str] = Field(max_length=50)
 
 
-# The user's own categories (APPCE-116): the suggested list until they change it.
+# The user's own categories: the suggested list until they change it.
 @router.get("/categories")
 def read_categories(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
     return get_category_settings(owner_uid)

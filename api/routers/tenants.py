@@ -39,7 +39,7 @@ def create_tenant(body: TenantCreate, owner_uid: str = Depends(get_current_owner
     try:
         tenant_id = add_tenant(body.name, owner_uid)
     except TenantNameTaken as exc:
-        # The same answer whoever owns the existing project (APPCE-117).
+        # The same answer whoever owns the existing project.
         raise HTTPException(status_code=409, detail=f"{exc} Try another name.")
     return {"tenant_id": tenant_id}
 
@@ -73,7 +73,7 @@ def remove_tenant(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid
 # Which GitHub repo and Jira project a project is linked to is set here, in
 # the UI, and not by the chat agent: these values decide whose repo gets polled
 # with the user's token and what goes into a Jira query, and the agent reads
-# text other people wrote (APPCE-107).
+# text other people wrote.
 class GithubRepoUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

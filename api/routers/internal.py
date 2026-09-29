@@ -16,7 +16,7 @@ def health() -> dict:
 def poll_all_tenants() -> dict:
     # Deferred: pulls in the GitHub fact-extraction LLM call chain, which
     # only /internal/poll-github needs — same reasoning as the lazy
-    # ADK/Pub-Sub imports elsewhere in the API (APPCE-50). A real
+    # ADK/Pub-Sub imports elsewhere in the API. A real
     # module-level name (not a local import inside the endpoint) so tests
     # can monkeypatch.setattr(internal, "poll_all_tenants", ...).
     from src.integrations.github.polling import poll_all_tenants as _poll_all_tenants

@@ -15,7 +15,7 @@ _CLIENT_ID = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
 # Google rotates its signing keys rarely and publishes them with a
 # Cache-Control max-age, but google-auth refetches the certificates on every
 # verification (~140 ms, and it blocks whoever is waiting). Keep them for as
-# long as Google says, within sane bounds (APPCE-63).
+# long as Google says, within sane bounds.
 _CERTS_MAX_AGE_DEFAULT_SECONDS = 300
 _CERTS_MAX_AGE_CAP_SECONDS = 3600
 # A token naming a key we don't have may mean a rotation, so refetch once —
@@ -97,7 +97,7 @@ def verify_token(token: str) -> str:
     """Verify a Google ID token's signature and return its email claim.
 
     Cloud Run's IAM layer no longer does this for us once the service is
-    public (see APPCE-54) — we verify against Google's own public keys
+    public — we verify against Google's own public keys
     and check the audience matches our OAuth client, then enforce the
     allowlist ourselves (replacing the Google Group membership check).
     """
@@ -122,13 +122,13 @@ def verify_token(token: str) -> str:
 
     # Anyone can put an address they don't control in a Google Workspace or
     # third-party-linked account; only a verified one proves ownership. The
-    # allowlist is editable at runtime (APPCE-94), so this check matters.
+    # allowlist is editable at runtime, so this check matters.
     # Compared with `is not True` so a missing or string "false" claim fails.
     if claims.get("email_verified") is not True:
         raise HTTPException(status_code=403, detail="This account's email isn't verified")
 
-    # Identity stays the email rather than the immutable `sub` claim
-    # (APPCE-98): every Firestore document is keyed by it, so switching needs
+    # Identity stays the email rather than the immutable `sub` claim:
+    # every Firestore document is keyed by it, so switching needs
     # a data migration. Deliberate for personal scale, where the allowlist is
     # curated by hand and a reassigned address is an unlikely risk.
     email = claims.get("email")
@@ -145,7 +145,7 @@ def get_current_owner_uid(authorization: str | None = Header(default=None)) -> s
 
 def require_owner(owner_uid: str = Depends(get_current_owner_uid)) -> str:
     """Like get_current_owner_uid, but only for the Terraform-configured
-    owner(s) — gates managing who else is allowed in (APPCE-94), since
+    owner(s) — gates managing who else is allowed in, since
     letting any allowed user grant access to others would defeat the
     allowlist entirely.
     """

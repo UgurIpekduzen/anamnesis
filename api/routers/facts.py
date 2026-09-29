@@ -24,7 +24,7 @@ def get_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -
     return get_tenant_facts(tenant_id, owner_uid)
 
 
-# What a chat proposal card's button calls (APPCE-107): the model only ever
+# What a chat proposal card's button calls: the model only ever
 # proposes an edit or a delete, and the user's click is what makes it.
 @router.patch("/tenants/{tenant_id}/facts/{fact_id}")
 def edit_fact(

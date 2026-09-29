@@ -9,7 +9,7 @@ from src.facts.categories import InvalidCategory
 router = APIRouter()
 
 
-# Lazily-importing wrappers (APPCE-50, same pattern as get_runner/
+# Lazily-importing wrappers (same pattern as get_runner/
 # restore_session in the chat router): src.facts.pending_facts pulls in
 # google-cloud-pubsub (via src.facts.publisher, for the approve path), which
 # only these endpoints need — deferring it keeps it off every other request's

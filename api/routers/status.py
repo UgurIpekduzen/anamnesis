@@ -9,7 +9,7 @@ from src.integrations.status import get_project_github_status, get_project_jira_
 router = APIRouter()
 
 
-# The Status panel (APPCE-110): what is open in the project's Jira project and
+# The Status panel: what is open in the project's Jira project and
 # GitHub repo, read live with the user's own credentials, no model involved.
 @router.get("/tenants/{tenant_id}/jira_status")
 def get_jira_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:

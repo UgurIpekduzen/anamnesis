@@ -1,7 +1,7 @@
 """The signed-in user's own message count today.
 
 history_turns and daily_message_warning_threshold used to be settable here
-too, until APPCE-124 moved them to a shared, owner-only setting
+too, until they were moved to a shared, owner-only setting
 (api/routers/admin.py) — cost levers, not a per-user preference. This
 router keeps only the read-only usage summary, which any signed-in user
 still needs to see their own progress toward the (now shared) threshold

@@ -41,7 +41,7 @@ router = APIRouter()
 
 # Who can sign in at all beyond the Terraform-configured owner(s) — only an
 # owner can view/change this (require_owner), since anyone else granting
-# access would defeat the allowlist (APPCE-94). A non-owner never even sees
+# access would defeat the allowlist. A non-owner never even sees
 # this section exists: the frontend just doesn't render it without a
 # successful GET.
 @router.get("/admin/allowed_emails")
@@ -51,7 +51,7 @@ def get_allowed_emails(owner_uid: str = Depends(require_owner)) -> dict:
     return {
         "owner_emails": sorted(OWNER_EMAILS),
         "extra_users": extra_users,
-        # A display name the owner set for an email (APPCE-126) — never
+        # A display name the owner set for an email — never
         # captured from the user's own Google account. Keyed separately
         # rather than folded into owner_emails/extra_users so those two
         # keep their existing shape.
@@ -87,7 +87,7 @@ class RoleUpdate(BaseModel):
 
 
 # Change an already-invited email's role between "user" (exempt from the
-# tester lifetime message cap, APPCE-122/123 — e.g. a trusted collaborator)
+# tester lifetime message cap — e.g. a trusted collaborator)
 # and "tester" (the default). "admin" isn't settable here: it comes only
 # from OWNER_EMAILS in Terraform.
 @router.put("/admin/allowed_emails/{email}/role")
@@ -105,8 +105,8 @@ class UserWipeConfirm(BaseModel):
     confirm_email: str = Field(strict=True, min_length=1, max_length=320)
 
 
-# Permanently delete an invited user's data — not just remove their access
-# (APPCE-123). Destructive and irreversible, so a single click isn't enough:
+# Permanently delete an invited user's data — not just remove their access.
+# Destructive and irreversible, so a single click isn't enough:
 # the caller must repeat the exact email back (confirm_email), the same
 # friction src.tools.db_backup's --confirm-project uses for a whole-database
 # wipe. The owner can never be targeted — wipe_user itself refuses, this
@@ -123,7 +123,7 @@ def wipe_user_endpoint(email: str, body: UserWipeConfirm, owner_uid: str = Depen
 
 
 # Today's message count and role for every allowed user, plus the shared
-# ceiling (APPCE-122) — the same reasoning as get_allowed_emails above
+# ceiling — the same reasoning as get_allowed_emails above
 # applies: owner-only, and the list comes from the allowlist itself rather
 # than a separate "users" collection.
 @router.get("/admin/usage")
@@ -138,7 +138,7 @@ def get_usage(owner_uid: str = Depends(require_owner)) -> dict:
 class SettingsUpdate(BaseModel):
     # forbid: an unknown field is a client bug. strict: "5" or true must
     # not be quietly coerced into a valid int. Same shape the user's own
-    # PUT /settings used before APPCE-124 moved this here.
+    # PUT /settings used before this setting moved here.
     model_config = ConfigDict(extra="forbid")
 
     history_turns: int = Field(strict=True, ge=BOUNDS["history_turns"][0], le=BOUNDS["history_turns"][1])
@@ -160,7 +160,7 @@ def _settings_response(settings: dict) -> dict:
 
 
 # history_turns/daily_message_warning_threshold used to be each user's own
-# setting; APPCE-124 moved them here, as one shared value for everyone, not
+# setting; they were moved here, as one shared value for everyone, not
 # per email — history_turns is really a cost lever (it scales the tokens
 # resent to the shared agent_sa on every message), the same kind of knob as
 # DAILY_MESSAGE_HARD_LIMIT/GLOBAL_DAILY_MESSAGE_LIMIT, not something each
@@ -179,7 +179,7 @@ def set_shared_settings(body: SettingsUpdate, owner_uid: str = Depends(require_o
 # expose into rows the Users table can page and search through — the
 # owner/extra split and separate usage call made sense before a name (and
 # the need to search by it) existed, but the table always showed them as
-# one list anyway (APPCE-126). offset/limit are in-memory paging over
+# one list anyway. offset/limit are in-memory paging over
 # OWNER_EMAILS | get_extra_allowed_emails() (never more than a handful of
 # invited testers in practice), not a Firestore-cursor query — there's no
 # per-user document to page over, only this array-backed allowlist.
@@ -234,7 +234,7 @@ class NameUpdate(BaseModel):
 
 
 # A label the owner chooses for an email — never captured from the user's
-# own Google account (APPCE-126) — so people are tellable apart once email
+# own Google account — so people are tellable apart once email
 # addresses alone aren't enough. Works for the owner's own email too: same
 # reasoning as /admin/settings, no lockout risk in a display name.
 @router.put("/admin/users/{email}/name")
@@ -256,10 +256,9 @@ class AlertsUpdate(BaseModel):
 
 # Whether a broken GitHub connection's poll failures land in the owner's
 # inbox (via the Cloud Monitoring alert policy in terraform/monitoring.tf,
-# which only fires on severity=ERROR) or just Cloud Logging at WARNING
-# (APPCE-125) — muting doesn't touch that policy or need any new GCP
-# permission, it only changes what severity src.integrations.github.polling
-# logs a failed run at.
+# which only fires on severity=ERROR) or just Cloud Logging at WARNING.
+# Muting doesn't touch that policy or need any new GCP permission, it only
+# changes what severity src.integrations.github.polling logs a failed run at.
 @router.get("/admin/alerts")
 def get_alerts(owner_uid: str = Depends(require_owner)) -> dict:
     return {"github_poll_alert_muted": is_github_poll_alert_muted()}
@@ -272,9 +271,9 @@ def set_alerts(body: AlertsUpdate, owner_uid: str = Depends(require_owner)) -> d
 
 
 # Lets the owner see which GitHub connections are broken (and why, coarsely)
-# from the Admin panel instead of only from the Cloud Monitoring alert email
-# (APPCE-125) — one entry per tenant whose last poll failed; a tenant drops
-# off this list on its own once a later poll succeeds (mark_github_polled
+# from the Admin panel instead of only from the Cloud Monitoring alert
+# email. One entry per tenant whose last poll failed; a tenant drops off
+# this list on its own once a later poll succeeds (mark_github_polled
 # clears the fields this reads).
 @router.get("/admin/connections/broken")
 def get_broken_connections(owner_uid: str = Depends(require_owner)) -> dict:

@@ -15,7 +15,7 @@ async def restore_session(
     The ADK session lives in this process's memory, so after a restart (a
     deploy, Cloud Run scaling to zero) the model would have forgotten a
     conversation the UI still shows. This seeds a fresh session from the
-    turns saved in Firestore (src/projects/chat_history.py) — see APPCE-60.
+    turns saved in Firestore (src/projects/chat_history.py).
 
     Only the question/answer text is restored, not the tool calls and
     results of the original turns; the model sees what was said and can call
@@ -32,7 +32,7 @@ async def restore_session(
     if await service.get_session(app_name=runner.app_name, user_id=owner_uid, session_id=session_id):
         return False
 
-    # Blocking Firestore reads — off the event loop (APPCE-62).
+    # Blocking Firestore reads — off the event loop.
     turns = await asyncio.to_thread(load_turns)
     if not turns:
         return False
