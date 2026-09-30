@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 
-import { getSharedSettings, setSharedSettings, type SharedSettingsResponse, type SharedSettingsValues } from "../../api";
+import {
+  getSharedSettings,
+  setSharedSettings,
+  type SharedSettingsResponse,
+  type SharedSettingsValues,
+} from "../../api";
 import HintLabel from "./HintLabel";
 
 interface Props {
@@ -45,7 +50,9 @@ function MessageSettingsSection({ idToken }: Props) {
     if (!form || !loaded) return null;
     const value = Number(form[name]);
     const { min, max } = loaded.limits[name];
-    return Number.isInteger(value) && form[name].trim() !== "" && value >= min && value <= max ? value : null;
+    return Number.isInteger(value) && form[name].trim() !== "" && value >= min && value <= max
+      ? value
+      : null;
   }
 
   const values = {
@@ -76,40 +83,40 @@ function MessageSettingsSection({ idToken }: Props) {
         Applies to every user, including you.
         <ul>
           <li>
-            <strong>Conversation memory</strong> — recent messages resent as context on every turn, the main cost
-            lever
+            <strong>Conversation memory</strong> — recent messages resent as context on every turn,
+            the main cost lever
           </li>
           <li>
-            <strong>Daily message warning</strong> — a heads-up shown once someone hits this many messages today; it
-            never blocks them
+            <strong>Daily message warning</strong> — a heads-up shown once someone hits this many
+            messages today; it never blocks them
           </li>
         </ul>
       </HintLabel>
 
-      {form && loaded ? (
-        FIELDS.map(({ name, label }) => {
-          const { min, max } = loaded.limits[name];
-          const invalid = values[name] === null;
-          return (
-            <label key={name} className="settings-field">
-              <span className="settings-label">{label}</span>
-              <input
-                type="number"
-                min={min}
-                max={max}
-                step={1}
-                value={form[name]}
-                onChange={(e) => setForm({ ...form, [name]: e.target.value })}
-                aria-invalid={invalid}
-                disabled={saving}
-              />
-              {invalid && <small className="settings-hint invalid">{`Enter a whole number from ${min} to ${max}.`}</small>}
-            </label>
-          );
-        })
-      ) : (
-        !error && <small className="settings-hint">Loading…</small>
-      )}
+      {form && loaded
+        ? FIELDS.map(({ name, label }) => {
+            const { min, max } = loaded.limits[name];
+            const invalid = values[name] === null;
+            return (
+              <label key={name} className="settings-field">
+                <span className="settings-label">{label}</span>
+                <input
+                  type="number"
+                  min={min}
+                  max={max}
+                  step={1}
+                  value={form[name]}
+                  onChange={(e) => setForm({ ...form, [name]: e.target.value })}
+                  aria-invalid={invalid}
+                  disabled={saving}
+                />
+                {invalid && (
+                  <small className="settings-hint invalid">{`Enter a whole number from ${min} to ${max}.`}</small>
+                )}
+              </label>
+            );
+          })
+        : !error && <small className="settings-hint">Loading…</small>}
 
       {error && <small className="settings-hint invalid">{error}</small>}
 

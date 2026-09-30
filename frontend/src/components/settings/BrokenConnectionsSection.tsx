@@ -40,8 +40,9 @@ function BrokenConnectionsSection({ idToken }: Props) {
   return (
     <div className="settings-field">
       <HintLabel label="Connections" variant="section">
-        Whether each project's GitHub connection is currently failing to poll — the raw error isn't kept, only a
-        rough reason. A connection drops off this list on its own once it's fixed and polls successfully again.
+        Whether each project's GitHub connection is currently failing to poll — the raw error isn't
+        kept, only a rough reason. A connection drops off this list on its own once it's fixed and
+        polls successfully again.
       </HintLabel>
       {error && <small className="settings-hint invalid">{error}</small>}
       {connections &&

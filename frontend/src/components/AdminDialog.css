@@ -195,7 +195,9 @@
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: 999px;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .alerts-switch-track::before {
@@ -207,7 +209,9 @@
   height: 14px;
   border-radius: 50%;
   background: var(--text-muted);
-  transition: transform 0.15s, background 0.15s;
+  transition:
+    transform 0.15s,
+    background 0.15s;
 }
 
 .alerts-switch input:checked + .alerts-switch-track {

@@ -53,8 +53,8 @@ function WipeUserDialog({ email, onConfirm, onCancel }: Props) {
       >
         <h2 id="wipe-title">Delete {email}&apos;s data</h2>
         <p id="wipe-message">
-          This permanently deletes every project, fact, connection and usage record for this email, and removes
-          them from Access. This can&apos;t be undone. Type the email below to confirm.
+          This permanently deletes every project, fact, connection and usage record for this email,
+          and removes them from Access. This can&apos;t be undone. Type the email below to confirm.
         </p>
         <input
           ref={inputRef}
@@ -69,7 +69,11 @@ function WipeUserDialog({ email, onConfirm, onCancel }: Props) {
           <button onClick={onCancel} disabled={busy}>
             Cancel
           </button>
-          <button className="confirm-danger" onClick={handleConfirm} disabled={busy || typed !== email}>
+          <button
+            className="confirm-danger"
+            onClick={handleConfirm}
+            disabled={busy || typed !== email}
+          >
             {busy ? "Deleting…" : "Delete"}
           </button>
         </div>

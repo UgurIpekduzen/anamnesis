@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 
-import { connectGithub, disconnectGithub, getGithubConnection, type GithubConnection } from "../../api";
+import {
+  connectGithub,
+  disconnectGithub,
+  getGithubConnection,
+  type GithubConnection,
+} from "../../api";
 import InfoLabel from "./InfoLabel";
 
 interface Props {

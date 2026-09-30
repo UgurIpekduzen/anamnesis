@@ -66,7 +66,8 @@ export function useTenants(
         setTenants(fetched);
         const pending = pendingSelectRef.current;
         pendingSelectRef.current = null;
-        const preferred = pending && fetched.some((t) => t.tenant_id === pending) ? pending : fetched[0]?.tenant_id;
+        const preferred =
+          pending && fetched.some((t) => t.tenant_id === pending) ? pending : fetched[0]?.tenant_id;
         setSelectedTenantId(preferred ?? null);
       })
       .catch((err) => {

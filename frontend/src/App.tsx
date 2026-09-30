@@ -93,7 +93,11 @@ function App() {
   const userId = useMemo(() => tokenSubject(idToken), [idToken]);
   const idTokenRef = useRef(idToken);
   idTokenRef.current = idToken;
-  const { githubConnected, jira: jiraConnection } = useConnections(idTokenRef, userId, connectionsReloadKey);
+  const { githubConnected, jira: jiraConnection } = useConnections(
+    idTokenRef,
+    userId,
+    connectionsReloadKey,
+  );
   const isOwner = useIsOwner(idTokenRef, userId);
   const {
     tenants,
@@ -195,7 +199,8 @@ function App() {
     window.google?.accounts.id.disableAutoSelect();
     let reloadedJustNow = false;
     try {
-      reloadedJustNow = Date.now() - Number(sessionStorage.getItem(LAST_RELOAD_KEY) ?? 0) < RELOAD_LOOP_WINDOW_MS;
+      reloadedJustNow =
+        Date.now() - Number(sessionStorage.getItem(LAST_RELOAD_KEY) ?? 0) < RELOAD_LOOP_WINDOW_MS;
       if (!reloadedJustNow) {
         sessionStorage.setItem(LAST_RELOAD_KEY, String(Date.now()));
         sessionStorage.setItem(SIGN_IN_NOTICE_KEY, ACCOUNT_NOT_ALLOWED_NOTICE);
@@ -333,10 +338,25 @@ function App() {
                     ? "Refresh pending facts"
                     : "Refresh status"
               }
-              onClick={() => (sidebarTab === "facts" ? bumpFacts() : sidebarTab === "pending" ? bumpPendingFacts() : bumpStatus())}
+              onClick={() =>
+                sidebarTab === "facts"
+                  ? bumpFacts()
+                  : sidebarTab === "pending"
+                    ? bumpPendingFacts()
+                    : bumpStatus()
+              }
               disabled={!selectedTenantId}
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <polyline points="23 4 23 10 17 10" />
                 <polyline points="1 20 1 14 7 14" />
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -376,7 +396,12 @@ function App() {
           ) : selectedTenantId ? (
             // Keyed by tenant so switching projects doesn't flash the
             // previous project's facts while the new list loads.
-            <Facts key={selectedTenantId} idToken={idToken} tenantId={selectedTenantId} refreshKey={factsRefreshKey} />
+            <Facts
+              key={selectedTenantId}
+              idToken={idToken}
+              tenantId={selectedTenantId}
+              refreshKey={factsRefreshKey}
+            />
           ) : (
             <p className="sidebar-empty">Select a project to see its facts.</p>
           )}

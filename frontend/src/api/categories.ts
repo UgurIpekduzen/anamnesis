@@ -16,7 +16,10 @@ export async function getCategories(idToken: string): Promise<CategorySettings> 
   return res.json();
 }
 
-export async function saveCategories(idToken: string, categories: string[]): Promise<CategorySettings> {
+export async function saveCategories(
+  idToken: string,
+  categories: string[],
+): Promise<CategorySettings> {
   const res = await fetch(`${API_BASE}/categories`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },

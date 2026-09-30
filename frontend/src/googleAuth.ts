@@ -88,8 +88,11 @@ export function initGoogleAuth(onCredential: (idToken: string) => void): void {
 // background refresh to log — never the credential or anything from it.
 export function describePromptMoment(notification: PromptMomentNotification): string {
   if (notification.isDisplayMoment?.()) return "displayed";
-  if (notification.isNotDisplayed?.()) return `not_displayed:${notification.getNotDisplayedReason?.() ?? "?"}`;
-  if (notification.isSkippedMoment?.()) return `skipped:${notification.getSkippedReason?.() ?? "?"}`;
-  if (notification.isDismissedMoment?.()) return `dismissed:${notification.getDismissedReason?.() ?? "?"}`;
+  if (notification.isNotDisplayed?.())
+    return `not_displayed:${notification.getNotDisplayedReason?.() ?? "?"}`;
+  if (notification.isSkippedMoment?.())
+    return `skipped:${notification.getSkippedReason?.() ?? "?"}`;
+  if (notification.isDismissedMoment?.())
+    return `dismissed:${notification.getDismissedReason?.() ?? "?"}`;
   return "unknown";
 }

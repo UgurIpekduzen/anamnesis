@@ -29,5 +29,7 @@ export function step(
   }
   if (index === null) return null;
   const next = index + 1;
-  return next >= messages.length ? { index: null, text: draft } : { index: next, text: messages[next] };
+  return next >= messages.length
+    ? { index: null, text: draft }
+    : { index: next, text: messages[next] };
 }

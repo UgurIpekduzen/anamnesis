@@ -194,11 +194,15 @@ function UsersSection({ idToken }: Props) {
                     className="admin-users-name-input"
                     placeholder="Enter a name"
                     value={nameDrafts[email] ?? name ?? ""}
-                    onChange={(e) => setNameDrafts((prev) => ({ ...prev, [email]: e.target.value }))}
+                    onChange={(e) =>
+                      setNameDrafts((prev) => ({ ...prev, [email]: e.target.value }))
+                    }
                     onBlur={() => saveName(email, name)}
                     onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                   />
-                  {invited_at && <div className="admin-users-invited">Joined {formatInvitedAt(invited_at)}</div>}
+                  {invited_at && (
+                    <div className="admin-users-invited">Joined {formatInvitedAt(invited_at)}</div>
+                  )}
                 </td>
                 <td>
                   {role === "admin" ? (
@@ -206,7 +210,9 @@ function UsersSection({ idToken }: Props) {
                   ) : (
                     <button
                       className="settings-access-role"
-                      onClick={() => (role === "user" ? setTesterRevertTarget(email) : setUserGrantTarget(email))}
+                      onClick={() =>
+                        role === "user" ? setTesterRevertTarget(email) : setUserGrantTarget(email)
+                      }
                       disabled={busy}
                       aria-pressed={role === "user"}
                     >
@@ -254,11 +260,15 @@ function UsersSection({ idToken }: Props) {
         </table>
       </div>
       <small className="settings-hint">
-        Everyone combined: {page.global.count} / {page.global.limit} — a shared daily ceiling on top of each user's
-        own, so it resets at midnight UTC.
+        Everyone combined: {page.global.count} / {page.global.limit} — a shared daily ceiling on top
+        of each user's own, so it resets at midnight UTC.
       </small>
       {wipeTarget && (
-        <WipeUserDialog email={wipeTarget} onConfirm={confirmWipe} onCancel={() => setWipeTarget(null)} />
+        <WipeUserDialog
+          email={wipeTarget}
+          onConfirm={confirmWipe}
+          onCancel={() => setWipeTarget(null)}
+        />
       )}
       {userGrantTarget && (
         <ConfirmDialog

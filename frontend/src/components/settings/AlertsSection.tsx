@@ -26,7 +26,9 @@ function AlertsSection({ idToken }: Props) {
     setBusy(true);
     setError(null);
     try {
-      setState(await setAlerts(idToken, { github_poll_alert_muted: !state.github_poll_alert_muted }));
+      setState(
+        await setAlerts(idToken, { github_poll_alert_muted: !state.github_poll_alert_muted }),
+      );
     } catch {
       setError("Couldn't change that.");
     }
@@ -38,8 +40,9 @@ function AlertsSection({ idToken }: Props) {
   return (
     <div className="settings-field">
       <HintLabel label="Alerts" variant="section">
-        A broken GitHub connection makes every poll cycle fail until someone reconnects it — this only controls
-        whether that also emails you (Cloud Monitoring), not whether it's logged or fixed.
+        A broken GitHub connection makes every poll cycle fail until someone reconnects it — this
+        only controls whether that also emails you (Cloud Monitoring), not whether it's logged or
+        fixed.
       </HintLabel>
       <label className="alerts-mute-row">
         <span>Mute GitHub polling failure emails</span>

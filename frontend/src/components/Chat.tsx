@@ -53,7 +53,12 @@ interface FactText {
 // What the model's propose_* tools return (agent/agent.py): nothing has been
 // changed — the button on the card is what does it.
 type Proposal =
-  | { proposal: "link"; kind: "github_repo" | "jira_project_key"; value: string; current: string | null }
+  | {
+      proposal: "link";
+      kind: "github_repo" | "jira_project_key";
+      value: string;
+      current: string | null;
+    }
   | { proposal: "fact_update"; fact_id: string; old: FactText; new: FactText }
   | { proposal: "fact_delete"; fact_id: string; old: FactText };
 
@@ -237,8 +242,15 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
           if (socketRef.current !== socket) return;
           attempt = 0;
           setConnected(true);
-        } else if (data.type === "tool_result" && PROPOSAL_TOOLS.includes(data.name) && data.result?.proposal) {
-          setMessages((prev) => [...prev, { role: "assistant", content: "", card: { proposal: data.result, status: "open" } }]);
+        } else if (
+          data.type === "tool_result" &&
+          PROPOSAL_TOOLS.includes(data.name) &&
+          data.result?.proposal
+        ) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: "", card: { proposal: data.result, status: "open" } },
+          ]);
         } else if (data.type === "tool_call" || data.type === "tool_result") {
           onEventRef.current?.(
             data.type === "tool_call"
@@ -250,7 +262,11 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
           // the user. Not sent to the Trace tab: it isn't a completed
           // tool call, and the backend already excludes ADK's synthetic
           // adk_request_confirmation call from tool_call/tool_result.
-          setPendingConfirmation({ toolName: data.tool_name, args: data.args, similar: data.similar ?? [] });
+          setPendingConfirmation({
+            toolName: data.tool_name,
+            args: data.args,
+            similar: data.similar ?? [],
+          });
         } else if (data.type === "final") {
           setMessages((prev) => [...prev, { role: "assistant", content: data.text }]);
           setIsThinking(false);
@@ -258,7 +274,10 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
         } else if (data.type === "error") {
           // The backend rejected the message or the agent failed — the
           // connection stays open, so just show why and stop "thinking".
-          setMessages((prev) => [...prev, { role: "assistant", content: data.message, isError: true }]);
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: data.message, isError: true },
+          ]);
           setIsThinking(false);
           setPendingConfirmation(null);
           onEventRef.current?.({ type: "failed" });
@@ -312,7 +331,13 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
 
   function sendMessage() {
     const question = input.trim();
-    if (!question || !tenantId || !!pendingConfirmation || socketRef.current?.readyState !== WebSocket.OPEN) return;
+    if (
+      !question ||
+      !tenantId ||
+      !!pendingConfirmation ||
+      socketRef.current?.readyState !== WebSocket.OPEN
+    )
+      return;
 
     setMessages((prev) => [...prev, { role: "user", content: question }]);
     setIsThinking(true);
@@ -330,7 +355,9 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
 
   function updateCard(index: number, changes: Partial<ProposalCard>) {
     setMessages((prev) =>
-      prev.map((msg, i) => (i === index && msg.card ? { ...msg, card: { ...msg.card, ...changes } } : msg)),
+      prev.map((msg, i) =>
+        i === index && msg.card ? { ...msg, card: { ...msg.card, ...changes } } : msg,
+      ),
     );
   }
 
@@ -345,12 +372,17 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
       updateCard(index, { status: "done" });
       onApplied?.();
     } catch (err) {
-      updateCard(index, { status: "open", error: err instanceof Error ? err.message : "Couldn't do that." });
+      updateCard(index, {
+        status: "open",
+        error: err instanceof Error ? err.message : "Couldn't do that.",
+      });
     }
   }
 
   function recall(direction: "up" | "down") {
-    const sent = recallableMessages(messages.filter((msg) => msg.role === "user").map((msg) => msg.content));
+    const sent = recallableMessages(
+      messages.filter((msg) => msg.role === "user").map((msg) => msg.content),
+    );
     if (recallIndex === null) draftRef.current = input;
     const result = step(direction, sent, recallIndex, draftRef.current);
     if (!result) return false;
@@ -390,7 +422,10 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
                 <div className="chat-proposal-outcome">Dismissed.</div>
               ) : (
                 <div className="chat-confirm-actions">
-                  <button onClick={() => updateCard(i, { status: "dismissed" })} disabled={msg.card.status === "applying"}>
+                  <button
+                    onClick={() => updateCard(i, { status: "dismissed" })}
+                    disabled={msg.card.status === "applying"}
+                  >
                     Dismiss
                   </button>
                   <button
@@ -404,19 +439,17 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
               )}
             </div>
           ) : (
-          <div key={i} className={`chat-bubble ${msg.role}${msg.isError ? " error" : ""}`}>
-            {msg.role === "assistant" && !msg.isError ? (
-              <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
-            ) : (
-              msg.content
-            )}
-          </div>
+            <div key={i} className={`chat-bubble ${msg.role}${msg.isError ? " error" : ""}`}>
+              {msg.role === "assistant" && !msg.isError ? (
+                <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
+              ) : (
+                msg.content
+              )}
+            </div>
           ),
         )}
 
-        {isThinking && !pendingConfirmation && (
-          <div className="chat-thinking">Thinking…</div>
-        )}
+        {isThinking && !pendingConfirmation && <div className="chat-thinking">Thinking…</div>}
 
         {pendingConfirmation && (
           <div className="chat-confirm">
@@ -495,13 +528,36 @@ function Chat({ idToken, tenantId, onEvent, onAuthFailed, onApplied }: Props) {
           title="Send"
           className="send-button"
         >
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <line x1="22" y1="2" x2="11" y2="13" />
             <polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>
         </button>
-        <button onClick={() => setConfirmingClear(true)} disabled={!connected} title="Clear chat" className="icon-button">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <button
+          onClick={() => setConfirmingClear(true)}
+          disabled={!connected}
+          title="Clear chat"
+          className="icon-button"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <polyline points="3 6 5 6 21 6" />
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
             <line x1="10" y1="11" x2="10" y2="17" />

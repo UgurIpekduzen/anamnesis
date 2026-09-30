@@ -7,7 +7,10 @@ import { FIXTURE_TURNS, LIVE_TURN_STEPS, fillerTurns } from "./traceFixtures";
 
 // Dev-only: the real Trace panel in the real sidebar styles,
 // filled from static data. No sign-in, no API, no model calls.
-type DemoAction = TraceAction | { type: "replace"; turns: TraceTurn[]; at: number } | { type: "append"; turns: TraceTurn[]; at: number };
+type DemoAction =
+  | TraceAction
+  | { type: "replace"; turns: TraceTurn[]; at: number }
+  | { type: "append"; turns: TraceTurn[]; at: number };
 
 function demoReducer(turns: TraceTurn[], action: DemoAction): TraceTurn[] {
   if (action.type === "replace") return action.turns;
@@ -27,7 +30,9 @@ function TraceDemo() {
     let elapsed = 0;
     for (const step of LIVE_TURN_STEPS) {
       elapsed += step.delayMs;
-      timers.current.push(window.setTimeout(() => dispatch({ ...step.event, at: Date.now() }), elapsed));
+      timers.current.push(
+        window.setTimeout(() => dispatch({ ...step.event, at: Date.now() }), elapsed),
+      );
     }
   }
 
@@ -55,7 +60,8 @@ function TraceDemo() {
         <div className="main-inner" style={{ gap: 16 }}>
           <h1>Trace demo</h1>
           <p style={{ color: "var(--text-muted)" }}>
-            Static data through the real reducer and panel (dev only). Nothing here calls the API or the model.
+            Static data through the real reducer and panel (dev only). Nothing here calls the API or
+            the model.
           </p>
 
           <label>
@@ -71,16 +77,25 @@ function TraceDemo() {
           </label>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={() => dispatch({ type: "replace", turns: FIXTURE_TURNS, at: 0 })}>Load fixtures</button>
+            <button onClick={() => dispatch({ type: "replace", turns: FIXTURE_TURNS, at: 0 })}>
+              Load fixtures
+            </button>
             <button onClick={replayLiveTurn}>Replay a live turn (~4.5 s)</button>
             <button onClick={addFiller}>Add 5 filler turns</button>
             <button onClick={() => dispatch({ type: "cleared", at: Date.now() })}>Clear</button>
           </div>
 
-          <ul style={{ color: "var(--text-muted)", fontSize: 14, lineHeight: 1.6, paddingLeft: 18 }}>
+          <ul
+            style={{ color: "var(--text-muted)", fontSize: 14, lineHeight: 1.6, paddingLeft: 18 }}
+          >
             <li>Newest turn on top and open; older turns are collapsed.</li>
-            <li>Turns cover: no tools, long table with timestamps, scalar result, same tool twice, nested args, error, failed, running.</li>
-            <li>Check scrolling with the filler turns, and the 20-turn cap by adding more than 20.</li>
+            <li>
+              Turns cover: no tools, long table with timestamps, scalar result, same tool twice,
+              nested args, error, failed, running.
+            </li>
+            <li>
+              Check scrolling with the filler turns, and the 20-turn cap by adding more than 20.
+            </li>
           </ul>
         </div>
       </main>

@@ -19,7 +19,12 @@ interface Props {
 function AdminDialog({ idToken, onClose }: Props) {
   return (
     <div className="settings-backdrop" onMouseDown={onClose}>
-      <div className="settings-dialog" role="dialog" aria-label="Admin" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="settings-dialog"
+        role="dialog"
+        aria-label="Admin"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="settings-header">
           <h2>Admin</h2>
           <button className="settings-close" onClick={onClose} aria-label="Close">

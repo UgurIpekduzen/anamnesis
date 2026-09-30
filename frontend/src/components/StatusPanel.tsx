@@ -54,8 +54,14 @@ function StatusPanel({ idToken, tenantId, refreshKey }: Props) {
 
 // What to say when there is nothing to list, and how to fix it.
 function Empty({ state, service, hint }: { state: string; service: string; hint: string }) {
-  if (state === "not_linked") return <p className="status-hint">No {service} linked. {hint}</p>;
-  if (state === "not_connected") return <p className="status-hint">Connect your {service} account in Settings.</p>;
+  if (state === "not_linked")
+    return (
+      <p className="status-hint">
+        No {service} linked. {hint}
+      </p>
+    );
+  if (state === "not_connected")
+    return <p className="status-hint">Connect your {service} account in Settings.</p>;
   return null;
 }
 
@@ -64,14 +70,20 @@ function JiraSection({ status }: { status: Loaded<JiraStatus> }) {
     <section className="status-section">
       <h3>
         Open Jira issues
-        {status !== "loading" && status.state === "ok" && <span className="status-scope"> · {status.project_key}</span>}
+        {status !== "loading" && status.state === "ok" && (
+          <span className="status-scope"> · {status.project_key}</span>
+        )}
       </h3>
       {status === "loading" ? (
         <p className="status-hint">Loading…</p>
       ) : status.state === "error" ? (
         <p className="status-error">{status.message}</p>
       ) : status.state !== "ok" ? (
-        <Empty state={status.state} service="Jira project" hint="Link one from the project card above." />
+        <Empty
+          state={status.state}
+          service="Jira project"
+          hint="Link one from the project card above."
+        />
       ) : status.issues.length === 0 ? (
         <p className="status-hint">Nothing open.</p>
       ) : (
@@ -87,7 +99,11 @@ function JiraSection({ status }: { status: Loaded<JiraStatus> }) {
               </li>
             ))}
           </ul>
-          {status.truncated && <p className="status-hint">More are open than shown (the most recently updated first).</p>}
+          {status.truncated && (
+            <p className="status-hint">
+              More are open than shown (the most recently updated first).
+            </p>
+          )}
         </>
       )}
     </section>
@@ -121,14 +137,20 @@ function GithubSection({ status }: { status: Loaded<GithubStatus> }) {
     <section className="status-section">
       <h3>
         Open on GitHub
-        {status !== "loading" && status.state === "ok" && <span className="status-scope"> · {status.repo}</span>}
+        {status !== "loading" && status.state === "ok" && (
+          <span className="status-scope"> · {status.repo}</span>
+        )}
       </h3>
       {status === "loading" ? (
         <p className="status-hint">Loading…</p>
       ) : status.state === "error" ? (
         <p className="status-error">{status.message}</p>
       ) : status.state !== "ok" ? (
-        <Empty state={status.state} service="GitHub repo" hint="Link one from the project card above." />
+        <Empty
+          state={status.state}
+          service="GitHub repo"
+          hint="Link one from the project card above."
+        />
       ) : (
         <>
           <GithubList title="Pull requests" items={status.pull_requests} />

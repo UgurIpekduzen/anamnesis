@@ -25,7 +25,10 @@ export async function getAllowedEmails(idToken: string): Promise<AllowedEmails |
   return res.json();
 }
 
-export async function addAllowedEmail(idToken: string, email: string): Promise<{ extra_users: AllowedEmails["extra_users"] }> {
+export async function addAllowedEmail(
+  idToken: string,
+  email: string,
+): Promise<{ extra_users: AllowedEmails["extra_users"] }> {
   const res = await fetch(`${API_BASE}/admin/allowed_emails`, {
     method: "POST",
     headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
@@ -38,7 +41,10 @@ export async function addAllowedEmail(idToken: string, email: string): Promise<{
   return res.json();
 }
 
-export async function removeAllowedEmail(idToken: string, email: string): Promise<{ extra_users: AllowedEmails["extra_users"] }> {
+export async function removeAllowedEmail(
+  idToken: string,
+  email: string,
+): Promise<{ extra_users: AllowedEmails["extra_users"] }> {
   const res = await fetch(`${API_BASE}/admin/allowed_emails/${encodeURIComponent(email)}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${idToken}` },
@@ -159,7 +165,11 @@ export async function listUsers(
 
 // A label the owner chooses for an email — never captured from the user's
 // own Google account. An empty string clears a name set by mistake.
-export async function setUserName(idToken: string, email: string, name: string): Promise<{ name: string | null }> {
+export async function setUserName(
+  idToken: string,
+  email: string,
+  name: string,
+): Promise<{ name: string | null }> {
   const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(email)}/name`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },

@@ -24,7 +24,14 @@ function decodeClaims(idToken: string): TokenClaims {
   return JSON.parse(atob(idToken.split(".")[1]));
 }
 
-function AccountMenu({ idToken, onOpenSettings, onSignOut, onChangeAccount, isOwner, onOpenAdmin }: Props) {
+function AccountMenu({
+  idToken,
+  onOpenSettings,
+  onSignOut,
+  onChangeAccount,
+  isOwner,
+  onOpenAdmin,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);

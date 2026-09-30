@@ -37,14 +37,21 @@ function CategoriesSection({ idToken }: Props) {
 
   async function add(category: string) {
     if (!settings) return;
-    const ok = await apply(() => saveCategories(idToken, [...settings.categories, category]), "Couldn't add it.");
+    const ok = await apply(
+      () => saveCategories(idToken, [...settings.categories, category]),
+      "Couldn't add it.",
+    );
     if (ok) setName("");
   }
 
   function remove(category: string) {
     if (!settings) return;
     apply(
-      () => saveCategories(idToken, settings.categories.filter((c) => c !== category)),
+      () =>
+        saveCategories(
+          idToken,
+          settings.categories.filter((c) => c !== category),
+        ),
       "Couldn't remove it.",
     );
   }
@@ -87,7 +94,12 @@ function CategoriesSection({ idToken }: Props) {
           {suggestedToAdd.length > 0 && (
             <div className="category-chips">
               {suggestedToAdd.map((c) => (
-                <button key={c} className="category-suggested" onClick={() => add(c)} disabled={full || busy}>
+                <button
+                  key={c}
+                  className="category-suggested"
+                  onClick={() => add(c)}
+                  disabled={full || busy}
+                >
                   + {c}
                 </button>
               ))}
@@ -97,12 +109,20 @@ function CategoriesSection({ idToken }: Props) {
             {error ||
               `Up to ${settings.max}. Removing one keeps its facts; they stay listed under the old name.`}
           </small>
-          <button onClick={() => apply(() => resetCategories(idToken), "Couldn't reset.")} disabled={!settings.customized || busy}>
+          <button
+            onClick={() => apply(() => resetCategories(idToken), "Couldn't reset.")}
+            disabled={!settings.customized || busy}
+          >
             Reset to suggested
           </button>
         </>
       )}
-      {!settings && (error ? <small className="settings-hint invalid">{error}</small> : <small className="settings-hint">Loading…</small>)}
+      {!settings &&
+        (error ? (
+          <small className="settings-hint invalid">{error}</small>
+        ) : (
+          <small className="settings-hint">Loading…</small>
+        ))}
     </div>
   );
 }
