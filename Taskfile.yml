@@ -149,6 +149,16 @@ tasks:
     cmds:
       - docker compose run --rm uv run pytest test/ --ignore=test/integration {{.CLI_ARGS}}
 
+  py:lint:
+    desc: Lint the Python code (ruff) — task py:lint -- --fix
+    cmds:
+      - docker compose run --rm --entrypoint sh -e HOME=/tmp uv -c "uvx ruff check {{.CLI_ARGS}} ."
+
+  py:format:
+    desc: Reformat the Python code (ruff format)
+    cmds:
+      - docker compose run --rm --entrypoint sh -e HOME=/tmp uv -c "uvx ruff format ."
+
   emulators:up:
     desc: Start the Firestore and Pub/Sub emulators in the background
     cmds:
