@@ -7,6 +7,8 @@ interface Props {
   idToken: string;
 }
 
+// The signed-in user's own Jira connection: connect with an API token, or
+// disconnect.
 function JiraSection({ idToken }: Props) {
   const [jira, setJira] = useState<JiraConnection | null>(null);
   const [jiraEmail, setJiraEmail] = useState("");

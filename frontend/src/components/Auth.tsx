@@ -7,6 +7,8 @@ interface Props {
   ready: boolean;
 }
 
+// Renders the Google Sign-In button into an otherwise-empty div; GIS itself
+// owns everything inside once rendered.
 function Auth({ ready }: Props) {
   const buttonRef = useRef<HTMLDivElement>(null);
 

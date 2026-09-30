@@ -1,5 +1,7 @@
 import { API_BASE } from "./client";
 
+// Owner-only admin calls: who may sign in, their role, and shared settings.
+
 // "admin" is the owner (from Terraform), never settable here. An invited
 // email is "user" (exempt from the tester lifetime message cap)
 // or "tester" (the default).

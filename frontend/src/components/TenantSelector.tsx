@@ -19,6 +19,8 @@ interface Props {
   onChanged: (newlySelectedId?: string) => void;
 }
 
+// The sidebar's project dropdown, plus inline create/rename/delete —
+// project lifecycle lives here, not in chat (see the onChanged prop above).
 function TenantSelector({ idToken, tenants, selectedId, onSelect, error, onRetry, onChanged }: Props) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");

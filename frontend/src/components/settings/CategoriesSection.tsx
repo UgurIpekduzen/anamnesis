@@ -6,6 +6,8 @@ interface Props {
   idToken: string;
 }
 
+// The signed-in user's own fact categories — add/remove chips, each change
+// saved immediately, no separate Save button.
 function CategoriesSection({ idToken }: Props) {
   const [settings, setSettings] = useState<CategorySettings | null>(null);
   const [name, setName] = useState("");

@@ -7,6 +7,8 @@ interface Props {
   idToken: string;
 }
 
+// The signed-in user's own GitHub connection: connect with a fine-grained
+// PAT, or disconnect.
 function GithubSection({ idToken }: Props) {
   const [github, setGithub] = useState<GithubConnection | null>(null);
   const [githubToken, setGithubToken] = useState("");
