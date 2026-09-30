@@ -81,7 +81,7 @@ tasks:
 
   alert:test:
     aliases: [at]
-    desc: Write a fake ERROR log line so an alert policy fires and mails the owner (APPCE-109) — task alert:test [EVENT=agent_call_failed|github_poll]
+    desc: Write a fake ERROR log line so an alert policy fires and mails the owner — task alert:test [EVENT=agent_call_failed|github_poll]
     vars:
       EVENT: '{{.EVENT | default "agent_call_failed"}}'
     requires:
@@ -101,7 +101,7 @@ tasks:
         echo "No mail? A policy mails at most once an hour and stays open for 30 minutes after the last matching line."
 
   uv:lock:
-    desc: Re-resolve pyproject.toml into uv.lock without upgrading anything already locked (uv runs in Docker, APPCE-96)
+    desc: Re-resolve pyproject.toml into uv.lock without upgrading anything already locked (uv runs in Docker)
     cmds:
       - docker compose run --rm uv lock
 
@@ -144,7 +144,7 @@ tasks:
       - docker compose down firestore-emulator pubsub-emulator
 
   local:up:
-    desc: Run the app on the emulators, not real GCP (APPCE-120) — then load a copy of the data with task db:load -- backups/<file>.json
+    desc: Run the app on the emulators, not real GCP — then load a copy of the data with task db:load -- backups/<file>.json
     cmds:
       - docker compose up -d firestore-emulator pubsub-emulator
       - until curl -s -o /dev/null localhost:8085 && curl -s -o /dev/null localhost:8080; do sleep 1; done
@@ -219,7 +219,7 @@ tasks:
 
   api:up:
     aliases: [up]
-    desc: Run the FastAPI backend in the background (APPCE-53)
+    desc: Run the FastAPI backend in the background
     cmds:
       # The API's code is baked into its image (no bind mount), so without
       # --build a restart quietly keeps running the previous code. Docker's
@@ -238,7 +238,7 @@ tasks:
       - docker compose down api
 
   frontend:up:
-    desc: Run the React dev server in the background (APPCE-52)
+    desc: Run the React dev server in the background
     cmds:
       - docker compose up -d frontend
 
@@ -253,7 +253,7 @@ tasks:
       - docker compose exec -T frontend npx tsc -b
 
   frontend:test:
-    desc: Run the frontend test suite (Vitest) in a one-off container (APPCE-127) — task frontend:test -- <vitest args>
+    desc: Run the frontend test suite (Vitest) in a one-off container — task frontend:test -- <vitest args>
     cmds:
       - docker compose run --rm frontend npx vitest run {{.CLI_ARGS}}
 
@@ -326,13 +326,13 @@ tasks:
       - docker compose run --rm gcloud secrets versions access latest --secret={{.KEY_SECRET}}
 
   secrets:github-key:rotate:
-    desc: Start a key rotation (APPCE-103) — put a new key in front of the current one, so new tokens use it and old ones stay readable. Then run, in order, reload, reencrypt and retire. SECRET=<name> targets another secret, for a rehearsal only.
+    desc: Start a key rotation — put a new key in front of the current one, so new tokens use it and old ones stay readable. Then run, in order, reload, reencrypt and retire. SECRET=<name> targets another secret, for a rehearsal only.
     vars:
       SECRET: '{{.SECRET | default .KEY_SECRET}}'
     cmds:
       - |
         # The app must already be running code that can read a list of keys
-        # (APPCE-103): an older one reads "new,old" as a single, invalid key
+        # an older one reads "new,old" as a single, invalid key
         # and fails on the first token. Refuse to start unless the deployed
         # image was built from a commit that contains that change.
         DEPLOYED=$(docker compose run --rm -T gcloud run services describe {{.APP_SERVICE}} --region={{.REGION}} --format="value(spec.template.spec.containers[0].image)" | tr -d '\r\n' | sed 's/.*://')

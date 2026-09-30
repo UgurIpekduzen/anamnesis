@@ -6,7 +6,7 @@ on:
       - main
 
 # Read-only by default; only the deploy job below is granted id-token, the
-# right to mint a Google credential (APPCE-100).
+# right to mint a Google credential.
 permissions:
   contents: read
 
@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v5
 
       # uv installs from uv.lock exactly (--frozen), so a merge never deploys
-      # whatever happens to be the newest release that day (APPCE-96).
+      # whatever happens to be the newest release that day.
       - uses: astral-sh/setup-uv@v7
         with:
           version: "0.9.30"

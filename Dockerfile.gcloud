@@ -1,3 +1,7 @@
+# The dockerized gcloud CLI used by every `task gcloud -- ...`/`task tf:*`
+# command (see docker-compose.yml's gcloud service) — no host install of
+# gcloud is required. The base slim image doesn't include
+# google-cloud-cli-cloud-run-proxy, so it's added explicitly.
 FROM gcr.io/google.com/cloudsdktool/cloud-sdk:slim
 
 RUN apt-get update && apt-get install -y google-cloud-cli-cloud-run-proxy && rm -rf /var/lib/apt/lists/*
