@@ -26,13 +26,23 @@ jobs:
 
       - name: Start Firestore and Pub/Sub emulators
         run: |
-          docker run -d --name firestore-emulator -p 8080:8080 gcr.io/google.com/cloudsdktool/cloud-sdk:emulators gcloud emulators firestore start --host-port=0.0.0.0:8080
-          docker run -d --name pubsub-emulator -p 8085:8085 gcr.io/google.com/cloudsdktool/cloud-sdk:emulators gcloud beta emulators pubsub start --project=anamnesis-local --host-port=0.0.0.0:8085
+          docker run -d --name firestore-emulator -p 8080:8080 \
+            gcr.io/google.com/cloudsdktool/cloud-sdk:emulators \
+            gcloud emulators firestore start --host-port=0.0.0.0:8080
+          docker run -d --name pubsub-emulator -p 8085:8085 \
+            gcr.io/google.com/cloudsdktool/cloud-sdk:emulators \
+            gcloud beta emulators pubsub start --project=anamnesis-local --host-port=0.0.0.0:8085
 
       - name: Wait for emulators to be ready
         run: |
-          for i in $(seq 1 30); do (echo > /dev/tcp/localhost/8080) 2>/dev/null && break; sleep 1; done
-          for i in $(seq 1 30); do (echo > /dev/tcp/localhost/8085) 2>/dev/null && break; sleep 1; done
+          for i in $(seq 1 30); do
+            (echo > /dev/tcp/localhost/8080) 2>/dev/null && break
+            sleep 1
+          done
+          for i in $(seq 1 30); do
+            (echo > /dev/tcp/localhost/8085) 2>/dev/null && break
+            sleep 1
+          done
 
       - name: Run tests
         env:

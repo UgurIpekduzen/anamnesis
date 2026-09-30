@@ -44,6 +44,11 @@ tasks:
     cmds:
       - docker compose run --rm hadolint Dockerfile Dockerfile.app Dockerfile.gcloud frontend/Dockerfile
 
+  yaml:lint:
+    desc: Lint every YAML file (yamllint) — compose files, GitHub Actions workflows, dependabot.yml
+    cmds:
+      - docker compose run --rm yamllint .
+
   tf:apply:
     aliases: [ta]
     desc: Apply Terraform without asking for confirmation, defaulting image_tag to whatever is currently deployed (unless TF_VAR_image_tag is already set) — run task tf:plan first

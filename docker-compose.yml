@@ -42,6 +42,17 @@ services:
       - .:/work:ro
     entrypoint: ["hadolint"]
 
+  yamllint:
+    # Style linter for every YAML file here — the compose files
+    # themselves, GitHub Actions workflows, dependabot.yml — `docker
+    # compose config`/GitHub's own parser only check that they're valid,
+    # not consistently styled.
+    image: cytopia/yamllint:latest
+    working_dir: /work
+    volumes:
+      - .:/work:ro
+    entrypoint: ["yamllint"]
+
   uv:
     # uv runs in a container like gcloud/terraform above — nothing is
     # installed on the host. The environment is built inside the
@@ -84,7 +95,7 @@ services:
       GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-us-central1}
       # Not a secret — a Google OAuth client ID is meant to be public,
       # it's embedded in the frontend's JS bundle too.
-      GOOGLE_OAUTH_CLIENT_ID: 430288501339-aiifao42l0fp6qirm2kiluh8fv4qfb3k.apps.googleusercontent.com
+      GOOGLE_OAUTH_CLIENT_ID: 430288501339-aiifao42l0fp6qirm2kiluh8fv4qfb3k.apps.googleusercontent.com  # yamllint disable-line rule:line-length
       # Who may sign in locally, from .env (see .env.example). Empty means
       # nobody can.
       ALLOWED_EMAILS: ${ALLOWED_EMAILS:-}
