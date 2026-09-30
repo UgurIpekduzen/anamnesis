@@ -2,6 +2,11 @@ import type { TraceCall, TraceTurn } from "../trace";
 import { describeArgs, describeResult, prettyJson } from "../traceView";
 import "./TracePanel.css";
 
+// Sidebar "Trace" tab: a debug view of the agent's tool calls per chat turn
+// (arguments, results, timing), built from the ChatEvent stream App.tsx
+// collects — not something an end user needs, but useful for seeing what
+// the agent actually did.
+
 interface Props {
   turns: TraceTurn[];
 }

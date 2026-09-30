@@ -18,6 +18,8 @@ interface TokenClaims {
   picture?: string;
 }
 
+// Reads the JWT payload for display only (email, avatar) — no signature
+// check here, since the server is what actually verifies the token.
 function decodeClaims(idToken: string): TokenClaims {
   return JSON.parse(atob(idToken.split(".")[1]));
 }

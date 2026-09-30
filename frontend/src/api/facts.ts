@@ -1,5 +1,8 @@
 import { API_BASE } from "./client";
 
+// Two distinct concepts live here: approved facts (Fact, already part of a
+// project's remembered context) and pending facts (PendingFact, candidates
+// staged for the owner to review before they become real facts).
 export interface Fact {
   fact_id: string;
   content: string;

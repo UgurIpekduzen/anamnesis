@@ -1,3 +1,8 @@
+// Root component: owns auth state, the selected tenant, and the sidebar/
+// dialog wiring that every other component plugs into. Anything that needs
+// to be shared across the chat, the sidebar tabs and the dialogs (the ID
+// token, refresh keys, the trace log) lives here rather than in a context,
+// since the tree is shallow enough that prop drilling stays readable.
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import "./App.css";

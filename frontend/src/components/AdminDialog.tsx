@@ -13,6 +13,9 @@ interface Props {
   onClose: () => void;
 }
 
+// This component trusts its caller to gate access: it renders unconditionally
+// once mounted, so App.tsx only ever mounts it after AccountMenu has already
+// checked isOwner.
 function AdminDialog({ idToken, onClose }: Props) {
   return (
     <div className="settings-backdrop" onMouseDown={onClose}>

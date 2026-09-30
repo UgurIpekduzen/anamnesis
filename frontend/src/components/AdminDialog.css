@@ -84,9 +84,9 @@
   width: 100%;
 }
 
-/* A fixed-height, independently scrolling area (APPCE-126) — without it,
-   an invited list long enough to need scrolling would instead push the
-   rest of the dialog (Message settings, Close) down and out of view. */
+/* A fixed-height, independently scrolling area — without it, an invited
+   list long enough to need scrolling would instead push the rest of the
+   dialog (Message settings, Close) down and out of view. */
 .admin-users-table-wrap {
   max-height: 220px;
   overflow-y: auto;

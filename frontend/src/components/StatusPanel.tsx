@@ -9,6 +9,9 @@ import {
 } from "../api";
 import "./StatusPanel.css";
 
+// Sidebar "Status" tab content: read-only snapshot of the selected project's
+// open Jira issues and GitHub pull requests/issues.
+
 interface Props {
   idToken: string;
   tenantId: string;

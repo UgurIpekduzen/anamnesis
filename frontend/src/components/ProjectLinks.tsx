@@ -4,6 +4,10 @@ import { setTenantLink, type JiraConnection, type Tenant } from "../api";
 import ConfirmDialog from "./ConfirmDialog";
 import "./ProjectLinks.css";
 
+// Sidebar card, shown above the tabs, for viewing and editing the selected
+// project's GitHub repo / Jira project key links (the Row component below
+// handles both, in place, with its own edit/unlink affordances).
+
 interface Props {
   idToken: string;
   tenant: Tenant;
