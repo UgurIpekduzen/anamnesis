@@ -11,8 +11,18 @@ resource "google_project_iam_member" "agent_firestore" {
   member  = "serviceAccount:${google_service_account.agent_sa.email}"
 }
 
+# Every other API this project uses is enabled here in Terraform (see
+# firestore.tf, pubsub.tf, cloud_run.tf...) — Vertex AI is no exception,
+# so a fresh `terraform apply` never needs a separate manual
+# `gcloud services enable` step the README would otherwise have to
+# document and someone could forget.
+resource "google_project_service" "aiplatform" {
+  service = "aiplatform.googleapis.com"
+}
+
 resource "google_project_iam_member" "agent_vertexai" {
-  project = var.project_id
-  role    = "roles/aiplatform.user"
-  member  = "serviceAccount:${google_service_account.agent_sa.email}"
+  project    = var.project_id
+  role       = "roles/aiplatform.user"
+  member     = "serviceAccount:${google_service_account.agent_sa.email}"
+  depends_on = [google_project_service.aiplatform]
 }
