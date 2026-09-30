@@ -137,6 +137,11 @@ services:
     build:
       context: ./frontend
     restart: unless-stopped
+    # Runs as the invoking user (same pattern as the uv service above) —
+    # without this, npm install/vite write into the bind-mounted src/ and
+    # package-lock.json as the container's root, leaving files the host
+    # user can't touch again without sudo (hit for real once already).
+    user: "${UV_UID:-1000}:${UV_GID:-1000}"
     ports:
       - "5173:5173"
     volumes:

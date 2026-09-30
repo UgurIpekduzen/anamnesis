@@ -9,6 +9,12 @@ vars:
   KEY_SECRET: github-token-encryption-key
 
 tasks:
+  compose:check:
+    desc: Validate docker-compose.yml, and its docker-compose.local.yml overlay, syntax only — no containers started
+    cmds:
+      - docker compose config --quiet
+      - docker compose -f docker-compose.yml -f docker-compose.local.yml config --quiet
+
   tf:init:
     cmds:
       - docker compose run --rm terraform init
@@ -195,6 +201,7 @@ tasks:
   db:load:
     desc: Load a dump into the Firestore EMULATOR (never the real database) — task db:load -- backups/<file>.json
     cmds:
+      - mkdir -p backups
       - docker compose up -d firestore-emulator
       - docker compose build -q api
       - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.tools.db_backup load {{.CLI_ARGS}}
@@ -204,6 +211,7 @@ tasks:
     cmds:
       # A stopped emulator would be started empty and reported as "everything missing": refuse instead.
       - docker compose ps --status running -q firestore-emulator | grep -q . || { echo "The Firestore emulator isn't running (task local:up)."; exit 1; }
+      - mkdir -p backups
       - docker compose build -q api
       - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.tools.db_backup verify {{.CLI_ARGS}}
 
@@ -219,6 +227,7 @@ tasks:
   db:restore:
     desc: Show what writing a dump into the REAL database would change; write it only with -- backups/<file>.json --confirm-project <project id>
     cmds:
+      - mkdir -p backups
       - docker compose build -q api
       - docker compose run --rm -v "$PWD/backups:/app/backups" api python -m src.tools.db_backup restore {{.CLI_ARGS}}
 
@@ -262,6 +271,17 @@ tasks:
     desc: Stop the FastAPI backend
     cmds:
       - docker compose down api
+
+  frontend:build:
+    desc: Rebuild the frontend image — needed after editing frontend/Dockerfile or frontend/package.json (frontend:up/test/lint don't rebuild on their own)
+    cmds:
+      - docker compose build frontend
+
+  frontend:install:
+    desc: Install/update a frontend dependency and refresh package-lock.json, then rebuild the image — task frontend:install -- <package>
+    cmds:
+      - docker compose run --rm frontend npm install {{.CLI_ARGS}}
+      - task: frontend:build
 
   frontend:up:
     desc: Run the React dev server in the background
