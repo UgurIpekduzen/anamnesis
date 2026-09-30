@@ -19,6 +19,29 @@ services:
       - ~/.config/gcloud:/root/.config/gcloud:ro
     entrypoint: ["terraform"]
 
+  tflint:
+    # Style/correctness linter fmt/validate don't cover: naming
+    # convention, unused declarations, provider-specific best practices
+    # (via the google ruleset plugin below).
+    image: ghcr.io/terraform-linters/tflint:latest
+    working_dir: /data
+    volumes:
+      - ./terraform:/data
+      # Plugin binaries tflint --init downloads, cached across runs so
+      # every `task tf:lint` doesn't re-fetch the google ruleset.
+      - tflint_plugins:/root/.tflint.d/plugins
+    entrypoint: ["tflint"]
+
+  hadolint:
+    # Dockerfile best-practice linter — cache-busting apt-get patterns,
+    # missing version pins, pointless layers, none of which `docker build`
+    # itself catches.
+    image: hadolint/hadolint:latest
+    working_dir: /work
+    volumes:
+      - .:/work:ro
+    entrypoint: ["hadolint"]
+
   uv:
     # uv runs in a container like gcloud/terraform above — nothing is
     # installed on the host. The environment is built inside the
@@ -143,3 +166,6 @@ services:
       # without rebuilding the image.
       - ./agent:/app/agent
       - ./src:/app/src
+
+volumes:
+  tflint_plugins:

@@ -34,6 +34,8 @@ ENV PYTHONUNBUFFERED=1
 # with root in the container. /app stays root-owned and read-only for this
 # user.
 RUN useradd --system --no-create-home --uid 10001 app
-USER app
+# The numeric id, not the name: some container runtimes (Cloud Run
+# included) check USER against a numeric uid, not /etc/passwd.
+USER 10001
 
 CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

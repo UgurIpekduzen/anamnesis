@@ -4,6 +4,12 @@
 # google-cloud-cli-cloud-run-proxy, so it's added explicitly.
 FROM gcr.io/google.com/cloudsdktool/cloud-sdk:slim
 
-RUN apt-get update && apt-get install -y google-cloud-cli-cloud-run-proxy && rm -rf /var/lib/apt/lists/*
+# DL3008 (pin apt versions) skipped on purpose: the base image tag itself
+# floats (:slim, not a digest), and Google's own apt repo only keeps a
+# short rolling window of recent releases, so a pinned version here would
+# go stale and start failing the build within weeks for no real
+# reproducibility gain.
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends google-cloud-cli-cloud-run-proxy && rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["gcloud"]

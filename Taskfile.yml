@@ -33,6 +33,17 @@ tasks:
     cmds:
       - docker compose run --rm terraform plan
 
+  tf:lint:
+    desc: Lint the Terraform files (tflint) — naming, unused declarations, provider best practices that fmt/validate don't cover
+    cmds:
+      - docker compose run --rm tflint --init
+      - docker compose run --rm tflint --recursive
+
+  docker:lint:
+    desc: Lint every Dockerfile (hadolint) — cache-busting, version pinning and other best practices `docker build` doesn't check
+    cmds:
+      - docker compose run --rm hadolint Dockerfile Dockerfile.app Dockerfile.gcloud frontend/Dockerfile
+
   tf:apply:
     aliases: [ta]
     desc: Apply Terraform without asking for confirmation, defaulting image_tag to whatever is currently deployed (unless TF_VAR_image_tag is already set) — run task tf:plan first
