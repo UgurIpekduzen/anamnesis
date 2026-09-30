@@ -175,6 +175,26 @@ tasks:
     cmds:
       - docker compose down firestore-emulator pubsub-emulator
 
+  env:init:
+    desc: Create .env (and .env.production, if present) from their .example files if missing, and lock permissions to you only — both hold real secrets/project info in plain text
+    cmds:
+      - test -f .env || cp .env.example .env
+      - chmod 600 .env
+      - test -f .env.production || cp .env.production.example .env.production
+      - chmod 600 .env.production
+
+  dev:up:
+    desc: One-shot local dev setup — .env, encryption key, emulators, api, subscriber, frontend
+    cmds:
+      - task: env:init
+      - |
+        if ! grep -q "GITHUB_TOKEN_ENCRYPTION_KEY=." .env; then
+          KEY=$(docker compose run --rm gcloud secrets versions access latest --secret={{.KEY_SECRET}})
+          sed -i "s|^GITHUB_TOKEN_ENCRYPTION_KEY=.*|GITHUB_TOKEN_ENCRYPTION_KEY=$KEY|" .env
+        fi
+      - task: local:up
+      - task: frontend:up
+
   local:up:
     desc: Run the app on the emulators, not real GCP — then load a copy of the data with task db:load -- backups/<file>.json
     cmds:
