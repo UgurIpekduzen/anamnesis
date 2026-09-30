@@ -145,7 +145,9 @@ def chat(monkeypatch, spies):
 
     async def fake_restore(runner_, owner_uid, session_id, load_turns):
         """Record the restore call's arguments and report that nothing was restored."""
-        spies.restores.append({"owner": owner_uid, "session_id": session_id, "load_turns": load_turns})
+        spies.restores.append(
+            {"owner": owner_uid, "session_id": session_id, "load_turns": load_turns}
+        )
         return False
 
     def fake_load(tenant_id, owner_uid, limit):
@@ -155,13 +157,19 @@ def chat(monkeypatch, spies):
 
     monkeypatch.setattr(chat_router, "restore_session", fake_restore)
     monkeypatch.setattr(chat_router, "load_recent_turns", fake_load)
-    monkeypatch.setattr(chat_router, "append_turn", lambda t, o, q, a: spies.saved.append((t, o, q, a)))
+    monkeypatch.setattr(
+        chat_router, "append_turn", lambda t, o, q, a: spies.saved.append((t, o, q, a))
+    )
     monkeypatch.setattr(chat_router, "clear_turns", lambda t, o: spies.cleared.append((t, o)))
     monkeypatch.setattr(
-        chat_router, "get_settings", lambda: {"history_turns": 7, "daily_message_warning_threshold": 100}
+        chat_router,
+        "get_settings",
+        lambda: {"history_turns": 7, "daily_message_warning_threshold": 100},
     )
     monkeypatch.setattr(chat_router, "verify_token", lambda token: OWNER)
-    monkeypatch.setattr(chat_router, "get_owned_tenant", lambda tenant_id, owner_uid: {"name": "Some Tenant"})
+    monkeypatch.setattr(
+        chat_router, "get_owned_tenant", lambda tenant_id, owner_uid: {"name": "Some Tenant"}
+    )
     monkeypatch.setattr(chat_router, "get_runner", lambda owner_uid, tenant_id: runner)
     monkeypatch.setattr(chat_router, "record_message", lambda owner_uid: recorded.append(owner_uid))
     # A publish_fact confirmation looks for duplicates among the saved facts.
@@ -316,11 +324,23 @@ def test_tool_events_carry_ids_so_results_can_be_paired_with_their_calls():
     """_event_to_messages turns a function call and its response into a tool_call/tool_result pair sharing the same id."""
     call = SimpleNamespace(id="call-1", name="get_tenant_facts", args={"tenant_id": "t"})
     result = SimpleNamespace(id="call-1", name="get_tenant_facts", response={"result": []})
-    event = SimpleNamespace(get_function_calls=lambda: [call], get_function_responses=lambda: [result])
+    event = SimpleNamespace(
+        get_function_calls=lambda: [call], get_function_responses=lambda: [result]
+    )
 
     assert chat_router._event_to_messages(event) == [
-        {"type": "tool_call", "id": "call-1", "name": "get_tenant_facts", "args": {"tenant_id": "t"}},
-        {"type": "tool_result", "id": "call-1", "name": "get_tenant_facts", "result": {"result": []}},
+        {
+            "type": "tool_call",
+            "id": "call-1",
+            "name": "get_tenant_facts",
+            "args": {"tenant_id": "t"},
+        },
+        {
+            "type": "tool_result",
+            "id": "call-1",
+            "name": "get_tenant_facts",
+            "result": {"result": []},
+        },
     ]
 
 
@@ -636,6 +656,7 @@ def test_usage_save_and_clear_run_off_the_event_loop_thread(chat, monkeypatch):
 
     def note(name):
         """Return a fake that records the calling thread's id under name."""
+
         def fake(*args):
             """Record the calling thread's id under the enclosing name."""
             threads[name] = threading.get_ident()
@@ -717,7 +738,9 @@ def test_a_chat_message_before_authenticating_is_refused(chat):
     assert recorded == []
 
 
-@pytest.mark.parametrize("frame", [{"type": "auth"}, {"type": "auth", "token": ""}, {"type": "auth", "token": 5}, ["x"]])
+@pytest.mark.parametrize(
+    "frame", [{"type": "auth"}, {"type": "auth", "token": ""}, {"type": "auth", "token": 5}, ["x"]]
+)
 def test_a_malformed_auth_frame_is_refused(chat, frame):
     """A missing, empty, non-string, or non-dict auth frame closes the socket with policy violation 1008."""
     client, runner, _ = chat
@@ -801,7 +824,11 @@ def test_a_fact_that_is_already_saved_is_flagged_on_its_confirmation(chat, monke
     ]
     monkeypatch.setattr(chat_router, "get_tenant_facts", lambda tenant_id, owner_uid: saved)
     runner.script = [
-        [FakeConfirmationEvent("req-1", "publish_fact", {"content": "uses postgresql.", "category": "decision"})]
+        [
+            FakeConfirmationEvent(
+                "req-1", "publish_fact", {"content": "uses postgresql.", "category": "decision"}
+            )
+        ]
     ]
 
     with open_chat(client) as ws:
@@ -809,14 +836,20 @@ def test_a_fact_that_is_already_saved_is_flagged_on_its_confirmation(chat, monke
         frame = ws.receive_json()
 
     assert frame["type"] == "confirm_required"
-    assert frame["similar"] == [{"fact_id": "f1", "content": "Uses PostgreSQL", "category": "architecture"}]
+    assert frame["similar"] == [
+        {"fact_id": "f1", "content": "Uses PostgreSQL", "category": "architecture"}
+    ]
 
 
 def test_a_new_fact_gets_an_empty_similar_list_and_other_tools_get_none(chat):
     """A publish_fact confirmation for a genuinely new fact gets an empty similar list."""
     client, runner, _ = chat
     runner.script = [
-        [FakeConfirmationEvent("req-1", "publish_fact", {"content": "Brand new", "category": "todo"})],
+        [
+            FakeConfirmationEvent(
+                "req-1", "publish_fact", {"content": "Brand new", "category": "todo"}
+            )
+        ],
     ]
     with open_chat(client) as ws:
         ws.send_json({"message": "remember it"})
@@ -832,7 +865,9 @@ def test_a_failed_duplicate_lookup_does_not_block_the_confirmation(chat, monkeyp
         raise RuntimeError("Firestore unavailable")
 
     monkeypatch.setattr(chat_router, "get_tenant_facts", down)
-    runner.script = [[FakeConfirmationEvent("req-1", "publish_fact", {"content": "x", "category": "todo"})]]
+    runner.script = [
+        [FakeConfirmationEvent("req-1", "publish_fact", {"content": "x", "category": "todo"})]
+    ]
 
     with open_chat(client) as ws:
         ws.send_json({"message": "remember it"})

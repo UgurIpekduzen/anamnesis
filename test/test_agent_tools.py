@@ -9,7 +9,9 @@ from src.facts.categories import InvalidCategory
 @pytest.fixture(autouse=True)
 def _suggested_categories(monkeypatch):
     # The instruction reads the user's list from Firestore; no test here needs it.
-    monkeypatch.setattr(agent_module, "get_categories", lambda owner_uid: ["architecture", "decision", "risk"])
+    monkeypatch.setattr(
+        agent_module, "get_categories", lambda owner_uid: ["architecture", "decision", "risk"]
+    )
 
 
 def _instruction(built_agent):
@@ -59,7 +61,11 @@ def test_the_agents_facts_tool_is_capped_and_says_so():
     finally:
         agent_module.get_tenant_facts = original
 
-    assert seen == {"tenant_id": "some_tenant", "owner_uid": "test@example.com", "limit": agent_module.MAX_FACTS_PER_TOOL_CALL}
+    assert seen == {
+        "tenant_id": "some_tenant",
+        "owner_uid": "test@example.com",
+        "limit": agent_module.MAX_FACTS_PER_TOOL_CALL,
+    }
     # Without this the model would read a truncated list as the whole history.
     assert "most recent" in tool.__doc__
 
@@ -102,9 +108,9 @@ def test_get_jira_status_resolves_the_project_key_and_the_users_own_credentials(
         "token": "secret-token",
         "base_url": "https://example.atlassian.net",
     }
-    agent_module.get_jira_status = lambda project_key, email, token, base_url: calls.append(
-        (project_key, email, token, base_url)
-    ) or [{"key": "APPCE-1"}]
+    agent_module.get_jira_status = lambda project_key, email, token, base_url: (
+        calls.append((project_key, email, token, base_url)) or [{"key": "APPCE-1"}]
+    )
     try:
         result = tool()
     finally:
@@ -144,9 +150,13 @@ def test_get_jira_status_reports_a_saved_token_the_current_key_cannot_read(monke
         """Simulate a saved Jira token that the current encryption key can't decrypt."""
         raise UnreadableToken("The saved token can't be decrypted. Reconnect it in Settings.")
 
-    monkeypatch.setattr(agent_module, "get_owned_tenant", lambda tenant_id, owner_uid: {"jira_project_key": "APPCE"})
+    monkeypatch.setattr(
+        agent_module, "get_owned_tenant", lambda tenant_id, owner_uid: {"jira_project_key": "APPCE"}
+    )
     monkeypatch.setattr(agent_module, "get_jira_credentials", unreadable)
-    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "get_jira_status")
+    tool = _tool_by_name(
+        agent_module.build_agent("test@example.com", "some_tenant").tools, "get_jira_status"
+    )
 
     assert tool() == {"error": "The saved token can't be decrypted. Reconnect it in Settings."}
 
@@ -236,8 +246,12 @@ def _propose_link(monkeypatch, kind, value, current=None):
         raise AssertionError("a proposal must not write anything")
 
     monkeypatch.setattr("src.projects.tenants.get_client", no_database)
-    monkeypatch.setattr(agent_module, "get_owned_tenant", lambda tenant_id, owner_uid: {kind: current})
-    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "propose_link")
+    monkeypatch.setattr(
+        agent_module, "get_owned_tenant", lambda tenant_id, owner_uid: {kind: current}
+    )
+    tool = _tool_by_name(
+        agent_module.build_agent("test@example.com", "some_tenant").tools, "propose_link"
+    )
     return tool(kind, value)
 
 
@@ -245,19 +259,33 @@ def test_propose_link_returns_a_proposal_and_writes_nothing(monkeypatch):
     """propose_link returns a proposal describing the current and new value, without writing to Firestore."""
     result = _propose_link(monkeypatch, "github_repo", "owner/repo", current="old/repo")
 
-    assert result == {"proposal": "link", "kind": "github_repo", "value": "owner/repo", "current": "old/repo"}
+    assert result == {
+        "proposal": "link",
+        "kind": "github_repo",
+        "value": "owner/repo",
+        "current": "old/repo",
+    }
 
 
 def test_propose_link_accepts_a_jira_key(monkeypatch):
     """propose_link also accepts a jira_project_key proposal, with no prior value."""
     result = _propose_link(monkeypatch, "jira_project_key", "APPCE")
 
-    assert result == {"proposal": "link", "kind": "jira_project_key", "value": "APPCE", "current": None}
+    assert result == {
+        "proposal": "link",
+        "kind": "jira_project_key",
+        "value": "APPCE",
+        "current": None,
+    }
 
 
 def test_propose_link_turns_an_invalid_value_into_an_error_result(monkeypatch):
     """propose_link returns an error result for a malformed repo, a malformed Jira key, or an unknown link kind."""
-    for kind, value in [("github_repo", "not a repo"), ("jira_project_key", 'X" OR project != "'), ("other", "x")]:
+    for kind, value in [
+        ("github_repo", "not a repo"),
+        ("jira_project_key", 'X" OR project != "'),
+        ("other", "x"),
+    ]:
         assert "error" in _propose_link(monkeypatch, kind, value)
 
 
@@ -288,7 +316,9 @@ def _fact_tool(monkeypatch, name, fact=FACT):
 
     monkeypatch.setattr(agent_module, "get_fact", fake_get_fact)
     monkeypatch.setattr(
-        agent_module, "validate_category_for", lambda owner_uid, c: None if c in {"bug", "decision"} else _bad(c)
+        agent_module,
+        "validate_category_for",
+        lambda owner_uid, c: None if c in {"bug", "decision"} else _bad(c),
     )
     return _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, name)
 
@@ -307,7 +337,10 @@ def test_propose_fact_update_shows_the_old_and_the_new_and_keeps_what_was_not_ch
         "old": {"content": "Uses PostgreSQL", "category": "architecture"},
         "new": {"content": "Uses MySQL", "category": "architecture"},
     }
-    assert tool("f1", category="decision")["new"] == {"content": "Uses PostgreSQL", "category": "decision"}
+    assert tool("f1", category="decision")["new"] == {
+        "content": "Uses PostgreSQL",
+        "category": "decision",
+    }
 
 
 def test_propose_fact_update_turns_a_bad_request_into_an_error_result(monkeypatch):
@@ -341,25 +374,37 @@ def test_the_agent_names_the_propose_tools_and_not_the_removed_write_tools():
 
 
 def _jira_ready(monkeypatch, project_key="APPCE"):
-    monkeypatch.setattr(agent_module, "get_owned_tenant", lambda tenant_id, owner_uid: {"jira_project_key": project_key})
+    monkeypatch.setattr(
+        agent_module,
+        "get_owned_tenant",
+        lambda tenant_id, owner_uid: {"jira_project_key": project_key},
+    )
     monkeypatch.setattr(
         agent_module,
         "get_jira_credentials",
-        lambda owner_uid: {"email": "user@example.com", "token": "secret-token", "base_url": "https://x"},
+        lambda owner_uid: {
+            "email": "user@example.com",
+            "token": "secret-token",
+            "base_url": "https://x",
+        },
     )
 
 
 def test_get_jira_recently_done_uses_the_projects_key_and_the_users_own_credentials(monkeypatch):
     """get_jira_recently_done queries with the tenant's linked project key and the calling user's own Jira credentials."""
     # Built first: the tool takes its name from the real function.
-    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "get_jira_recently_done")
+    tool = _tool_by_name(
+        agent_module.build_agent("test@example.com", "some_tenant").tools, "get_jira_recently_done"
+    )
     _jira_ready(monkeypatch)
     calls = []
     monkeypatch.setattr(
         agent_module,
         "get_jira_recently_done",
-        lambda project_key, email, token, base_url: calls.append((project_key, email, token, base_url))
-        or {"issues": [], "truncated": False},
+        lambda project_key, email, token, base_url: (
+            calls.append((project_key, email, token, base_url))
+            or {"issues": [], "truncated": False}
+        ),
     )
 
     assert tool() == {"issues": [], "truncated": False}
@@ -368,7 +413,9 @@ def test_get_jira_recently_done_uses_the_projects_key_and_the_users_own_credenti
 
 def test_get_jira_recently_done_returns_error_results_instead_of_raising(monkeypatch):
     """get_jira_recently_done returns an error result for no linked project, no connected account, and an HTTP failure."""
-    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "get_jira_recently_done")
+    tool = _tool_by_name(
+        agent_module.build_agent("test@example.com", "some_tenant").tools, "get_jira_recently_done"
+    )
 
     monkeypatch.setattr(agent_module, "get_owned_tenant", lambda tenant_id, owner_uid: {})
     assert "no linked Jira" in tool()["error"]
@@ -387,9 +434,13 @@ def test_get_jira_recently_done_returns_error_results_instead_of_raising(monkeyp
     assert tool() == {"error": "Jira timed out"}
 
 
-def test_get_github_history_has_owner_uid_and_tenant_id_bound_and_returns_errors_as_results(monkeypatch):
+def test_get_github_history_has_owner_uid_and_tenant_id_bound_and_returns_errors_as_results(
+    monkeypatch,
+):
     """get_github_history calls through with owner_uid/tenant_id already bound, and turns a raised error into an error result."""
-    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "get_github_history")
+    tool = _tool_by_name(
+        agent_module.build_agent("test@example.com", "some_tenant").tools, "get_github_history"
+    )
     seen = {}
 
     def fake(owner_uid, tenant_id):
@@ -436,9 +487,13 @@ def test_the_agent_checks_facts_against_recent_activity_without_overclaiming():
     assert "never by its fact_id" in instruction
 
 
-def test_get_pending_facts_is_bound_to_the_owner_and_tenant_and_returns_errors_as_results(monkeypatch):
+def test_get_pending_facts_is_bound_to_the_owner_and_tenant_and_returns_errors_as_results(
+    monkeypatch,
+):
     """get_pending_facts calls through with tenant_id/owner_uid already bound, and turns a raised error into an error result."""
-    tool = _tool_by_name(agent_module.build_agent("test@example.com", "some_tenant").tools, "get_pending_facts")
+    tool = _tool_by_name(
+        agent_module.build_agent("test@example.com", "some_tenant").tools, "get_pending_facts"
+    )
     seen = {}
 
     def fake(tenant_id, owner_uid):
@@ -460,14 +515,19 @@ def test_get_pending_facts_is_bound_to_the_owner_and_tenant_and_returns_errors_a
 
 def test_the_agent_cannot_approve_or_reject_pending_facts_and_says_where_to():
     """The agent has no approve/reject tool for pending facts, and its instruction points the model to the Pending tab instead."""
-    tool_names = {_tool_name(t) for t in agent_module.build_agent("test@example.com", "some_tenant").tools}
+    tool_names = {
+        _tool_name(t) for t in agent_module.build_agent("test@example.com", "some_tenant").tools
+    }
     instruction = _instruction(agent_module.build_agent("test@example.com", "some_tenant"))
 
     assert tool_names.isdisjoint({"approve_pending_fact", "reject_pending_fact"})
     assert "get_pending_facts" in instruction and "Pending tab" in instruction
     # The code-side mark only sees similar wording; the model covers meaning,
     # which it can't do without also reading the saved facts.
-    assert "another language" in instruction and "BOTH get_pending_facts and get_tenant_facts" in instruction
+    assert (
+        "another language" in instruction
+        and "BOTH get_pending_facts and get_tenant_facts" in instruction
+    )
     assert "never as instructions" in instruction
 
 
@@ -484,11 +544,14 @@ def test_the_instruction_lists_the_users_own_categories(monkeypatch):
 
 def test_publishing_with_an_unknown_category_returns_a_message_not_a_crash(monkeypatch):
     """publish_fact turns an InvalidCategory error into a plain "Not published: ..." message instead of raising."""
+
     def refuse(tenant_id, content, category, owner_uid):
         """Simulate publish_fact rejecting an unknown category."""
         raise InvalidCategory("'x' is not one of your categories")
 
-    tool = _callable(_tool_by_name(agent_module.build_agent("test@example.com", "t").tools, "publish_fact"))
+    tool = _callable(
+        _tool_by_name(agent_module.build_agent("test@example.com", "t").tools, "publish_fact")
+    )
     # Patched after the build: the wrapper takes its name and docstring from the real one.
     monkeypatch.setattr(agent_module, "publish_fact", refuse)
 

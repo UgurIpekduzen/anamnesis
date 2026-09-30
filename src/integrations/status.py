@@ -16,7 +16,10 @@ from src.integrations.jira.connections import get_jira_credentials
 from src.projects.tenants import get_owned_tenant
 
 
-_NOT_FOUND = {"Jira": "Jira couldn't find the project.", "GitHub": "GitHub couldn't find the repo, or the token has no access to it."}
+_NOT_FOUND = {
+    "Jira": "Jira couldn't find the project.",
+    "GitHub": "GitHub couldn't find the repo, or the token has no access to it.",
+}
 
 
 def _failure(service: str, exc: Exception) -> str:
@@ -38,7 +41,13 @@ def _failure(service: str, exc: Exception) -> str:
 def _jira_issue(line: str, base_url: str) -> dict:
     # get_jira_status returns "KEY · Type · Status · Summary" lines.
     key, kind, status, summary = line.split(" · ", 3)
-    return {"key": key, "type": kind, "status": status, "summary": summary, "url": f"{base_url}/browse/{key}"}
+    return {
+        "key": key,
+        "type": kind,
+        "status": status,
+        "summary": summary,
+        "url": f"{base_url}/browse/{key}",
+    }
 
 
 def get_project_jira_status(tenant_id: str, owner_uid: str) -> dict:
@@ -94,6 +103,11 @@ def get_project_github_status(tenant_id: str, owner_uid: str) -> dict:
     return {
         "state": "ok",
         "repo": repo,
-        "pull_requests": [{"number": pr["number"], "title": pr["title"], "url": pr["url"]} for pr in result["pull_requests"]],
-        "issues": [{"number": i["number"], "title": i["title"], "url": i["url"]} for i in result["issues"]],
+        "pull_requests": [
+            {"number": pr["number"], "title": pr["title"], "url": pr["url"]}
+            for pr in result["pull_requests"]
+        ],
+        "issues": [
+            {"number": i["number"], "title": i["title"], "url": i["url"]} for i in result["issues"]
+        ],
     }

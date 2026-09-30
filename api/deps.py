@@ -83,7 +83,9 @@ class CachedCertsRequest:
 
     @staticmethod
     def _max_age(response) -> int:
-        match = re.search(r"max-age=(\d+)", (response.headers or {}).get("cache-control", ""), re.IGNORECASE)
+        match = re.search(
+            r"max-age=(\d+)", (response.headers or {}).get("cache-control", ""), re.IGNORECASE
+        )
         seconds = int(match.group(1)) if match else _CERTS_MAX_AGE_DEFAULT_SECONDS
         return min(seconds, _CERTS_MAX_AGE_CAP_SECONDS)
 
@@ -99,7 +101,9 @@ class CachedCertsRequest:
         """
         cutoff = self._clock() - seconds
         with self._lock:
-            stale = [url for url, (_, fetched_at, _) in self._entries.items() if fetched_at <= cutoff]
+            stale = [
+                url for url, (_, fetched_at, _) in self._entries.items() if fetched_at <= cutoff
+            ]
             for url in stale:
                 del self._entries[url]
         return bool(stale)
@@ -114,7 +118,15 @@ _request = CachedCertsRequest()
 # iat/exp windows by this much.
 CLOCK_SKEW_SECONDS = 10
 
-_REASON_KEYWORDS = ("too early", "expired", "wrong recipient", "audience", "signature", "segments", "key id")
+_REASON_KEYWORDS = (
+    "too early",
+    "expired",
+    "wrong recipient",
+    "audience",
+    "signature",
+    "segments",
+    "key id",
+)
 
 
 def _rejection_reason(exc: Exception) -> str:
@@ -136,6 +148,7 @@ def verify_token(token: str) -> str:
         token (str): The bearer token's raw JWT, as sent in the
             Authorization header (without the "Bearer " prefix).
     """
+
     def verify():
         """Call Google's verifier with this module's client id and clock skew allowance."""
         return id_token.verify_oauth2_token(
@@ -148,7 +161,9 @@ def verify_token(token: str) -> str:
         except ValueError as exc:
             # An unknown key id can mean Google rotated its keys since we
             # cached them — refetch once, at most once a minute.
-            if _KEY_NOT_FOUND in str(exc) and _request.drop_if_older_than(_CERTS_MIN_REFRESH_SECONDS):
+            if _KEY_NOT_FOUND in str(exc) and _request.drop_if_older_than(
+                _CERTS_MIN_REFRESH_SECONDS
+            ):
                 claims = verify()
             else:
                 raise
@@ -187,7 +202,7 @@ def get_current_owner_uid(authorization: str | None = Header(default=None)) -> s
     """
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
-    return verify_token(authorization[len("Bearer "):])
+    return verify_token(authorization[len("Bearer ") :])
 
 
 def require_owner(owner_uid: str = Depends(get_current_owner_uid)) -> str:

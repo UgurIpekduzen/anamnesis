@@ -31,14 +31,19 @@ def test_owner_can_read_the_shared_settings(api):
     body = response.json()
     assert (body["history_turns"], body["daily_message_warning_threshold"]) == (20, 100)
     assert body["defaults"] == DEFAULTS
-    assert body["limits"]["history_turns"] == {"min": BOUNDS["history_turns"][0], "max": BOUNDS["history_turns"][1]}
+    assert body["limits"]["history_turns"] == {
+        "min": BOUNDS["history_turns"][0],
+        "max": BOUNDS["history_turns"][1],
+    }
 
 
 def test_owner_can_set_the_shared_settings(api):
     """The owner can PUT new shared settings and see the saved value reflected in the response."""
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
 
-    response = api.put("/admin/settings", json={"history_turns": 5, "daily_message_warning_threshold": 40})
+    response = api.put(
+        "/admin/settings", json={"history_turns": 5, "daily_message_warning_threshold": 40}
+    )
 
     assert response.status_code == 200
     assert response.json()["history_turns"] == 5
@@ -49,7 +54,12 @@ def test_non_owner_cannot_read_or_write_the_shared_settings(api):
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: NON_OWNER
 
     assert api.get("/admin/settings").status_code == 403
-    assert api.put("/admin/settings", json={"history_turns": 5, "daily_message_warning_threshold": 40}).status_code == 403
+    assert (
+        api.put(
+            "/admin/settings", json={"history_turns": 5, "daily_message_warning_threshold": 40}
+        ).status_code
+        == 403
+    )
 
 
 @pytest.mark.parametrize(

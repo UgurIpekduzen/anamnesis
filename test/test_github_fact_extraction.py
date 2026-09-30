@@ -34,7 +34,9 @@ class FakeClient:
 def categories(monkeypatch):
     """Stub get_categories to return a fixed list of category names."""
     monkeypatch.setattr(
-        github_fact_extraction, "get_categories", lambda owner_uid: ["architecture", "bug", "decision", "status", "todo"]
+        github_fact_extraction,
+        "get_categories",
+        lambda owner_uid: ["architecture", "bug", "decision", "status", "todo"],
     )
 
 
@@ -48,7 +50,9 @@ def test_extract_facts_parses_the_models_json_response(monkeypatch):
     """extract_facts() returns the parsed list of facts from the model's JSON response."""
     _stub(monkeypatch, json.dumps([{"content": "Uses Postgres", "category": "architecture"}]))
 
-    result = github_fact_extraction.extract_facts("Add Postgres support", "We switched from SQLite.", "pull request", "o")
+    result = github_fact_extraction.extract_facts(
+        "Add Postgres support", "We switched from SQLite.", "pull request", "o"
+    )
 
     assert result == [{"content": "Uses Postgres", "category": "architecture"}]
 
@@ -57,7 +61,10 @@ def test_extract_facts_returns_an_empty_list_for_routine_content(monkeypatch):
     """extract_facts() returns an empty list when the model finds nothing worth extracting."""
     _stub(monkeypatch, json.dumps([]))
 
-    assert github_fact_extraction.extract_facts("Bump lodash to 4.17.21", "", "pull request", "o") == []
+    assert (
+        github_fact_extraction.extract_facts("Bump lodash to 4.17.21", "", "pull request", "o")
+        == []
+    )
 
 
 def test_extract_facts_drops_a_fact_with_an_invalid_category_as_defense_in_depth(monkeypatch):
@@ -103,7 +110,13 @@ def test_the_response_schema_only_allows_currently_valid_categories(monkeypatch)
     github_fact_extraction.extract_facts("t", "b", "pull request", "o")
 
     schema = models.calls[0]["config"].response_schema
-    assert schema["items"]["properties"]["category"]["enum"] == ["architecture", "bug", "decision", "status", "todo"]
+    assert schema["items"]["properties"]["category"]["enum"] == [
+        "architecture",
+        "bug",
+        "decision",
+        "status",
+        "todo",
+    ]
 
 
 def test_the_schema_uses_the_owners_own_categories_in_their_order(monkeypatch):
@@ -111,12 +124,20 @@ def test_the_schema_uses_the_owners_own_categories_in_their_order(monkeypatch):
     the schema enum in that exact order, and drops facts outside it."""
     seen = []
     monkeypatch.setattr(
-        github_fact_extraction, "get_categories", lambda owner_uid: seen.append(owner_uid) or ["risk", "note"]
+        github_fact_extraction,
+        "get_categories",
+        lambda owner_uid: seen.append(owner_uid) or ["risk", "note"],
     )
-    models = _stub(monkeypatch, json.dumps([{"content": "c", "category": "bug"}, {"content": "d", "category": "risk"}]))
+    models = _stub(
+        monkeypatch,
+        json.dumps([{"content": "c", "category": "bug"}, {"content": "d", "category": "risk"}]),
+    )
 
     result = github_fact_extraction.extract_facts("t", "b", "issue", "someone@example.com")
 
     assert seen == ["someone@example.com"]
-    assert models.calls[0]["config"].response_schema["items"]["properties"]["category"]["enum"] == ["risk", "note"]
+    assert models.calls[0]["config"].response_schema["items"]["properties"]["category"]["enum"] == [
+        "risk",
+        "note",
+    ]
     assert result == [{"content": "d", "category": "risk"}]  # "bug" isn't theirs, so it is dropped

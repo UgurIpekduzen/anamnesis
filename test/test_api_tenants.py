@@ -18,11 +18,21 @@ def api(monkeypatch, signed_in_owner):
     renamed = []
     deleted = []
 
-    monkeypatch.setattr(tenants_router, "add_tenant", lambda name, owner_uid: added.append((name, owner_uid)) or "new_id")
     monkeypatch.setattr(
-        tenants_router, "rename_tenant", lambda tenant_id, name, owner_uid: renamed.append((tenant_id, name, owner_uid))
+        tenants_router,
+        "add_tenant",
+        lambda name, owner_uid: added.append((name, owner_uid)) or "new_id",
     )
-    monkeypatch.setattr(tenants_router, "delete_tenant", lambda tenant_id, owner_uid: deleted.append((tenant_id, owner_uid)))
+    monkeypatch.setattr(
+        tenants_router,
+        "rename_tenant",
+        lambda tenant_id, name, owner_uid: renamed.append((tenant_id, name, owner_uid)),
+    )
+    monkeypatch.setattr(
+        tenants_router,
+        "delete_tenant",
+        lambda tenant_id, owner_uid: deleted.append((tenant_id, owner_uid)),
+    )
     yield TestClient(api_main.app), added, renamed, deleted
 
 
@@ -55,7 +65,9 @@ def test_post_answers_409_when_the_name_is_taken(api, monkeypatch):
     assert response.json() == {"detail": "That project name isn't available. Try another name."}
 
 
-@pytest.mark.parametrize("payload", [{}, {"name": ""}, {"name": "x" * 201}, {"name": "ok", "owner_uid": "someone-else"}])
+@pytest.mark.parametrize(
+    "payload", [{}, {"name": ""}, {"name": "x" * 201}, {"name": "ok", "owner_uid": "someone-else"}]
+)
 def test_post_rejects_invalid_payloads_and_creates_nothing(api, payload):
     """An empty, too-long, missing, or owner_uid-spoofing POST body is
     rejected with 422 before any tenant is created."""
@@ -132,13 +144,25 @@ def links(monkeypatch, signed_in_owner):
     a client plus the list each stub appends its calls to."""
     calls = []
     monkeypatch.setattr(
-        tenants_router, "set_github_repo", lambda tenant_id, repo, owner_uid: calls.append(("set_repo", tenant_id, repo, owner_uid))
+        tenants_router,
+        "set_github_repo",
+        lambda tenant_id, repo, owner_uid: calls.append(("set_repo", tenant_id, repo, owner_uid)),
     )
-    monkeypatch.setattr(tenants_router, "clear_github_repo", lambda tenant_id, owner_uid: calls.append(("clear_repo", tenant_id, owner_uid)))
     monkeypatch.setattr(
-        tenants_router, "set_jira_project_key", lambda tenant_id, key, owner_uid: calls.append(("set_key", tenant_id, key, owner_uid))
+        tenants_router,
+        "clear_github_repo",
+        lambda tenant_id, owner_uid: calls.append(("clear_repo", tenant_id, owner_uid)),
     )
-    monkeypatch.setattr(tenants_router, "clear_jira_project_key", lambda tenant_id, owner_uid: calls.append(("clear_key", tenant_id, owner_uid)))
+    monkeypatch.setattr(
+        tenants_router,
+        "set_jira_project_key",
+        lambda tenant_id, key, owner_uid: calls.append(("set_key", tenant_id, key, owner_uid)),
+    )
+    monkeypatch.setattr(
+        tenants_router,
+        "clear_jira_project_key",
+        lambda tenant_id, owner_uid: calls.append(("clear_key", tenant_id, owner_uid)),
+    )
     return TestClient(api_main.app), calls
 
 
@@ -192,9 +216,12 @@ def test_delete_unlinks_the_jira_project_key(links):
         ("/tenants/proj/jira_project_key", {"jira_project_key": 'X" OR project != "'}),
     ],
 )
-def test_an_invalid_value_is_a_400_with_the_reason_and_nothing_is_saved(monkeypatch, signed_in_owner, path, body):
+def test_an_invalid_value_is_a_400_with_the_reason_and_nothing_is_saved(
+    monkeypatch, signed_in_owner, path, body
+):
     """A malformed GitHub repo or Jira project key value is rejected with a
     400 and its reason before it ever reaches Firestore."""
+
     # The real validators run here: they reject before anything touches Firestore.
     def no_database(*args, **kwargs):
         """Fail the test if validation lets an invalid value reach the database."""
@@ -217,14 +244,22 @@ def test_an_invalid_value_is_a_400_with_the_reason_and_nothing_is_saved(monkeypa
         ("delete", "/tenants/proj/jira_project_key", None),
     ],
 )
-def test_someone_elses_or_a_missing_project_is_a_404(monkeypatch, signed_in_owner, method, path, body):
+def test_someone_elses_or_a_missing_project_is_a_404(
+    monkeypatch, signed_in_owner, method, path, body
+):
     """Linking or unlinking a repo/key on a tenant that isn't the caller's
     (or doesn't exist) answers 404."""
+
     def not_yours(*args, **kwargs):
         """Simulate the link/unlink call refusing a tenant the caller doesn't own."""
         raise PermissionError("No project")
 
-    for name in ("set_github_repo", "clear_github_repo", "set_jira_project_key", "clear_jira_project_key"):
+    for name in (
+        "set_github_repo",
+        "clear_github_repo",
+        "set_jira_project_key",
+        "clear_jira_project_key",
+    ):
         monkeypatch.setattr(tenants_router, name, not_yours)
 
     response = getattr(TestClient(api_main.app), method)(path, **({"json": body} if body else {}))
@@ -256,6 +291,9 @@ def test_linking_requires_authentication(links):
     client, calls = links
     api_main.app.dependency_overrides.clear()
 
-    assert client.put("/tenants/proj/github_repo", json={"github_repo": "owner/repo"}).status_code == 401
+    assert (
+        client.put("/tenants/proj/github_repo", json={"github_repo": "owner/repo"}).status_code
+        == 401
+    )
     assert client.delete("/tenants/proj/jira_project_key").status_code == 401
     assert calls == []

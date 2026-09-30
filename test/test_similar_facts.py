@@ -34,12 +34,17 @@ def test_a_different_fact_is_not_flagged(new):
 
 def test_a_short_text_inside_a_longer_one_is_not_a_match_by_itself():
     """A short text that merely appears inside a much longer saved fact is not, by itself, treated as a match."""
-    assert find_similar_facts("todo", [_fact("f1", "Write the todo list for the migration next week")]) == []
+    assert (
+        find_similar_facts("todo", [_fact("f1", "Write the todo list for the migration next week")])
+        == []
+    )
 
 
 def test_a_duplicate_in_another_category_is_still_found():
     """A duplicate is still found even when it's saved under a different category, and the saved fact's own category is preserved."""
-    (found,) = find_similar_facts("Uses PostgreSQL", [_fact("f1", "Uses PostgreSQL", category="decision")])
+    (found,) = find_similar_facts(
+        "Uses PostgreSQL", [_fact("f1", "Uses PostgreSQL", category="decision")]
+    )
 
     assert found == {"fact_id": "f1", "content": "Uses PostgreSQL", "category": "decision"}
 
@@ -61,4 +66,9 @@ def test_the_most_alike_come_first():
 def test_empty_text_and_missing_content_never_match():
     """Empty new text, and a saved fact with no content at all, never produce a match."""
     assert find_similar_facts("", [_fact("f1", "Uses PostgreSQL")]) == []
-    assert find_similar_facts("Uses PostgreSQL", [{"fact_id": "f1", "content": None, "category": "bug"}]) == []
+    assert (
+        find_similar_facts(
+            "Uses PostgreSQL", [{"fact_id": "f1", "content": None, "category": "bug"}]
+        )
+        == []
+    )

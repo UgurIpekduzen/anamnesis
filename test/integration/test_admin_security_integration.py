@@ -17,7 +17,12 @@ import api.main as api_main
 from api.deps import get_current_owner_uid
 from src.accounts import allowed_emails, usage
 from src.accounts.allowed_emails import add_allowed_email, remove_allowed_email
-from src.accounts.usage import DailyLimitExceeded, get_global_today_count, get_today_count, record_message
+from src.accounts.usage import (
+    DailyLimitExceeded,
+    get_global_today_count,
+    get_today_count,
+    record_message,
+)
 
 NON_OWNER = "someone-else@example.com"
 
@@ -79,7 +84,9 @@ def test_concurrent_messages_never_push_the_global_count_past_its_limit(monkeypa
     usage.get_client().collection("usage").document(usage.GLOBAL_USAGE_DOC_ID).delete()
 
     with ThreadPoolExecutor(max_workers=10) as pool:
-        results = list(pool.map(_attempt, [f"tester-{uuid.uuid4().hex[:8]}@example.com" for _ in range(10)]))
+        results = list(
+            pool.map(_attempt, [f"tester-{uuid.uuid4().hex[:8]}@example.com" for _ in range(10)])
+        )
 
     succeeded = sum(1 for r in results if r is not None)
     assert succeeded <= 5
@@ -117,7 +124,10 @@ def test_a_non_owner_is_refused_before_any_data_is_touched():
 
     assert client.get("/admin/usage").status_code == 403
     assert client.get("/admin/allowed_emails").status_code == 403
-    assert client.put("/admin/allowed_emails/x@example.com/role", json={"role": "user"}).status_code == 403
+    assert (
+        client.put("/admin/allowed_emails/x@example.com/role", json={"role": "user"}).status_code
+        == 403
+    )
 
 
 def test_the_owner_is_really_refused_from_being_given_a_role(monkeypatch):
@@ -182,7 +192,8 @@ def test_extra_fields_on_the_allowed_email_body_are_rejected(monkeypatch):
     client = TestClient(api_main.app)
 
     response = client.post(
-        "/admin/allowed_emails", json={"email": "x@example.com", "unlimited_emails": ["x@example.com"]}
+        "/admin/allowed_emails",
+        json={"email": "x@example.com", "unlimited_emails": ["x@example.com"]},
     )
 
     assert response.status_code == 422

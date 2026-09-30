@@ -96,6 +96,7 @@ def test_a_live_session_is_never_overwritten_and_saved_turns_are_not_even_read()
 
 def test_losing_the_race_to_another_connection_is_not_an_error():
     """When another connection creates the session first, restore_session treats the resulting AlreadyExistsError as a normal loss, not a failure."""
+
     class RacyService(InMemorySessionService):
         """A session service whose create_session always loses the race to an existing session."""
 

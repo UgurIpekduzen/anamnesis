@@ -22,7 +22,9 @@ def test_usage_reports_the_users_own_threshold(monkeypatch, signed_in_owner):
     client = TestClient(api_main.app)
     monkeypatch.setattr(settings_router, "get_today_count", lambda owner_uid: 3)
     monkeypatch.setattr(
-        settings_router, "get_settings", lambda: {"history_turns": 20, "daily_message_warning_threshold": 7}
+        settings_router,
+        "get_settings",
+        lambda: {"history_turns": 20, "daily_message_warning_threshold": 7},
     )
 
     body = client.get("/usage").json()
@@ -35,7 +37,9 @@ def test_usage_reports_the_hard_limit_and_when_it_resets(monkeypatch, signed_in_
     client = TestClient(api_main.app)
     monkeypatch.setattr(settings_router, "get_today_count", lambda owner_uid: 3)
     monkeypatch.setattr(
-        settings_router, "get_settings", lambda: {"history_turns": 20, "daily_message_warning_threshold": 7}
+        settings_router,
+        "get_settings",
+        lambda: {"history_turns": 20, "daily_message_warning_threshold": 7},
     )
     monkeypatch.setattr(settings_router, "DAILY_MESSAGE_HARD_LIMIT", 150)
 

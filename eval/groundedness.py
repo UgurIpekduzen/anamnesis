@@ -51,7 +51,13 @@ FACT_IDS = ["9AbXc2QwErTy5UiOp0Lk", "7ZxCv1BnMaSd3FgHj8Kl", "3QwEr4TyUiOp6AsDf9G
 
 
 def _fact(fact_id: str, content: str, category: str) -> dict:
-    return {"fact_id": fact_id, "content": content, "category": category, "source": "chat", "created_at": None}
+    return {
+        "fact_id": fact_id,
+        "content": content,
+        "category": category,
+        "source": "chat",
+        "created_at": None,
+    }
 
 
 AUTH_FACT = _fact(FACT_IDS[0], "Auth JWT ile refresh token kullanıyor.", "architecture")
@@ -71,7 +77,11 @@ DONE_ISSUES = [
     "DEMO-36 · Task · Done · 2026-08-16 · Ortam değişkenlerini kontrol et — varsayılan değer kalmamış olmalı",
 ]
 PENDING = [
-    {"content": "Adds an LRU cache for token lookups", "category": "decision", "similar_to_saved": None},
+    {
+        "content": "Adds an LRU cache for token lookups",
+        "category": "decision",
+        "similar_to_saved": None,
+    },
     {"content": "Uses PostgreSQL 15", "category": "architecture", "similar_to_saved": None},
 ]
 
@@ -151,7 +161,18 @@ def check_open_list_cut(answer: str) -> str | None:
     return first_problem(
         check_open_list(answer),
         None
-        if mentions(answer, ["daha fazla", "daha eski", "listelenme", "gösterilme", "görünmeyen", "başka açık", "more"])
+        if mentions(
+            answer,
+            [
+                "daha fazla",
+                "daha eski",
+                "listelenme",
+                "gösterilme",
+                "görünmeyen",
+                "başka açık",
+                "more",
+            ],
+        )
         else "doesn't say the list is cut short",
     )
 
@@ -161,7 +182,9 @@ def check_not_linked(answer: str) -> str | None:
     invent no ticket keys at all."""
     return first_problem(
         f"invented ticket keys: {sorted(keys_in(answer))}" if keys_in(answer) else None,
-        None if mentions(answer, ["bağlı", "bağlan", "link"]) else "doesn't say there is no linked Jira project",
+        None
+        if mentions(answer, ["bağlı", "bağlan", "link"])
+        else "doesn't say there is no linked Jira project",
     )
 
 
@@ -184,11 +207,26 @@ def check_unknown_topic(answer: str) -> str | None:
         None
         if mentions(
             answer,
-            # Stems, because Turkish inflects: bulamadım, bulamıyorum, bulunamadı, bulunmamaktadır ...
-            ["bulam", "bulunam", "bulunma", "bulunmuyor", "yok", "kaydedilmemiş", "kaydetmemi", "rastlam", "not found", "couldn't find", "no record"],
+            # Stems, because Turkish inflects: bulamadım, bulamıyorum,
+            # bulunamadı, bulunmamaktadır ...
+            [
+                "bulam",
+                "bulunam",
+                "bulunma",
+                "bulunmuyor",
+                "yok",
+                "kaydedilmemiş",
+                "kaydetmemi",
+                "rastlam",
+                "not found",
+                "couldn't find",
+                "no record",
+            ],
         )
         else "doesn't say nothing was found",
-        "made up a caching decision" if mentions(answer, ["Redis", "Memcached", "LRU", "TTL"]) else None,
+        "made up a caching decision"
+        if mentions(answer, ["Redis", "Memcached", "LRU", "TTL"])
+        else None,
         leaked_id(answer),
     )
 
@@ -198,7 +236,9 @@ def check_conflict_is_cited(answer: str) -> str | None:
     ticket: it must cite that ticket by key, not invent others, and not
     leak a fact_id."""
     return first_problem(
-        None if "DEMO-38" in answer else "doesn't cite DEMO-38, the ticket that contradicts the saved fact",
+        None
+        if "DEMO-38" in answer
+        else "doesn't cite DEMO-38, the ticket that contradicts the saved fact",
         only_real_keys(answer, DONE),
         leaked_id(answer),
     )
@@ -228,7 +268,9 @@ def check_no_conflict(answer: str) -> str | None:
     facts"): what counts is whether it calls a saved fact out of date.
     """
     return first_problem(
-        "calls a saved fact out of date though nothing conflicts" if mentions(answer, FLAG_PHRASES) else None,
+        "calls a saved fact out of date though nothing conflicts"
+        if mentions(answer, FLAG_PHRASES)
+        else None,
         leaked_id(answer),
     )
 
@@ -240,7 +282,20 @@ def check_pending_repeat(answer: str) -> str | None:
     return first_problem(
         None if "postgresql" in answer.lower() else "doesn't mention the PostgreSQL item",
         None
-        if mentions(answer, ["zaten", "already", "tekrar", "aynı", "duplicate", "kayıtlı", "benz", "similar", "eşleş"])
+        if mentions(
+            answer,
+            [
+                "zaten",
+                "already",
+                "tekrar",
+                "aynı",
+                "duplicate",
+                "kayıtlı",
+                "benz",
+                "similar",
+                "eşleş",
+            ],
+        )
         else "doesn't say the PostgreSQL item repeats a saved fact",
         "claims it approved something" if mentions(answer, ["onayladım", "approved it"]) else None,
     )
@@ -248,9 +303,23 @@ def check_pending_repeat(answer: str) -> str | None:
 
 SCENARIOS = [
     Scenario("open Jira issues: real keys only", "Açık Jira işlerim neler?", check_open_list),
-    Scenario("open Jira issues: says the list is cut", "Açık Jira işlerim neler?", check_open_list_cut, open_truncated=True),
-    Scenario("Jira not linked: says so, invents nothing", "Açık Jira işlerim neler?", check_not_linked, jira_key=None),
-    Scenario("recently done: real keys and dates", "Son zamanlarda hangi Jira işleri tamamlandı?", check_recently_done),
+    Scenario(
+        "open Jira issues: says the list is cut",
+        "Açık Jira işlerim neler?",
+        check_open_list_cut,
+        open_truncated=True,
+    ),
+    Scenario(
+        "Jira not linked: says so, invents nothing",
+        "Açık Jira işlerim neler?",
+        check_not_linked,
+        jira_key=None,
+    ),
+    Scenario(
+        "recently done: real keys and dates",
+        "Son zamanlarda hangi Jira işleri tamamlandı?",
+        check_recently_done,
+    ),
     Scenario(
         "saved facts: an unknown topic isn't invented",
         "Önbellekleme (caching) hakkında ne karar verdik?",
@@ -262,7 +331,11 @@ SCENARIOS = [
         check_conflict_is_cited,
         facts=[AUTH_FACT, CORS_FACT],
     ),
-    Scenario("outdated check: nothing conflicts, nothing flagged", "Kayıtlı fact'lerim güncel mi?", check_no_conflict),
+    Scenario(
+        "outdated check: nothing conflicts, nothing flagged",
+        "Kayıtlı fact'lerim güncel mi?",
+        check_no_conflict,
+    ),
     Scenario(
         "pending triage: spots a repeat of a saved fact",
         "Bekleyen fact'lerden hangilerini onaylamalıyım?",
@@ -305,18 +378,34 @@ def _install_fakes(s: Scenario) -> None:
 
     m = agent_module
     m.get_tenant_facts = fake("get_tenant_facts", lambda *a, **k: s.facts)
-    m.get_fact = lambda tenant_id, fact_id, owner_uid: next(f for f in s.facts if f["fact_id"] == fact_id)
-    m.get_jira_status = fake("get_jira_status", lambda *a, **k: {"issues": s.open_issues, "truncated": s.open_truncated})
-    m.get_jira_recently_done = fake("get_jira_recently_done", lambda *a, **k: {"issues": s.done_issues, "truncated": False})
-    m.get_github_status = fake("get_github_status", lambda *a, **k: {"pull_requests": [], "issues": []})
+    m.get_fact = lambda tenant_id, fact_id, owner_uid: next(
+        f for f in s.facts if f["fact_id"] == fact_id
+    )
+    m.get_jira_status = fake(
+        "get_jira_status", lambda *a, **k: {"issues": s.open_issues, "truncated": s.open_truncated}
+    )
+    m.get_jira_recently_done = fake(
+        "get_jira_recently_done", lambda *a, **k: {"issues": s.done_issues, "truncated": False}
+    )
+    m.get_github_status = fake(
+        "get_github_status", lambda *a, **k: {"pull_requests": [], "issues": []}
+    )
     m.get_github_history = fake(
-        "get_github_history", lambda *a, **k: {"pull_requests": [], "issues": [], "truncated": False}
+        "get_github_history",
+        lambda *a, **k: {"pull_requests": [], "issues": [], "truncated": False},
     )
     m.get_pending_facts_summary = fake(
         "get_pending_facts_summary", lambda *a, **k: {"pending": s.pending, "truncated": False}
     )
-    m.get_owned_tenant = lambda tenant_id, owner_uid: {"jira_project_key": s.jira_key, "github_repo": None}
-    m.get_jira_credentials = lambda owner_uid: {"email": "e@example.com", "token": "t", "base_url": "https://x"}
+    m.get_owned_tenant = lambda tenant_id, owner_uid: {
+        "jira_project_key": s.jira_key,
+        "github_repo": None,
+    }
+    m.get_jira_credentials = lambda owner_uid: {
+        "email": "e@example.com",
+        "token": "t",
+        "base_url": "https://x",
+    }
 
 
 CRASHED = "the turn crashed"
@@ -337,12 +426,16 @@ async def get_answer(s: Scenario, index: int, gate: asyncio.Semaphore) -> str | 
             )
             answer = ""
             try:
-                async for event in runner.run_async(user_id=OWNER_UID, session_id=f"g-{index}-{attempt}", new_message=message):
+                async for event in runner.run_async(
+                    user_id=OWNER_UID, session_id=f"g-{index}-{attempt}", new_message=message
+                ):
                     if event.is_final_response() and event.content and event.content.parts:
                         # All the text parts: an answer can arrive split in several.
                         answer = "".join(part.text or "" for part in event.content.parts)
             except Exception as exc:
-                if ("RESOURCE_EXHAUSTED" in repr(exc) or "429" in repr(exc)) and attempt < QUOTA_RETRIES:
+                if (
+                    "RESOURCE_EXHAUSTED" in repr(exc) or "429" in repr(exc)
+                ) and attempt < QUOTA_RETRIES:
                     await asyncio.sleep(QUOTA_WAIT_SECONDS * (attempt + 1))
                     continue
                 return None
@@ -357,7 +450,14 @@ def grade(s: Scenario, answer: str | None) -> str | None:
     return s.check(answer) if answer else "no answer"
 
 
-async def main(runs: int, min_rate: float, only: str | None, verbose: bool, save: str | None, replay: str | None) -> int:
+async def main(
+    runs: int,
+    min_rate: float,
+    only: str | None,
+    verbose: bool,
+    save: str | None,
+    replay: str | None,
+) -> int:
     """Run every scenario (or only those matching `only`), print a pass-rate
     table, and return 1 if any scenario falls below min_rate, else 0.
 
@@ -416,18 +516,38 @@ async def main(runs: int, min_rate: float, only: str | None, verbose: bool, save
         print(f"\nAnswers saved to {save}; grade them again with --replay {save}")
     total = sum(r[1] for r in rows)
     count = sum(r[2] for r in rows)
-    print(f"\nOverall: {total}/{count} runs passed ({total / count:.0%})" if count else "\nNo scenario matched.")
-    print(f"FAIL: {below} scenario(s) below {min_rate:.0%}" if below else f"OK: every scenario is at or above {min_rate:.0%}")
+    print(
+        f"\nOverall: {total}/{count} runs passed ({total / count:.0%})"
+        if count
+        else "\nNo scenario matched."
+    )
+    print(
+        f"FAIL: {below} scenario(s) below {min_rate:.0%}"
+        if below
+        else f"OK: every scenario is at or above {min_rate:.0%}"
+    )
     return 1 if below else 0
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--runs", type=int, default=5, help="repetitions per scenario (default 5)")
-    parser.add_argument("--min-rate", type=float, default=0.8, help="pass rate a scenario must reach (default 0.8)")
+    parser.add_argument(
+        "--min-rate", type=float, default=0.8, help="pass rate a scenario must reach (default 0.8)"
+    )
     parser.add_argument("--only", help="run only scenarios whose name contains this text")
-    parser.add_argument("--verbose", action="store_true", help="print the answer of every failed run")
-    parser.add_argument("--save-answers", metavar="FILE", help="write the model's answers to FILE (JSON)")
-    parser.add_argument("--replay", metavar="FILE", help="grade the answers saved in FILE: no model call, no tokens")
+    parser.add_argument(
+        "--verbose", action="store_true", help="print the answer of every failed run"
+    )
+    parser.add_argument(
+        "--save-answers", metavar="FILE", help="write the model's answers to FILE (JSON)"
+    )
+    parser.add_argument(
+        "--replay", metavar="FILE", help="grade the answers saved in FILE: no model call, no tokens"
+    )
     args = parser.parse_args()
-    sys.exit(asyncio.run(main(args.runs, args.min_rate, args.only, args.verbose, args.save_answers, args.replay)))
+    sys.exit(
+        asyncio.run(
+            main(args.runs, args.min_rate, args.only, args.verbose, args.save_answers, args.replay)
+        )
+    )

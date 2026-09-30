@@ -25,7 +25,9 @@ def _tool_call(name: str) -> types.Content:
 def _tool_result(name: str) -> types.Content:
     return types.Content(
         role="user",
-        parts=[types.Part(function_response=types.FunctionResponse(name=name, response={"result": []}))],
+        parts=[
+            types.Part(function_response=types.FunctionResponse(name=name, response={"result": []}))
+        ],
     )
 
 

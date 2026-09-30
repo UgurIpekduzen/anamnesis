@@ -4,11 +4,19 @@ import src.facts.pending_facts as pending_facts
 
 
 def _pending(content, category="architecture"):
-    return {"pending_fact_id": "p", "content": content, "category": category, "source": "github", "source_url": "u"}
+    return {
+        "pending_fact_id": "p",
+        "content": content,
+        "category": category,
+        "source": "github",
+        "source_url": "u",
+    }
 
 
 def _serve(monkeypatch, pending, saved=()):
-    monkeypatch.setattr(pending_facts, "list_pending_facts", lambda tenant_id, owner_uid: list(pending))
+    monkeypatch.setattr(
+        pending_facts, "list_pending_facts", lambda tenant_id, owner_uid: list(pending)
+    )
     monkeypatch.setattr(pending_facts, "get_tenant_facts", lambda tenant_id, owner_uid: list(saved))
 
 
@@ -17,7 +25,9 @@ def test_each_pending_fact_is_listed_with_its_category_and_no_ids_or_urls(monkey
     _serve(monkeypatch, [_pending("Adds a cache layer", "decision")])
 
     assert pending_facts.get_pending_facts_summary("t", "o") == {
-        "pending": [{"content": "Adds a cache layer", "category": "decision", "similar_to_saved": None}],
+        "pending": [
+            {"content": "Adds a cache layer", "category": "decision", "similar_to_saved": None}
+        ],
         "truncated": False,
     }
 
@@ -35,7 +45,10 @@ def test_a_pending_fact_that_repeats_a_saved_one_is_marked_by_code(monkeypatch):
 
 def test_the_list_is_capped_and_says_when_there_are_more(monkeypatch):
     """When more pending facts exist than MAX_PENDING_FOR_REVIEW, the list is capped and marked truncated."""
-    _serve(monkeypatch, [_pending(f"Fact number {n}") for n in range(pending_facts.MAX_PENDING_FOR_REVIEW + 5)])
+    _serve(
+        monkeypatch,
+        [_pending(f"Fact number {n}") for n in range(pending_facts.MAX_PENDING_FOR_REVIEW + 5)],
+    )
 
     result = pending_facts.get_pending_facts_summary("t", "o")
 
@@ -49,7 +62,9 @@ def test_a_long_pending_text_is_cut_off(monkeypatch):
 
     (item,) = pending_facts.get_pending_facts_summary("t", "o")["pending"]
 
-    assert len(item["content"]) == pending_facts.MAX_PENDING_CONTENT_CHARS and item["content"].endswith("…")
+    assert len(item["content"]) == pending_facts.MAX_PENDING_CONTENT_CHARS and item[
+        "content"
+    ].endswith("…")
 
 
 def test_nothing_pending_is_an_empty_list(monkeypatch):

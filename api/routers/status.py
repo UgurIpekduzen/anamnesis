@@ -12,7 +12,9 @@ router = APIRouter()
 # The Status panel: what is open in the project's Jira project and
 # GitHub repo, read live with the user's own credentials, no model involved.
 @router.get("/tenants/{tenant_id}/jira_status")
-def get_jira_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+def get_jira_status_endpoint(
+    tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
     """Return what's open in the project's linked Jira project, read live
     with the user's own credentials.
 
@@ -29,7 +31,9 @@ def get_jira_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_curren
 
 
 @router.get("/tenants/{tenant_id}/github_status")
-def get_github_status_endpoint(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+def get_github_status_endpoint(
+    tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
     """Return what's open in the project's linked GitHub repo, read live
     with the user's own credentials.
 

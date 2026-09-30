@@ -20,7 +20,11 @@ def api(monkeypatch):
     monkeypatch.setattr(admin, "add_allowed_email", lambda email: None)
     monkeypatch.setattr(admin, "remove_allowed_email", lambda email: None)
     monkeypatch.setattr(admin, "set_role", lambda email, role: None)
-    monkeypatch.setattr(admin, "get_usage_for", lambda emails: [{"email": e, "count": 0, "role": "tester"} for e in sorted(emails)])
+    monkeypatch.setattr(
+        admin,
+        "get_usage_for",
+        lambda emails: [{"email": e, "count": 0, "role": "tester"} for e in sorted(emails)],
+    )
     monkeypatch.setattr(admin, "get_global_today_count", lambda: 0)
     monkeypatch.setattr(admin, "GLOBAL_DAILY_MESSAGE_LIMIT", 1000)
     yield TestClient(api_main.app)
@@ -47,7 +51,10 @@ def test_non_owner_is_rejected_from_every_admin_endpoint(api):
     assert api.get("/admin/allowed_emails").status_code == 403
     assert api.post("/admin/allowed_emails", json={"email": "x@example.com"}).status_code == 403
     assert api.delete("/admin/allowed_emails/x@example.com").status_code == 403
-    assert api.put("/admin/allowed_emails/x@example.com/role", json={"role": "user"}).status_code == 403
+    assert (
+        api.put("/admin/allowed_emails/x@example.com/role", json={"role": "user"}).status_code
+        == 403
+    )
 
 
 def test_owner_can_add_an_email(api):
@@ -124,10 +131,14 @@ def test_owner_can_set_an_emails_role(api, monkeypatch):
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
     monkeypatch.setattr(admin, "get_roles", lambda emails: {e: "user" for e in emails})
 
-    response = api.put("/admin/allowed_emails/already-allowed@example.com/role", json={"role": "user"})
+    response = api.put(
+        "/admin/allowed_emails/already-allowed@example.com/role", json={"role": "user"}
+    )
 
     assert response.status_code == 200
-    assert response.json() == {"extra_users": [{"email": "already-allowed@example.com", "role": "user"}]}
+    assert response.json() == {
+        "extra_users": [{"email": "already-allowed@example.com", "role": "user"}]
+    }
 
 
 def test_setting_an_ineligible_role_surfaces_the_reason(api, monkeypatch):
@@ -150,7 +161,9 @@ def test_setting_the_role_back_to_tester(api):
     """An email's role can be set back to tester."""
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
 
-    response = api.put("/admin/allowed_emails/already-allowed@example.com/role", json={"role": "tester"})
+    response = api.put(
+        "/admin/allowed_emails/already-allowed@example.com/role", json={"role": "tester"}
+    )
 
     assert response.status_code == 200
 
@@ -168,7 +181,8 @@ def test_owner_can_wipe_a_users_data_with_a_matching_confirmation(api, monkeypat
     monkeypatch.setattr(admin, "wipe_user", fake_wipe_user)
 
     response = api.post(
-        "/admin/users/already-allowed@example.com/wipe", json={"confirm_email": "already-allowed@example.com"}
+        "/admin/users/already-allowed@example.com/wipe",
+        json={"confirm_email": "already-allowed@example.com"},
     )
 
     assert response.status_code == 200
@@ -184,7 +198,9 @@ def test_wiping_with_a_mismatched_confirmation_deletes_nothing(api, monkeypatch)
     called = []
     monkeypatch.setattr(admin, "wipe_user", lambda email, confirm=False: called.append(email))
 
-    response = api.post("/admin/users/already-allowed@example.com/wipe", json={"confirm_email": "typo@example.com"})
+    response = api.post(
+        "/admin/users/already-allowed@example.com/wipe", json={"confirm_email": "typo@example.com"}
+    )
 
     assert response.status_code == 400
     assert not called
@@ -211,7 +227,8 @@ def test_non_owner_cannot_wipe_anyone(api):
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: NON_OWNER
 
     response = api.post(
-        "/admin/users/already-allowed@example.com/wipe", json={"confirm_email": "already-allowed@example.com"}
+        "/admin/users/already-allowed@example.com/wipe",
+        json={"confirm_email": "already-allowed@example.com"},
     )
 
     assert response.status_code == 403

@@ -11,7 +11,9 @@ from api.routers import internal
 @pytest.fixture
 def api(monkeypatch):
     """Stub poll_all_tenants with a fixed result and return a TestClient."""
-    monkeypatch.setattr(internal, "poll_all_tenants", lambda: {"polled": 2, "created": 5, "errors": []})
+    monkeypatch.setattr(
+        internal, "poll_all_tenants", lambda: {"polled": 2, "created": 5, "errors": []}
+    )
     yield TestClient(api_main.app)
 
 

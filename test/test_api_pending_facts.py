@@ -37,7 +37,9 @@ def api(monkeypatch, signed_in_owner):
     monkeypatch.setattr(pending, "approve_pending_fact", fake_approve)
     monkeypatch.setattr(pending, "reject_pending_fact", fake_reject)
     monkeypatch.setattr(
-        pending, "get_pending_fact_stats", lambda tenant_id, owner_uid: {"pending": 1, "approved": 7, "rejected": 3}
+        pending,
+        "get_pending_fact_stats",
+        lambda tenant_id, owner_uid: {"pending": 1, "approved": 7, "rejected": 3},
     )
     yield TestClient(api_main.app), approved, rejected
 

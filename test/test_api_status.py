@@ -10,9 +10,15 @@ from api.routers import status as status_router
 @pytest.fixture
 def api(monkeypatch, signed_in_owner):
     """Stub the Jira and GitHub project status lookups with fixed states and return a TestClient."""
-    monkeypatch.setattr(status_router, "get_project_jira_status", lambda tenant_id, owner_uid: {"state": "not_linked"})
     monkeypatch.setattr(
-        status_router, "get_project_github_status", lambda tenant_id, owner_uid: {"state": "not_connected"}
+        status_router,
+        "get_project_jira_status",
+        lambda tenant_id, owner_uid: {"state": "not_linked"},
+    )
+    monkeypatch.setattr(
+        status_router,
+        "get_project_github_status",
+        lambda tenant_id, owner_uid: {"state": "not_connected"},
     )
     return TestClient(api_main.app)
 

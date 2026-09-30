@@ -29,7 +29,12 @@ def tenant_id():
 def test_a_created_pending_fact_is_listed(tenant_id):
     """A newly created pending fact appears in the tenant's pending-fact list with its saved fields."""
     pending_id = create_pending_fact(
-        tenant_id, "Uses Postgres for the primary store", "architecture", "github", "https://github.com/o/r/pull/1", OWNER_UID
+        tenant_id,
+        "Uses Postgres for the primary store",
+        "architecture",
+        "github",
+        "https://github.com/o/r/pull/1",
+        OWNER_UID,
     )
 
     listed = list_pending_facts(tenant_id, OWNER_UID)
@@ -44,7 +49,9 @@ def test_a_created_pending_fact_is_listed(tenant_id):
 
 def test_has_pending_fact_for_source_matches_only_that_url(tenant_id):
     """A pending fact is found only for the exact source URL it was created with."""
-    create_pending_fact(tenant_id, "A fact", "architecture", "github", "https://github.com/o/r/pull/1", OWNER_UID)
+    create_pending_fact(
+        tenant_id, "A fact", "architecture", "github", "https://github.com/o/r/pull/1", OWNER_UID
+    )
 
     assert has_pending_fact_for_source(tenant_id, "https://github.com/o/r/pull/1") is True
     assert has_pending_fact_for_source(tenant_id, "https://github.com/o/r/pull/2") is False
@@ -63,7 +70,9 @@ def test_a_rejected_source_is_still_known_so_it_is_not_proposed_again(tenant_id)
 def test_an_approved_source_is_still_known_too(tenant_id, monkeypatch):
     """An approved pending fact's source URL still counts as known too."""
     monkeypatch.setattr(pending_facts_module, "publish_fact", lambda *a, **k: None)
-    pending_id = create_pending_fact(tenant_id, "A fact", "bug", "github", "https://github.com/o/r/pull/2", OWNER_UID)
+    pending_id = create_pending_fact(
+        tenant_id, "A fact", "bug", "github", "https://github.com/o/r/pull/2", OWNER_UID
+    )
     approve_pending_fact(tenant_id, pending_id, OWNER_UID)
 
     assert has_pending_fact_for_source(tenant_id, "https://github.com/o/r/pull/2") is True
@@ -82,7 +91,9 @@ def _raw(tenant_id, pending_id):
 def test_reject_removes_it_without_publishing_anything(tenant_id, monkeypatch):
     """Rejecting a pending fact removes it from the list and never calls publish_fact."""
     published = []
-    monkeypatch.setattr(pending_facts_module, "publish_fact", lambda *a, **k: published.append((a, k)))
+    monkeypatch.setattr(
+        pending_facts_module, "publish_fact", lambda *a, **k: published.append((a, k))
+    )
 
     pending_id = create_pending_fact(tenant_id, "content", "bug", "github", "url", OWNER_UID)
     reject_pending_fact(tenant_id, pending_id, OWNER_UID)
@@ -93,7 +104,9 @@ def test_reject_removes_it_without_publishing_anything(tenant_id, monkeypatch):
 
 def test_a_rejection_is_kept_with_its_time_and_without_the_text(tenant_id):
     """A rejected record keeps its status, decision time, source, and category, but drops the fact content."""
-    pending_id = create_pending_fact(tenant_id, "Text from a PR title", "bug", "github", "https://x/1", OWNER_UID)
+    pending_id = create_pending_fact(
+        tenant_id, "Text from a PR title", "bug", "github", "https://x/1", OWNER_UID
+    )
 
     reject_pending_fact(tenant_id, pending_id, OWNER_UID)
 
@@ -115,7 +128,9 @@ def test_approve_publishes_the_fact_and_removes_the_pending_copy(tenant_id, monk
         ),
     )
 
-    pending_id = create_pending_fact(tenant_id, "Ships with a Dockerfile", "decision", "github", "url", OWNER_UID)
+    pending_id = create_pending_fact(
+        tenant_id, "Ships with a Dockerfile", "decision", "github", "url", OWNER_UID
+    )
     approve_pending_fact(tenant_id, pending_id, OWNER_UID)
 
     assert published == [(tenant_id, "Ships with a Dockerfile", "decision", OWNER_UID, "github")]
@@ -130,7 +145,9 @@ def test_approving_a_missing_pending_fact_is_an_error(tenant_id):
         approve_pending_fact(tenant_id, "does-not-exist", OWNER_UID)
 
 
-def test_a_decided_fact_cannot_be_approved_again_and_rejecting_it_changes_nothing(tenant_id, monkeypatch):
+def test_a_decided_fact_cannot_be_approved_again_and_rejecting_it_changes_nothing(
+    tenant_id, monkeypatch
+):
     """An already-approved fact can't be approved again, and rejecting it or a missing ID afterward is a no-op."""
     published = []
     monkeypatch.setattr(pending_facts_module, "publish_fact", lambda *a, **k: published.append(1))
@@ -149,11 +166,21 @@ def test_a_decided_fact_cannot_be_approved_again_and_rejecting_it_changes_nothin
 def test_a_pending_fact_from_before_statuses_existed_still_counts_as_pending(tenant_id):
     """A legacy record written before the status field existed still lists and counts as pending."""
     pending_facts_module._collection(tenant_id).add(
-        {"content": "old one", "category": "bug", "source": "github", "source_url": "u", "created_at": None}
+        {
+            "content": "old one",
+            "category": "bug",
+            "source": "github",
+            "source_url": "u",
+            "created_at": None,
+        }
     )
 
     assert [f["content"] for f in list_pending_facts(tenant_id, OWNER_UID)] == ["old one"]
-    assert get_pending_fact_stats(tenant_id, OWNER_UID) == {"pending": 1, "approved": 0, "rejected": 0}
+    assert get_pending_fact_stats(tenant_id, OWNER_UID) == {
+        "pending": 1,
+        "approved": 0,
+        "rejected": 0,
+    }
 
 
 def test_the_stats_count_each_status(tenant_id, monkeypatch):
@@ -167,7 +194,11 @@ def test_the_stats_count_each_status(tenant_id, monkeypatch):
     approve_pending_fact(tenant_id, second, OWNER_UID)
     reject_pending_fact(tenant_id, third, OWNER_UID)
 
-    assert get_pending_fact_stats(tenant_id, OWNER_UID) == {"pending": 1, "approved": 2, "rejected": 1}
+    assert get_pending_fact_stats(tenant_id, OWNER_UID) == {
+        "pending": 1,
+        "approved": 2,
+        "rejected": 1,
+    }
 
 
 def test_stats_of_someone_elses_project_are_refused(tenant_id):

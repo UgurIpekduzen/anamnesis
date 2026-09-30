@@ -12,7 +12,9 @@ from src.projects.tenants import get_owned_tenant
 TOPIC_ID = "fact-events"
 
 
-def publish_fact(tenant_id: str, content: str, category: str, owner_uid: str, source: str = "chat") -> str:
+def publish_fact(
+    tenant_id: str, content: str, category: str, owner_uid: str, source: str = "chat"
+) -> str:
     """Publish a fact-creation event instead of writing to Firestore directly.
 
     A subscriber (src/subscriber.py) picks up the message and performs the

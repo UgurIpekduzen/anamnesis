@@ -38,7 +38,9 @@ def test_history_returns_the_saved_turns_for_the_authenticated_user(client):
     response = client.get("/tenants/some_tenant/history")
 
     assert response.status_code == 200
-    assert response.json() == [{"question": "q", "answer": "a", "created_at": "2026-09-21T12:00:00Z"}]
+    assert response.json() == [
+        {"question": "q", "answer": "a", "created_at": "2026-09-21T12:00:00Z"}
+    ]
     assert client.calls == [("some_tenant", OWNER, chat_router.CHAT_HISTORY_DISPLAY_TURNS)]
 
 

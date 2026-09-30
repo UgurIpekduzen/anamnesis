@@ -135,9 +135,13 @@ def test_approving_a_staged_fact_whose_category_was_removed_says_why(tenant_id, 
     """approve_pending_fact raises InvalidCategory when the fact's category
     was removed after it was staged, and leaves the pending fact in place."""
     c.save_categories(OWNER, ["risk", "note"])
-    pending_id = pending_module.create_pending_fact(tenant_id, "Vendor risk", "risk", "github", "u", OWNER)
+    pending_id = pending_module.create_pending_fact(
+        tenant_id, "Vendor risk", "risk", "github", "u", OWNER
+    )
     c.save_categories(OWNER, ["note"])  # removed after it was staged
 
     with pytest.raises(InvalidCategory):
         pending_module.approve_pending_fact(tenant_id, pending_id, OWNER)
-    assert [f["pending_fact_id"] for f in pending_module.list_pending_facts(tenant_id, OWNER)] == [pending_id]
+    assert [f["pending_fact_id"] for f in pending_module.list_pending_facts(tenant_id, OWNER)] == [
+        pending_id
+    ]

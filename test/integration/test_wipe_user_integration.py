@@ -62,7 +62,12 @@ def test_a_dry_run_reports_without_deleting_anything(seeded_user):
     assert result["on_allowlist"] is True
     # Nothing touched: nobody's data is gone just from asking what's there.
     assert list_tenants(email) == [
-        {"tenant_id": tenant_id, "name": project_name, "jira_project_key": None, "github_repo": None}
+        {
+            "tenant_id": tenant_id,
+            "name": project_name,
+            "jira_project_key": None,
+            "github_repo": None,
+        }
     ]
     assert email in get_extra_allowed_emails()
     assert has_github_connection(email) is True
@@ -144,7 +149,12 @@ def test_a_retry_after_a_partial_failure_finishes_the_job(seeded_user, monkeypat
     # The tenant is still there (delete_tenant never got a chance to run
     # for it) — nothing was left half-deleted or silently skipped.
     assert list_tenants(email) == [
-        {"tenant_id": tenant_id, "name": project_name, "jira_project_key": None, "github_repo": None}
+        {
+            "tenant_id": tenant_id,
+            "name": project_name,
+            "jira_project_key": None,
+            "github_repo": None,
+        }
     ]
 
     monkeypatch.setattr(wipe_user_module, "delete_tenant", real_delete_tenant)

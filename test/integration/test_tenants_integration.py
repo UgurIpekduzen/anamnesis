@@ -168,7 +168,9 @@ def test_a_github_repo_can_be_cleared_and_its_poll_cut_off_goes_with_it(tenant_n
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         set_github_repo(tenant_id, "owner/repo", OWNER_UID)
-        get_client().collection("tenants").document(tenant_id).update({"github_polled_at": datetime(2026, 1, 1, tzinfo=timezone.utc)})
+        get_client().collection("tenants").document(tenant_id).update(
+            {"github_polled_at": datetime(2026, 1, 1, tzinfo=timezone.utc)}
+        )
 
         clear_github_repo(tenant_id, OWNER_UID)
 
@@ -184,7 +186,9 @@ def test_switching_to_another_repo_resets_the_poll_cut_off(tenant_name):
     tenant_id = add_tenant(tenant_name, OWNER_UID)
     try:
         set_github_repo(tenant_id, "owner/old-repo", OWNER_UID)
-        get_client().collection("tenants").document(tenant_id).update({"github_polled_at": datetime(2026, 1, 1, tzinfo=timezone.utc)})
+        get_client().collection("tenants").document(tenant_id).update(
+            {"github_polled_at": datetime(2026, 1, 1, tzinfo=timezone.utc)}
+        )
 
         set_github_repo(tenant_id, "owner/new-repo", OWNER_UID)
 
@@ -289,7 +293,9 @@ def test_a_second_user_cannot_take_over_a_project_with_the_same_name(tenant_name
             add_tenant(tenant_name.upper(), OTHER_UID)
 
         assert get_owned_tenant(tenant_id, OWNER_UID)["name"] == tenant_name
-        assert [f["content"] for f in get_tenant_facts(tenant_id, OWNER_UID)] == ["the first user's note"]
+        assert [f["content"] for f in get_tenant_facts(tenant_id, OWNER_UID)] == [
+            "the first user's note"
+        ]
         with pytest.raises(PermissionError):
             get_owned_tenant(tenant_id, OTHER_UID)
     finally:

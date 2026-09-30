@@ -25,7 +25,9 @@ def test_returns_400_on_invalid_json():
 
 def test_returns_400_on_missing_required_field(monkeypatch):
     """A decoded message missing a required field is rejected with a 400 instead of crashing, and create_fact is never called."""
-    monkeypatch.setattr("src.subscriber.create_fact", lambda **_: (_ for _ in ()).throw(AssertionError))
+    monkeypatch.setattr(
+        "src.subscriber.create_fact", lambda **_: (_ for _ in ()).throw(AssertionError)
+    )
     # Missing "category" — this used to crash the streaming-pull callback
     # and take down the whole subscriber process.
     body = _push_envelope({"tenant_id": "x", "content": "y"})
@@ -118,7 +120,9 @@ def test_a_body_over_the_limit_is_a_413_and_is_never_read(server):
 def test_a_malformed_message_is_logged_without_its_content(monkeypatch):
     """A message that isn't valid base64 is logged with its size only, never with its (potentially private) content."""
     logged = []
-    monkeypatch.setattr(subscriber, "log", lambda severity, event, **fields: logged.append((event, fields)))
+    monkeypatch.setattr(
+        subscriber, "log", lambda severity, event, **fields: logged.append((event, fields))
+    )
 
     body = b'{"message": {"data": "not base64 at all, a private fact"}}'
     assert subscriber._process_push_message(body) == 400

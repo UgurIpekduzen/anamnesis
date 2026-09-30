@@ -7,7 +7,11 @@ import api.main as api_main
 from api.routers import connections
 
 OWNER = "test@example.com"
-VALID_BODY = {"email": "user@example.com", "token": "secret-token", "base_url": "https://example.atlassian.net"}
+VALID_BODY = {
+    "email": "user@example.com",
+    "token": "secret-token",
+    "base_url": "https://example.atlassian.net",
+}
 
 
 @pytest.fixture
@@ -24,10 +28,14 @@ def api(monkeypatch, signed_in_owner):
         """Record the owner_uid whose connection would have been deleted."""
         deleted.append(owner_uid)
 
-    monkeypatch.setattr(connections, "validate_jira_credentials", lambda email, token, base_url: None)
+    monkeypatch.setattr(
+        connections, "validate_jira_credentials", lambda email, token, base_url: None
+    )
     monkeypatch.setattr(connections, "save_jira_credentials", fake_save)
     monkeypatch.setattr(connections, "delete_jira_connection", fake_delete)
-    monkeypatch.setattr(connections, "get_jira_base_url", lambda owner_uid: "https://example.atlassian.net")
+    monkeypatch.setattr(
+        connections, "get_jira_base_url", lambda owner_uid: "https://example.atlassian.net"
+    )
     yield TestClient(api_main.app), saved, deleted
 
 

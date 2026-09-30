@@ -62,4 +62,7 @@ def test_invalid_payloads_are_rejected(api):
 
     assert api.put("/admin/alerts", json={"github_poll_alert_muted": "yes"}).status_code == 422
     assert api.put("/admin/alerts", json={}).status_code == 422
-    assert api.put("/admin/alerts", json={"github_poll_alert_muted": True, "extra": 1}).status_code == 422
+    assert (
+        api.put("/admin/alerts", json={"github_poll_alert_muted": True, "extra": 1}).status_code
+        == 422
+    )

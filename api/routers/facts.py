@@ -62,7 +62,9 @@ def edit_fact(
 
 
 @router.delete("/tenants/{tenant_id}/facts/{fact_id}")
-def remove_fact(tenant_id: str, fact_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+def remove_fact(
+    tenant_id: str, fact_id: str, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
     """Delete one fact and confirm it was deleted.
 
     Args:

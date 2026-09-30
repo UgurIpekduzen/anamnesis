@@ -130,7 +130,9 @@ def get_github_status(owner_uid: str, tenant_id: str) -> dict:
     pull_requests = fetch_recent_pull_requests(owner_uid, tenant_id, state="open")
     issues = fetch_recent_issues(owner_uid, tenant_id, state="open")
     return {
-        "pull_requests": [{k: v for k, v in pr.items() if k not in ("body", "merged_at")} for pr in pull_requests],
+        "pull_requests": [
+            {k: v for k, v in pr.items() if k not in ("body", "merged_at")} for pr in pull_requests
+        ],
         "issues": [{k: v for k, v in issue.items() if k != "body"} for issue in issues],
     }
 
@@ -157,12 +159,17 @@ def get_github_history(owner_uid: str, tenant_id: str) -> dict:
         "issues": ["#5 · closed · 2026-09-19 · Title", ...], "truncated": bool}
         — "truncated" is true when either list had more than was returned.
     """
-    pull_requests = fetch_recent_pull_requests(owner_uid, tenant_id, limit=HISTORY_LIMIT + 1, state="closed")
+    pull_requests = fetch_recent_pull_requests(
+        owner_uid, tenant_id, limit=HISTORY_LIMIT + 1, state="closed"
+    )
     issues = fetch_recent_issues(owner_uid, tenant_id, limit=HISTORY_LIMIT + 1, state="closed")
     return {
         "pull_requests": [
             _history_line(
-                pr["number"], "merged" if pr["merged_at"] else "closed", pr["merged_at"] or pr["updated_at"], pr["title"]
+                pr["number"],
+                "merged" if pr["merged_at"] else "closed",
+                pr["merged_at"] or pr["updated_at"],
+                pr["title"],
             )
             for pr in pull_requests[:HISTORY_LIMIT]
         ],

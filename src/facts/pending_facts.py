@@ -28,7 +28,9 @@ MAX_PENDING_CONTENT_CHARS = 200
 
 
 def _collection(tenant_id: str):
-    return get_client().collection("tenants").document(tenant_id).collection(PENDING_FACTS_COLLECTION)
+    return (
+        get_client().collection("tenants").document(tenant_id).collection(PENDING_FACTS_COLLECTION)
+    )
 
 
 def create_pending_fact(
@@ -80,7 +82,11 @@ def has_pending_fact_for_source(tenant_id: str, source_url: str) -> bool:
         source_url (str): The origin URL to check for an existing staged
             fact (e.g. the PR/issue link).
     """
-    query = _collection(tenant_id).where(filter=firestore.FieldFilter("source_url", "==", source_url)).limit(1)
+    query = (
+        _collection(tenant_id)
+        .where(filter=firestore.FieldFilter("source_url", "==", source_url))
+        .limit(1)
+    )
     return any(True for _ in query.stream())
 
 
@@ -113,7 +119,13 @@ def _decide(doc_ref, status: str) -> None:
     """Record a decision. The fact's text goes: the rate and the "already
     seen" check only need the source, and the text was derived from what
     other people wrote (data minimization)."""
-    doc_ref.update({"status": status, "decided_at": datetime.now(timezone.utc), "content": firestore.DELETE_FIELD})
+    doc_ref.update(
+        {
+            "status": status,
+            "decided_at": datetime.now(timezone.utc),
+            "content": firestore.DELETE_FIELD,
+        }
+    )
 
 
 def approve_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
@@ -132,7 +144,9 @@ def approve_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -
         raise ValueError(f"No pending fact '{pending_fact_id}' for tenant '{tenant_id}'.")
 
     data = doc.to_dict()
-    publish_fact(tenant_id, data["content"], data["category"], owner_uid, source=data.get("source", "chat"))
+    publish_fact(
+        tenant_id, data["content"], data["category"], owner_uid, source=data.get("source", "chat")
+    )
     _decide(doc_ref, APPROVED)
 
 

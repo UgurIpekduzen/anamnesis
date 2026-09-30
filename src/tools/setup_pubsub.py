@@ -8,7 +8,12 @@ import os
 
 from google.api_core.exceptions import AlreadyExists
 
-from src.core.pubsub_client import get_publisher_client, get_subscriber_client, subscription_path, topic_path
+from src.core.pubsub_client import (
+    get_publisher_client,
+    get_subscriber_client,
+    subscription_path,
+    topic_path,
+)
 
 TOPIC_ID = "fact-events"
 SUBSCRIPTION_ID = "fact-events-sub"

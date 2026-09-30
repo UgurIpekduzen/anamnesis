@@ -25,11 +25,15 @@ def api(monkeypatch):
     monkeypatch.setattr(admin, "get_roles", lambda emails: {e: "tester" for e in emails})
     monkeypatch.setattr(admin, "get_names", lambda emails: {ALICE: "Ada Lovelace"})
     monkeypatch.setattr(
-        admin, "get_usage_for", lambda emails: [{"email": e, "count": 3, "role": "tester"} for e in sorted(emails)]
+        admin,
+        "get_usage_for",
+        lambda emails: [{"email": e, "count": 3, "role": "tester"} for e in sorted(emails)],
     )
     # Alice invited before Bob; the owner has no record (came from Terraform,
     # not this flow) and so sorts before both.
-    monkeypatch.setattr(admin, "get_invited_ats", lambda emails: {ALICE: ALICE_INVITED_AT, BOB: BOB_INVITED_AT})
+    monkeypatch.setattr(
+        admin, "get_invited_ats", lambda emails: {ALICE: ALICE_INVITED_AT, BOB: BOB_INVITED_AT}
+    )
     monkeypatch.setattr(admin, "get_global_today_count", lambda: 7)
     monkeypatch.setattr(admin, "GLOBAL_DAILY_MESSAGE_LIMIT", 1000)
     yield TestClient(api_main.app)
@@ -65,7 +69,9 @@ def test_a_newly_invited_email_sorts_last(api, monkeypatch):
     """A newly-invited email (simulating add_allowed_email having just run) sorts after the existing users, by invite time."""
     # Simulates add_allowed_email having just run for a brand new email.
     newest = datetime(2026, 9, 29, tzinfo=timezone.utc)
-    monkeypatch.setattr(admin, "get_extra_allowed_emails", lambda: {ALICE, BOB, "carol@example.com"})
+    monkeypatch.setattr(
+        admin, "get_extra_allowed_emails", lambda: {ALICE, BOB, "carol@example.com"}
+    )
     monkeypatch.setattr(
         admin,
         "get_invited_ats",
@@ -75,7 +81,12 @@ def test_a_newly_invited_email_sorts_last(api, monkeypatch):
 
     response = api.get("/admin/users")
 
-    assert [u["email"] for u in response.json()["users"]] == [OWNER, ALICE, BOB, "carol@example.com"]
+    assert [u["email"] for u in response.json()["users"]] == [
+        OWNER,
+        ALICE,
+        BOB,
+        "carol@example.com",
+    ]
 
 
 def test_search_matches_name_case_insensitively(api):

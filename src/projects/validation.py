@@ -31,8 +31,8 @@ def validate_project_key(project_key: str) -> None:
     """
     if not isinstance(project_key, str) or not _PROJECT_KEY_PATTERN.match(project_key):
         raise ValueError(
-            "A Jira project key is uppercase letters, digits and underscores, starting with a letter "
-            "(for example APPCE)."
+            "A Jira project key is uppercase letters, digits and underscores, "
+            "starting with a letter (for example APPCE)."
         )
 
 

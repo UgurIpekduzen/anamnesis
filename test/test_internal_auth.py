@@ -20,7 +20,9 @@ def _verifier(claims=None, error=None):
 
 def test_a_valid_scheduler_token_is_accepted(monkeypatch):
     """A token whose email claim matches the configured scheduler service account is accepted without raising."""
-    monkeypatch.setattr(internal_auth.id_token, "verify_oauth2_token", _verifier(claims={"email": SCHEDULER_EMAIL}))
+    monkeypatch.setattr(
+        internal_auth.id_token, "verify_oauth2_token", _verifier(claims={"email": SCHEDULER_EMAIL})
+    )
 
     internal_auth.verify_scheduler_token(authorization=f"Bearer tok")  # noqa: F541
 
@@ -28,7 +30,9 @@ def test_a_valid_scheduler_token_is_accepted(monkeypatch):
 def test_a_token_for_a_different_identity_is_rejected(monkeypatch):
     """A valid token whose email claim is not the scheduler service account is rejected with a 403."""
     monkeypatch.setattr(
-        internal_auth.id_token, "verify_oauth2_token", _verifier(claims={"email": "someone-else@example.com"})
+        internal_auth.id_token,
+        "verify_oauth2_token",
+        _verifier(claims={"email": "someone-else@example.com"}),
     )
 
     with pytest.raises(HTTPException) as exc:

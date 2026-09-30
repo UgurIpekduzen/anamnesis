@@ -104,7 +104,9 @@ def add_allowed_email(email: str) -> None:
     doc_ref = _doc_ref(client)
     doc_ref.set({"emails": firestore.ArrayUnion([email])}, merge=True)
     get_extra_allowed_emails(force_refresh=True)
-    client.collection(_INVITED_AT_COLLECTION).document(email).set({"invited_at": datetime.now(timezone.utc)})
+    client.collection(_INVITED_AT_COLLECTION).document(email).set(
+        {"invited_at": datetime.now(timezone.utc)}
+    )
 
 
 def remove_allowed_email(email: str) -> None:
@@ -119,7 +121,11 @@ def remove_allowed_email(email: str) -> None:
     # later re-added — re-adding always starts as a tester again (and gets
     # today's date, not the original invite date).
     doc_ref.set(
-        {"emails": firestore.ArrayRemove([email]), "user_role_emails": firestore.ArrayRemove([email])}, merge=True
+        {
+            "emails": firestore.ArrayRemove([email]),
+            "user_role_emails": firestore.ArrayRemove([email]),
+        },
+        merge=True,
     )
     get_extra_allowed_emails(force_refresh=True)
     _get_user_role_emails(force_refresh=True)

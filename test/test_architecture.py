@@ -15,7 +15,15 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Lower rank = lower layer. accounts and projects share a rank on purpose: they
 # know nothing of each other.
-RANK = {"core": 0, "accounts": 1, "projects": 1, "facts": 2, "integrations": 3, "tools": 4, "subscriber": 4}
+RANK = {
+    "core": 0,
+    "accounts": 1,
+    "projects": 1,
+    "facts": 2,
+    "integrations": 3,
+    "tools": 4,
+    "subscriber": 4,
+}
 
 
 def _imported_modules(path: Path) -> set[str]:

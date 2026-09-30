@@ -51,10 +51,10 @@ class DailyLimitExceeded(Exception):
 
     def __init__(self, limit: int, scope: str):
         """Args:
-            scope (str): which limit was hit — "user" (this caller's own
-                daily limit), "global" (everyone's combined), or "lifetime"
-                (the tester lifetime cap). Callers show a different message
-                for each.
+        scope (str): which limit was hit — "user" (this caller's own
+            daily limit), "global" (everyone's combined), or "lifetime"
+            (the tester lifetime cap). Callers show a different message
+            for each.
         """
         super().__init__(f"Daily message limit of {limit} reached ({scope})")
         self.limit = limit
@@ -68,7 +68,13 @@ def _count(snapshot, today: str) -> int:
 
 @firestore.transactional
 def _count_message(
-    transaction, user_ref, global_ref, today: str, user_limit: int, global_limit: int, lifetime_limit: int | None
+    transaction,
+    user_ref,
+    global_ref,
+    today: str,
+    user_limit: int,
+    global_limit: int,
+    lifetime_limit: int | None,
 ) -> int:
     # Both reads happen before either write, as a single transaction requires.
     user_snapshot = user_ref.get(transaction=transaction)
@@ -88,7 +94,8 @@ def _count_message(
     # Nothing is written on any branch above, so a refused attempt inflates
     # no counter.
     transaction.set(
-        user_ref, {"date": today, "message_count": user_current + 1, "lifetime_count": lifetime_current + 1}
+        user_ref,
+        {"date": today, "message_count": user_current + 1, "lifetime_count": lifetime_current + 1},
     )
     transaction.set(global_ref, {"date": today, "message_count": global_current + 1})
     return user_current + 1
@@ -115,7 +122,11 @@ def record_message(owner_uid: str) -> int:
     # actually gates, so a role change (e.g. an owner revoking "user" after
     # spotting abuse) must apply to the very next message, not up to a
     # cache-TTL later on whichever Cloud Run instance handles it.
-    lifetime_limit = TESTER_LIFETIME_MESSAGE_LIMIT if get_role(owner_uid, force_refresh=True) == "tester" else None
+    lifetime_limit = (
+        TESTER_LIFETIME_MESSAGE_LIMIT
+        if get_role(owner_uid, force_refresh=True) == "tester"
+        else None
+    )
     return _count_message(
         client.transaction(),
         user_ref,
@@ -160,4 +171,7 @@ def get_usage_for(emails: list[str]) -> list[dict]:
     Args:
         emails (list[str]): The email addresses to look up.
     """
-    return [{"email": email, "count": get_today_count(email), "role": get_role(email)} for email in sorted(emails)]
+    return [
+        {"email": email, "count": get_today_count(email), "role": get_role(email)}
+        for email in sorted(emails)
+    ]

@@ -8,7 +8,14 @@ from src.integrations.github import polling as github_polling
 
 
 def _pr(number, title="t", body="b", updated_at="2026-01-02T00:00:00Z"):
-    return {"number": number, "title": title, "body": body, "state": "open", "updated_at": updated_at, "url": f"u{number}"}
+    return {
+        "number": number,
+        "title": title,
+        "body": body,
+        "state": "open",
+        "updated_at": updated_at,
+        "url": f"u{number}",
+    }
 
 
 @pytest.fixture
@@ -27,9 +34,15 @@ def wired(monkeypatch):
         "extract_calls": [],
     }
 
-    monkeypatch.setattr(github_polling, "get_owned_tenant", lambda tenant_id, owner_uid: state["tenant"])
-    monkeypatch.setattr(github_polling, "fetch_recent_pull_requests", lambda owner_uid, tenant_id: state["prs"])
-    monkeypatch.setattr(github_polling, "fetch_recent_issues", lambda owner_uid, tenant_id: state["issues"])
+    monkeypatch.setattr(
+        github_polling, "get_owned_tenant", lambda tenant_id, owner_uid: state["tenant"]
+    )
+    monkeypatch.setattr(
+        github_polling, "fetch_recent_pull_requests", lambda owner_uid, tenant_id: state["prs"]
+    )
+    monkeypatch.setattr(
+        github_polling, "fetch_recent_issues", lambda owner_uid, tenant_id: state["issues"]
+    )
 
     def fake_extract(title, body, kind, owner_uid):
         """Record the item's title and return whatever facts state["extracted"] has for it."""
@@ -38,7 +51,9 @@ def wired(monkeypatch):
 
     monkeypatch.setattr(github_polling, "extract_facts", fake_extract)
     monkeypatch.setattr(
-        github_polling, "has_pending_fact_for_source", lambda tenant_id, url: url in state["pending_urls"]
+        github_polling,
+        "has_pending_fact_for_source",
+        lambda tenant_id, url: url in state["pending_urls"],
     )
     monkeypatch.setattr(
         github_polling,
@@ -48,7 +63,9 @@ def wired(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        github_polling, "mark_github_polled", lambda tenant_id, owner_uid: state["marked"].append(tenant_id)
+        github_polling,
+        "mark_github_polled",
+        lambda tenant_id, owner_uid: state["marked"].append(tenant_id),
     )
     return state
 
@@ -57,7 +74,9 @@ def test_stages_a_pending_fact_for_each_extracted_fact(wired):
     """poll_tenant_github_activity() creates one pending fact per fact the
     extractor returns for an item, and returns that count."""
     wired["prs"] = [_pr(1, title="Add caching")]
-    wired["extracted"] = {"Add caching": [{"content": "Adds an LRU cache", "category": "architecture"}]}
+    wired["extracted"] = {
+        "Add caching": [{"content": "Adds an LRU cache", "category": "architecture"}]
+    }
 
     count = github_polling.poll_tenant_github_activity("owner", "tenant-1")
 
@@ -130,7 +149,10 @@ def test_an_item_that_already_has_a_pending_fact_is_not_extracted_again(wired):
     """An item whose source URL already has a pending fact is skipped before
     extraction runs on it, while other items still are."""
     wired["prs"] = [_pr(1, title="staged"), _pr(2, title="new")]
-    wired["extracted"] = {"staged": [{"content": "a", "category": "decision"}], "new": [{"content": "b", "category": "decision"}]}
+    wired["extracted"] = {
+        "staged": [{"content": "a", "category": "decision"}],
+        "new": [{"content": "b", "category": "decision"}],
+    }
     wired["pending_urls"] = {"u1"}
 
     count = github_polling.poll_tenant_github_activity("owner", "tenant-1")
@@ -245,7 +267,9 @@ def all_wired(monkeypatch):
     monkeypatch.setattr(github_polling, "poll_tenant_github_activity", fake_poll)
     monkeypatch.setattr(github_polling, "is_github_poll_alert_muted", lambda: False)
     monkeypatch.setattr(
-        github_polling, "mark_github_poll_failed", lambda tenant_id, kind: state["failed"].append((tenant_id, kind))
+        github_polling,
+        "mark_github_poll_failed",
+        lambda tenant_id, kind: state["failed"].append((tenant_id, kind)),
     )
     return state
 
@@ -322,9 +346,12 @@ class _FakeHTTPError(Exception):
     "status_code,expected_kind",
     [(401, "auth"), (403, "auth"), (404, "not_found"), (500, "other")],
 )
-def test_poll_failures_are_classified_by_status_code(all_wired, monkeypatch, status_code, expected_kind):
+def test_poll_failures_are_classified_by_status_code(
+    all_wired, monkeypatch, status_code, expected_kind
+):
     """A poll failure with an HTTP status code is classified into "auth",
     "not_found", or "other" based on that code."""
+
     def leaky_poll(owner_uid, tenant_id):
         """Simulate poll_tenant_github_activity failing with the given HTTP status."""
         raise _FakeHTTPError(status_code)
@@ -392,6 +419,7 @@ def test_muting_has_no_effect_on_a_run_with_no_failures(all_wired, monkeypatch, 
 def test_the_summary_line_never_includes_error_text(all_wired, monkeypatch, capsys):
     """The logged summary line never includes raw error text (which could
     leak a secret), even though the caller-facing result still does."""
+
     def leaky_poll(owner_uid, tenant_id, max_extractions=None):
         """Simulate a poll failure whose message contains a secret token."""
         raise RuntimeError("401 for token ghp_SECRET123")
@@ -406,7 +434,9 @@ def test_the_summary_line_never_includes_error_text(all_wired, monkeypatch, caps
     assert "ghp_SECRET123" in result["errors"][0]["error"]
 
 
-def test_the_summary_line_is_logged_even_when_there_is_nothing_to_poll(all_wired, capsys, log_lines):
+def test_the_summary_line_is_logged_even_when_there_is_nothing_to_poll(
+    all_wired, capsys, log_lines
+):
     """The summary line is still logged, at INFO with all-zero counts, when
     there are no tenants to poll."""
     github_polling.poll_all_tenants()

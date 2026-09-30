@@ -45,7 +45,7 @@ def verify_scheduler_token(authorization: str | None = Header(default=None)) -> 
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
 
-    token = authorization[len("Bearer "):]
+    token = authorization[len("Bearer ") :]
     try:
         claims = id_token.verify_oauth2_token(token, _request, expected_audience)
     except ValueError as exc:

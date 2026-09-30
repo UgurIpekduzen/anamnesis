@@ -21,7 +21,9 @@ def api(monkeypatch, signed_in_owner):
         stored[owner_uid] = check_category_names(categories)
 
     monkeypatch.setattr(categories, "save_categories", save)
-    monkeypatch.setattr(categories, "reset_categories", lambda owner_uid: stored.pop(owner_uid, None))
+    monkeypatch.setattr(
+        categories, "reset_categories", lambda owner_uid: stored.pop(owner_uid, None)
+    )
     monkeypatch.setattr(
         categories,
         "get_category_settings",
@@ -54,7 +56,9 @@ def test_put_saves_the_users_own_list_and_returns_it(api):
     response = client.put("/categories", json={"categories": ["Risk", "note"]})
 
     assert response.status_code == 200
-    assert response.json()["categories"] == ["risk", "note"] and response.json()["customized"] is True
+    assert (
+        response.json()["categories"] == ["risk", "note"] and response.json()["customized"] is True
+    )
     assert stored == {OWNER: ["risk", "note"]}
 
 
@@ -71,7 +75,12 @@ def test_delete_goes_back_to_the_suggested_list(api):
 
 @pytest.mark.parametrize(
     "body",
-    [{"categories": []}, {"categories": ["has space"]}, {"categories": ["a", "a"]}, {"categories": ["x"] * 13}],
+    [
+        {"categories": []},
+        {"categories": ["has space"]},
+        {"categories": ["a", "a"]},
+        {"categories": ["x"] * 13},
+    ],
 )
 def test_an_invalid_list_is_a_400_with_the_reason_and_nothing_is_saved(api, body):
     """An empty list, a name with a space, duplicate names, or too many names is rejected with a 400 and nothing is saved."""
@@ -84,7 +93,14 @@ def test_an_invalid_list_is_a_400_with_the_reason_and_nothing_is_saved(api, body
 
 
 @pytest.mark.parametrize(
-    "body", [{}, {"categories": "note"}, {"categories": [1]}, {"categories": ["a"], "owner_uid": "x"}, {"categories": ["a"] * 51}]
+    "body",
+    [
+        {},
+        {"categories": "note"},
+        {"categories": [1]},
+        {"categories": ["a"], "owner_uid": "x"},
+        {"categories": ["a"] * 51},
+    ],
 )
 def test_a_malformed_body_is_a_422(api, body):
     """A missing field, wrong-typed categories, an unknown extra field, or an oversized list is rejected with a 422."""

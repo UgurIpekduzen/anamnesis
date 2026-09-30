@@ -9,7 +9,18 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from api.routers import admin, categories, chat, connections, facts, internal, pending, settings, status, tenants
+from api.routers import (
+    admin,
+    categories,
+    chat,
+    connections,
+    facts,
+    internal,
+    pending,
+    settings,
+    status,
+    tenants,
+)
 from src.core.log import log
 
 app = FastAPI(title="Anamnesis API")

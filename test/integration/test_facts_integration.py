@@ -111,10 +111,16 @@ def test_get_fact_returns_one_fact(tenant_id):
 
     fact = get_fact(tenant_id, fact_id, OWNER_UID)
 
-    assert (fact["fact_id"], fact["content"], fact["category"]) == (fact_id, "Uses PostgreSQL", "architecture")
+    assert (fact["fact_id"], fact["content"], fact["category"]) == (
+        fact_id,
+        "Uses PostgreSQL",
+        "architecture",
+    )
 
 
-def test_get_fact_raises_lookup_error_for_a_missing_fact_and_permission_error_for_a_non_owner(tenant_id):
+def test_get_fact_raises_lookup_error_for_a_missing_fact_and_permission_error_for_a_non_owner(
+    tenant_id,
+):
     """get_fact raises LookupError for a fact id that doesn't exist, and
     PermissionError when called by someone other than the tenant's owner."""
     create_fact(tenant_id, content="x", category="bug")
@@ -145,7 +151,5 @@ def test_delete_tenant_cascade_deletes_its_facts(tenant_id):
     # now correctly reject the call (see get_owned_tenant) — read the
     # facts subcollection directly to confirm the cascade delete instead.
     client = get_client()
-    remaining = list(
-        client.collection("tenants").document(tenant_id).collection("facts").stream()
-    )
+    remaining = list(client.collection("tenants").document(tenant_id).collection("facts").stream())
     assert remaining == []

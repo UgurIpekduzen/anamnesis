@@ -40,7 +40,9 @@ async def restore_session(
     turns, or another connection restoring it first.
     """
     service = runner.session_service
-    if await service.get_session(app_name=runner.app_name, user_id=owner_uid, session_id=session_id):
+    if await service.get_session(
+        app_name=runner.app_name, user_id=owner_uid, session_id=session_id
+    ):
         return False
 
     # Blocking Firestore reads — off the event loop.

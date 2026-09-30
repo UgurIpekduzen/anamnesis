@@ -163,7 +163,9 @@ def update_jira_project_key(
 
 
 @router.delete("/tenants/{tenant_id}/jira_project_key")
-def remove_jira_project_key(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+def remove_jira_project_key(
+    tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
     """Unlink a project's Jira project key.
 
     Args:

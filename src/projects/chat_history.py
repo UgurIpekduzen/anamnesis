@@ -68,7 +68,12 @@ def load_recent_turns(tenant_id: str, owner_uid: str, limit: int) -> list[dict]:
     # inequality on one field with an ordering on another needs a composite
     # index, and expiry is cheap to apply to at most `limit` rows here.
     now = datetime.now(timezone.utc)
-    docs = _turns_ref(tenant_id).order_by("created_at", direction=firestore.Query.DESCENDING).limit(limit).stream()
+    docs = (
+        _turns_ref(tenant_id)
+        .order_by("created_at", direction=firestore.Query.DESCENDING)
+        .limit(limit)
+        .stream()
+    )
     turns = [doc.to_dict() for doc in docs]
     live = [turn for turn in turns if turn["expire_at"] > now]
     return [

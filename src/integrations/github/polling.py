@@ -63,9 +63,15 @@ def poll_tenant_github_activity(
     created = 0
     extractions = 0
     skipped_over_cap = 0
-    for kind, fetch in (("pull request", fetch_recent_pull_requests), ("issue", fetch_recent_issues)):
+    for kind, fetch in (
+        ("pull request", fetch_recent_pull_requests),
+        ("issue", fetch_recent_issues),
+    ):
         for item in fetch(owner_uid, tenant_id):
-            if last_polled_at is not None and _parse_github_timestamp(item["updated_at"]) <= last_polled_at:
+            if (
+                last_polled_at is not None
+                and _parse_github_timestamp(item["updated_at"]) <= last_polled_at
+            ):
                 continue
             if has_pending_fact_for_source(tenant_id, item["url"]):
                 continue
@@ -80,7 +86,13 @@ def poll_tenant_github_activity(
                 created += 1
 
     if skipped_over_cap:
-        log("WARNING", "github_poll_cap_hit", tenant_id=tenant_id, cap=max_extractions, dropped=skipped_over_cap)
+        log(
+            "WARNING",
+            "github_poll_cap_hit",
+            tenant_id=tenant_id,
+            cap=max_extractions,
+            dropped=skipped_over_cap,
+        )
 
     mark_github_polled(tenant_id, owner_uid)
     return created

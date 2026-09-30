@@ -17,4 +17,9 @@ def log(severity: str, event: str, **fields) -> None:
         **fields (unannotated): Details, written as given — never pass a
             secret or a token.
     """
-    print(json.dumps({"severity": severity, "event": event, **fields}, ensure_ascii=False, default=str), flush=True)
+    print(
+        json.dumps(
+            {"severity": severity, "event": event, **fields}, ensure_ascii=False, default=str
+        ),
+        flush=True,
+    )

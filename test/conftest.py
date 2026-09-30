@@ -11,8 +11,12 @@ import pytest
 # test modules are collected.
 os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
 os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
-os.environ.setdefault("GITHUB_POLLER_SERVICE_ACCOUNT_EMAIL", "poller@test-project.iam.gserviceaccount.com")
-os.environ.setdefault("GITHUB_POLLER_AUDIENCE", "https://anamnesis-app.example/internal/poll-github")
+os.environ.setdefault(
+    "GITHUB_POLLER_SERVICE_ACCOUNT_EMAIL", "poller@test-project.iam.gserviceaccount.com"
+)
+os.environ.setdefault(
+    "GITHUB_POLLER_AUDIENCE", "https://anamnesis-app.example/internal/poll-github"
+)
 
 OWNER = "test@example.com"
 

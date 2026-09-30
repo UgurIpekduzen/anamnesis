@@ -26,8 +26,7 @@ class UnreadableToken(ValueError):
 
 
 _UNREADABLE_MESSAGE = (
-    "The saved token can't be decrypted (the encryption key has changed). "
-    "Reconnect it in Settings."
+    "The saved token can't be decrypted (the encryption key has changed). Reconnect it in Settings."
 )
 
 

@@ -65,7 +65,9 @@ def get_pending_fact_stats(tenant_id: str, owner_uid: str) -> dict:
 
 
 @router.get("/tenants/{tenant_id}/pending_facts")
-def get_pending_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
+def get_pending_facts(
+    tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)
+) -> list[dict]:
     """Facts staged from GitHub activity, awaiting approval or rejection.
 
     Args:
@@ -78,7 +80,9 @@ def get_pending_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner
 
 
 @router.get("/tenants/{tenant_id}/pending_facts/stats")
-def get_pending_facts_stats(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+def get_pending_facts_stats(
+    tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
     """How many pending facts have been approved vs. rejected so far.
 
     Args:

@@ -34,7 +34,9 @@ def test_anything_that_is_not_a_plain_project_key_is_rejected(key):
         validate_project_key(key)
 
 
-@pytest.mark.parametrize("repo", ["UgurIpekduzen/anamnesis", "a/b", "some-org/some.repo_name-2", "x" * 39 + "/y"])
+@pytest.mark.parametrize(
+    "repo", ["UgurIpekduzen/anamnesis", "a/b", "some-org/some.repo_name-2", "x" * 39 + "/y"]
+)
 def test_a_plain_owner_and_name_is_accepted(repo):
     """A plain "owner/name" identifier, within GitHub's length limits, is accepted."""
     validate_github_repo(repo)

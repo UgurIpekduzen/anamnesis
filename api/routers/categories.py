@@ -30,7 +30,9 @@ def read_categories(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
 
 
 @router.put("/categories")
-def update_categories(body: CategoriesUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+def update_categories(
+    body: CategoriesUpdate, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
     """Replace the signed-in user's whole category list and return the updated settings.
 
     Args:

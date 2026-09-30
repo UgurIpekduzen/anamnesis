@@ -16,19 +16,34 @@ FACT_ID = g.FACT_IDS[1]
     "check, answer",
     [
         (g.check_open_list, "Açık işler: DEMO-90, DEMO-141, DEMO-140, DEMO-139 ve DEMO-138."),
-        (g.check_open_list_cut, "DEMO-90 DEMO-141 DEMO-140 DEMO-139 DEMO-138\n\nListede görünmeyen başka açık işler de var."),
+        (
+            g.check_open_list_cut,
+            "DEMO-90 DEMO-141 DEMO-140 DEMO-139 DEMO-138\n\nListede görünmeyen başka açık işler de var.",
+        ),
         (g.check_not_linked, "Bu projenin bağlantılı bir Jira proje anahtarı bulunmamaktadır."),
         (g.check_recently_done, "DEMO-38 ve DEMO-36, 16 Ağustos 2026'da tamamlandı."),
         (g.check_unknown_topic, "Önbellekleme (caching) hakkında alınmış bir kararı bulamıyorum."),
-        (g.check_unknown_topic, "Önbellekleme (caching) hakkında alınmış bir karara dair herhangi bir kayıt bulamadım."),
+        (
+            g.check_unknown_topic,
+            "Önbellekleme (caching) hakkında alınmış bir karara dair herhangi bir kayıt bulamadım.",
+        ),
         (g.check_unknown_topic, "Önbellekleme (caching) ile ilgili bir karar kaydetmemişiz."),
-        (g.check_conflict_is_cited, "Bu fact güncel olmayabilir: DEMO-38, 2026-08-16'da tamamlanmış görünüyor."),
+        (
+            g.check_conflict_is_cited,
+            "Bu fact güncel olmayabilir: DEMO-38, 2026-08-16'da tamamlanmış görünüyor.",
+        ),
         (
             g.check_no_conflict,
             "Kayıtlı hiçbir fact'in yakın zamandaki aktiviteyle çeliştiğini gösteren bir durum bulunmamaktadır.",
         ),
-        (g.check_no_conflict, "Yakın zamanda biten DEMO-38 ve DEMO-36, fact'lerinizle çelişen herhangi bir bilgi içermiyor."),
-        (g.check_pending_repeat, "'Uses PostgreSQL 15' kaydettiğimiz PostgreSQL 15 fact'ine benziyor; onaylamana gerek yok."),
+        (
+            g.check_no_conflict,
+            "Yakın zamanda biten DEMO-38 ve DEMO-36, fact'lerinizle çelişen herhangi bir bilgi içermiyor.",
+        ),
+        (
+            g.check_pending_repeat,
+            "'Uses PostgreSQL 15' kaydettiğimiz PostgreSQL 15 fact'ine benziyor; onaylamana gerek yok.",
+        ),
     ],
 )
 def test_a_right_answer_passes(check, answer):
@@ -46,12 +61,24 @@ def test_a_right_answer_passes(check, answer):
         (g.check_not_linked, "Şu an açık iş yok.", "no linked Jira"),
         (g.check_recently_done, "DEMO-38 ve DEMO-99 tamamlandı, 16 Ağustos'ta.", "invented"),
         (g.check_recently_done, "DEMO-38 tamamlandı.", "no date"),
-        (g.check_unknown_topic, "Önbellekleme için Redis kullanmaya karar verdik.", "nothing was found"),
+        (
+            g.check_unknown_topic,
+            "Önbellekleme için Redis kullanmaya karar verdik.",
+            "nothing was found",
+        ),
         (g.check_unknown_topic, "Bir kayıt bulamadım ama Redis kullanılıyor olabilir.", "made up"),
         (g.check_conflict_is_cited, "Bu fact güncel olmayabilir.", "doesn't cite DEMO-38"),
         (g.check_conflict_is_cited, f"DEMO-38 çelişiyor (fact {FACT_ID}).", "leaked"),
-        (g.check_no_conflict, "Auth JWT fact'i güncel olmayabilir, DEMO-38 ile çelişiyor.", "out of date"),
-        (g.check_pending_repeat, "Bekleyen iki fact var: LRU önbelleği ve Uses PostgreSQL 15.", "repeats"),
+        (
+            g.check_no_conflict,
+            "Auth JWT fact'i güncel olmayabilir, DEMO-38 ile çelişiyor.",
+            "out of date",
+        ),
+        (
+            g.check_pending_repeat,
+            "Bekleyen iki fact var: LRU önbelleği ve Uses PostgreSQL 15.",
+            "repeats",
+        ),
         (g.check_pending_repeat, "PostgreSQL öğesi zaten kayıtlı, onu onayladım.", "approved"),
     ],
 )
@@ -86,6 +113,8 @@ def test_replaying_grades_saved_answers_without_a_model(tmp_path, monkeypatch):
 
     monkeypatch.setattr(g, "get_answer", no_model)
 
-    exit_code = asyncio.run(g.main(runs=5, min_rate=0.9, only=None, verbose=False, save=None, replay=str(path)))
+    exit_code = asyncio.run(
+        g.main(runs=5, min_rate=0.9, only=None, verbose=False, save=None, replay=str(path))
+    )
 
     assert exit_code == 1  # one of the two answers has no date, so 50% < 90%

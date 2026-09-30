@@ -83,6 +83,8 @@ def test_extra_fields_are_rejected(api):
     """An unexpected extra field (like an email) in the request body is rejected with a 422."""
     api_main.app.dependency_overrides[get_current_owner_uid] = lambda: OWNER
 
-    response = api.put(f"/admin/users/{TARGET}/name", json={"name": "Ada Lovelace", "email": "sneaky@example.com"})
+    response = api.put(
+        f"/admin/users/{TARGET}/name", json={"name": "Ada Lovelace", "email": "sneaky@example.com"}
+    )
 
     assert response.status_code == 422

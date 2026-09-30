@@ -83,9 +83,13 @@ def validate_jira_credentials(email: str, token: str, base_url: str) -> None:
     except requests.RequestException as e:
         raise ValueError(f"Couldn't reach '{base_url}': {e}")
     if response.status_code == 401:
-        raise ValueError("Jira rejected these credentials — check the email, token, and workspace URL.")
+        raise ValueError(
+            "Jira rejected these credentials — check the email, token, and workspace URL."
+        )
     if response.status_code != 200:
-        raise ValueError(f"Jira answered with HTTP {response.status_code} — check the workspace URL.")
+        raise ValueError(
+            f"Jira answered with HTTP {response.status_code} — check the workspace URL."
+        )
 
 
 def _format_issue(issue: dict, with_resolved_date: bool = False) -> str:
@@ -100,7 +104,9 @@ def _format_issue(issue: dict, with_resolved_date: bool = False) -> str:
     return " · ".join([*parts, summary])
 
 
-def _search(jql: str, fields: str, email: str, token: str, base_url: str, limit: int, resolved: bool) -> dict:
+def _search(
+    jql: str, fields: str, email: str, token: str, base_url: str, limit: int, resolved: bool
+) -> dict:
     # An address saved before it was checked may still be in the database.
     validate_base_url(base_url)
     response = requests.get(
@@ -158,8 +164,9 @@ def get_jira_recently_done(
 ) -> dict:
     """Recently finished issues of a Jira project — what was done lately.
 
-    Same data minimization and size limits as get_jira_status: key, type, status, resolution date and a cut-off summary,
-    never people. The most recently updated `limit` done issues only.
+    Same data minimization and size limits as get_jira_status: key, type,
+    status, resolution date and a cut-off summary, never people. The most
+    recently updated `limit` done issues only.
 
     Args:
         project_key (str): The Jira project key, e.g. "APPCE".
@@ -175,4 +182,6 @@ def get_jira_recently_done(
     """
     validate_project_key(project_key)
     jql = f'project = "{project_key}" AND statusCategory = Done ORDER BY updated DESC'
-    return _search(jql, "summary,status,issuetype,resolutiondate", email, token, base_url, limit, resolved=True)
+    return _search(
+        jql, "summary,status,issuetype,resolutiondate", email, token, base_url, limit, resolved=True
+    )

@@ -42,7 +42,9 @@ def test_the_hard_limit_starts_over_on_a_new_day(monkeypatch):
     """A stored count from a previous day does not count against today's hard limit."""
     monkeypatch.setattr(usage, "DAILY_MESSAGE_HARD_LIMIT", 1)
     owner_uid = f"test-owner-{uuid.uuid4().hex[:8]}@example.com"
-    usage.get_client().collection("usage").document(owner_uid).set({"date": "2000-01-01", "message_count": 99})
+    usage.get_client().collection("usage").document(owner_uid).set(
+        {"date": "2000-01-01", "message_count": 99}
+    )
 
     assert record_message(owner_uid) == 1
 

@@ -13,7 +13,9 @@ OWNER = "test@example.com"
 def api(monkeypatch, signed_in_owner):
     """Stub get_fact/update_fact/delete_fact and return a TestClient plus the list of recorded update/delete calls."""
     calls = []
-    monkeypatch.setattr(facts_router, "get_fact", lambda tenant_id, fact_id, owner_uid: {"fact_id": fact_id})
+    monkeypatch.setattr(
+        facts_router, "get_fact", lambda tenant_id, fact_id, owner_uid: {"fact_id": fact_id}
+    )
     monkeypatch.setattr(
         facts_router,
         "update_fact",
@@ -22,7 +24,11 @@ def api(monkeypatch, signed_in_owner):
         ),
     )
     monkeypatch.setattr(
-        facts_router, "delete_fact", lambda tenant_id, fact_id, owner_uid: calls.append(("delete", tenant_id, fact_id, owner_uid))
+        facts_router,
+        "delete_fact",
+        lambda tenant_id, fact_id, owner_uid: calls.append(
+            ("delete", tenant_id, fact_id, owner_uid)
+        ),
     )
     return TestClient(api_main.app), calls
 
@@ -46,7 +52,16 @@ def test_patch_can_change_only_the_category(api):
     assert calls == [("update", "proj", "f1", OWNER, None, "decision")]
 
 
-@pytest.mark.parametrize("body", [{}, {"content": ""}, {"content": "x" * 2001}, {"content": "ok", "owner_uid": "x"}, {"content": 5}])
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"content": ""},
+        {"content": "x" * 2001},
+        {"content": "ok", "owner_uid": "x"},
+        {"content": 5},
+    ],
+)
 def test_patch_rejects_a_bad_body_and_changes_nothing(api, body):
     """An empty, oversized, wrong-typed, or owner_uid-overriding PATCH body is rejected with 422 and updates nothing."""
     client, calls = api
@@ -83,7 +98,9 @@ def test_delete_removes_a_fact(api):
 
 
 @pytest.mark.parametrize("error", [PermissionError("not yours"), LookupError("no such fact")])
-def test_someone_elses_project_or_a_missing_fact_is_a_404_and_nothing_changes(api, monkeypatch, error):
+def test_someone_elses_project_or_a_missing_fact_is_a_404_and_nothing_changes(
+    api, monkeypatch, error
+):
     """PATCH and DELETE both return 404 and make no changes when the fact isn't owned by the user or doesn't exist."""
     client, calls = api
 

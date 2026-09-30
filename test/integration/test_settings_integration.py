@@ -76,7 +76,9 @@ def test_out_of_bounds_stored_values_are_clamped_on_read():
     )
     settings = get_settings()
     assert settings["history_turns"] == BOUNDS["history_turns"][1]
-    assert settings["daily_message_warning_threshold"] == BOUNDS["daily_message_warning_threshold"][0]
+    assert (
+        settings["daily_message_warning_threshold"] == BOUNDS["daily_message_warning_threshold"][0]
+    )
 
 
 def test_garbage_stored_values_fall_back_to_the_default():

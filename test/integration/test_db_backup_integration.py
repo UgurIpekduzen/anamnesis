@@ -44,10 +44,18 @@ def test_a_dump_can_be_loaded_back_and_gives_the_same_data(own_project, tmp_path
     assert list(own_project.collections()) == []
 
     assert db_backup.load(path) == 4
-    assert own_project.document("tenants/alpha").get().to_dict() == {"name": "Alpha", "created_at": when}
+    assert own_project.document("tenants/alpha").get().to_dict() == {
+        "name": "Alpha",
+        "created_at": when,
+    }
     assert own_project.document("tenants/alpha/facts/f1").get().to_dict()["content"] == "a fact"
-    assert own_project.document("config/allowed_emails").get().to_dict() == {"emails": ["a@example.com"]}
-    assert own_project.document("tenants/ghost/facts/f2").get().to_dict()["content"] == "under a parent without fields"
+    assert own_project.document("config/allowed_emails").get().to_dict() == {
+        "emails": ["a@example.com"]
+    }
+    assert (
+        own_project.document("tenants/ghost/facts/f2").get().to_dict()["content"]
+        == "under a parent without fields"
+    )
 
 
 def test_a_dump_says_which_project_and_when(own_project, tmp_path):
@@ -115,14 +123,18 @@ def test_restore_only_reports_until_the_project_is_confirmed(own_project, tmp_pa
     assert not own_project.document("config/allowed_emails").get().exists
 
 
-def test_restore_adds_what_is_missing_and_overwrites_what_differs_but_deletes_nothing(own_project, tmp_path):
+def test_restore_adds_what_is_missing_and_overwrites_what_differs_but_deletes_nothing(
+    own_project, tmp_path
+):
     """db_backup.restore with the matching project id recreates a deleted
     document, overwrites a changed one, and leaves a document written after
     the dump untouched."""
     path = _dump_of_sample(own_project, tmp_path)
     own_project.document("tenants/alpha").update({"name": "Changed"})
     own_project.document("config/allowed_emails").delete()
-    own_project.document("tenants/alpha/facts/added-later").set({"content": "written after the backup"})
+    own_project.document("tenants/alpha/facts/added-later").set(
+        {"content": "written after the backup"}
+    )
 
     result = db_backup.restore(path, "db-backup-test")
 

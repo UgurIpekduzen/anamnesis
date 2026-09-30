@@ -33,7 +33,13 @@ def create_fact(tenant_id: str, content: str, category: str, source: str = "chat
     client = get_client()
     now = datetime.now(timezone.utc)
     client.collection("tenants").document(tenant_id).collection("facts").add(
-        {"content": content, "category": category, "source": source, "created_at": now, "updated_at": now}
+        {
+            "content": content,
+            "category": category,
+            "source": source,
+            "created_at": now,
+            "updated_at": now,
+        }
     )
 
 
@@ -97,7 +103,9 @@ def get_fact(tenant_id: str, fact_id: str, owner_uid: str) -> dict:
     """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
-    doc = client.collection("tenants").document(tenant_id).collection("facts").document(fact_id).get()
+    doc = (
+        client.collection("tenants").document(tenant_id).collection("facts").document(fact_id).get()
+    )
     if not doc.exists:
         raise LookupError(f"No fact '{fact_id}' in this project.")
     data = doc.to_dict()
@@ -141,9 +149,9 @@ def update_fact(
         updates["category"] = category
 
     client = get_client()
-    client.collection("tenants").document(tenant_id).collection("facts").document(
-        fact_id
-    ).update(updates)
+    client.collection("tenants").document(tenant_id).collection("facts").document(fact_id).update(
+        updates
+    )
 
 
 def delete_fact(tenant_id: str, fact_id: str, owner_uid: str) -> None:
@@ -155,6 +163,4 @@ def delete_fact(tenant_id: str, fact_id: str, owner_uid: str) -> None:
     """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
-    client.collection("tenants").document(tenant_id).collection("facts").document(
-        fact_id
-    ).delete()
+    client.collection("tenants").document(tenant_id).collection("facts").document(fact_id).delete()

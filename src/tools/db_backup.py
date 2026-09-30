@@ -117,8 +117,8 @@ def load(path: str) -> int:
     # would change first.
     if not os.environ.get("FIRESTORE_EMULATOR_HOST"):
         raise SystemExit(
-            "Refusing to load: FIRESTORE_EMULATOR_HOST is not set, so this would write to the real database. "
-            "Use restore to write a dump there on purpose."
+            "Refusing to load: FIRESTORE_EMULATOR_HOST is not set, so this would write to the "
+            "real database. Use restore to write a dump there on purpose."
         )
     payload = _read_dump(path)
     client = get_client()
@@ -179,10 +179,13 @@ def restore(path: str, confirm_project: str | None) -> dict:
     client = get_client()
     if payload["project"] != client.project:
         raise SystemExit(
-            f"This dump is from project '{payload['project']}', not '{client.project}'; nothing was written."
+            f"This dump is from project '{payload['project']}', not '{client.project}'; "
+            "nothing was written."
         )
     if confirm_project is not None and confirm_project != client.project:
-        raise SystemExit(f"--confirm-project must be exactly '{client.project}'; nothing was written.")
+        raise SystemExit(
+            f"--confirm-project must be exactly '{client.project}'; nothing was written."
+        )
 
     counts = {"new": 0, "changed": 0, "unchanged": 0}
     to_write = []
@@ -227,7 +230,9 @@ def wipe(confirm_project: str | None) -> tuple[int, bool]:
     if confirm_project is None:
         return count, False
     if confirm_project != client.project:
-        raise SystemExit(f"--confirm-project must be exactly '{client.project}'; nothing was deleted.")
+        raise SystemExit(
+            f"--confirm-project must be exactly '{client.project}'; nothing was deleted."
+        )
     # Children come after their parent in `refs`, so delete in reverse.
     for ref in reversed(refs):
         ref.delete()
@@ -265,23 +270,35 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Loaded {load(args.file)} documents")
     elif args.command == "verify":
         result = verify(args.file)
-        print(f"{result['same']} same, {result['different']} different, {result['missing']} missing, {result['extra']} extra")
+        print(
+            f"{result['same']} same, {result['different']} different, "
+            f"{result['missing']} missing, {result['extra']} extra"
+        )
         if result["different"] or result["missing"] or result["extra"]:
             return 1
         print("OK: the database holds exactly what the dump holds.")
     elif args.command == "restore":
         result = restore(args.file, args.confirm_project)
-        summary = f"{result['new']} new, {result['changed']} would be overwritten, {result['unchanged']} already the same"
+        summary = (
+            f"{result['new']} new, {result['changed']} would be overwritten, "
+            f"{result['unchanged']} already the same"
+        )
         if result["written"]:
             print(f"Restored: {summary.replace('would be overwritten', 'overwritten')}")
         else:
-            print(f"Would write: {summary}. Nothing was written; add --confirm-project {project} to write it.")
+            print(
+                f"Would write: {summary}. Nothing was written; "
+                f"add --confirm-project {project} to write it."
+            )
     else:
         count, deleted = wipe(args.confirm_project)
         if deleted:
             print(f"Deleted {count} documents")
         else:
-            print(f"Would delete {count} documents. Nothing was deleted; add --confirm-project {project} to delete.")
+            print(
+                f"Would delete {count} documents. Nothing was deleted; "
+                f"add --confirm-project {project} to delete."
+            )
     return 0
 
 

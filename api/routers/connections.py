@@ -6,7 +6,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid
 from src.integrations.github.client import validate_github_token
-from src.integrations.github.connections import delete_github_connection, has_github_connection, save_github_token
+from src.integrations.github.connections import (
+    delete_github_connection,
+    has_github_connection,
+    save_github_token,
+)
 from src.integrations.jira.client import validate_jira_credentials
 from src.integrations.jira.connections import (
     delete_jira_connection,
@@ -79,7 +83,9 @@ def read_jira_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dic
 
 
 @router.put("/jira/connection")
-def update_jira_connection(body: JiraConnectionUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+def update_jira_connection(
+    body: JiraConnectionUpdate, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
     """Validate and save the signed-in user's Jira credentials.
 
     Args:

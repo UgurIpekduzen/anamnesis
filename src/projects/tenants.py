@@ -141,9 +141,7 @@ def set_jira_project_key(tenant_id: str, jira_project_key: str, owner_uid: str) 
     validate_project_key(jira_project_key)
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
-    client.collection("tenants").document(tenant_id).update(
-        {"jira_project_key": jira_project_key}
-    )
+    client.collection("tenants").document(tenant_id).update({"jira_project_key": jira_project_key})
 
 
 def clear_jira_project_key(tenant_id: str, owner_uid: str) -> None:
@@ -154,7 +152,9 @@ def clear_jira_project_key(tenant_id: str, owner_uid: str) -> None:
     """
     get_owned_tenant(tenant_id, owner_uid)
     client = get_client()
-    client.collection("tenants").document(tenant_id).update({"jira_project_key": firestore.DELETE_FIELD})
+    client.collection("tenants").document(tenant_id).update(
+        {"jira_project_key": firestore.DELETE_FIELD}
+    )
 
 
 def set_github_repo(tenant_id: str, github_repo: str, owner_uid: str) -> None:
@@ -292,10 +292,7 @@ def list_tenants_with_github_repo() -> list[dict]:
     query = client.collection("tenants").where(
         filter=firestore.FieldFilter("github_repo", "!=", None)
     )
-    return [
-        {"owner_uid": doc.get("owner_uid"), "tenant_id": doc.id}
-        for doc in query.stream()
-    ]
+    return [{"owner_uid": doc.get("owner_uid"), "tenant_id": doc.id} for doc in query.stream()]
 
 
 def list_tenants(owner_uid: str) -> list[dict]:

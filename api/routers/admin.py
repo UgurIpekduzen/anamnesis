@@ -70,7 +70,9 @@ class AllowedEmailCreate(BaseModel):
 
 
 @router.post("/admin/allowed_emails")
-def add_allowed_email_endpoint(body: AllowedEmailCreate, owner_uid: str = Depends(require_owner)) -> dict:
+def add_allowed_email_endpoint(
+    body: AllowedEmailCreate, owner_uid: str = Depends(require_owner)
+) -> dict:
     """Invite an email, defaulting it to the tester role.
 
     Args:
@@ -108,7 +110,9 @@ class RoleUpdate(BaseModel):
 # and "tester" (the default). "admin" isn't settable here: it comes only
 # from OWNER_EMAILS in Terraform.
 @router.put("/admin/allowed_emails/{email}/role")
-def set_role_endpoint(email: str, body: RoleUpdate, owner_uid: str = Depends(require_owner)) -> dict:
+def set_role_endpoint(
+    email: str, body: RoleUpdate, owner_uid: str = Depends(require_owner)
+) -> dict:
     """Change an invited email's role.
 
     Args:
@@ -137,7 +141,9 @@ class UserWipeConfirm(BaseModel):
 # wipe. The owner can never be targeted — wipe_user itself refuses, this
 # just turns that refusal into a 400 instead of a 500.
 @router.post("/admin/users/{email}/wipe")
-def wipe_user_endpoint(email: str, body: UserWipeConfirm, owner_uid: str = Depends(require_owner)) -> dict:
+def wipe_user_endpoint(
+    email: str, body: UserWipeConfirm, owner_uid: str = Depends(require_owner)
+) -> dict:
     """Revoke an invited user's access and permanently delete their data.
 
     Args:
@@ -177,7 +183,9 @@ class SettingsUpdate(BaseModel):
     # PUT /settings used before this setting moved here.
     model_config = ConfigDict(extra="forbid")
 
-    history_turns: int = Field(strict=True, ge=BOUNDS["history_turns"][0], le=BOUNDS["history_turns"][1])
+    history_turns: int = Field(
+        strict=True, ge=BOUNDS["history_turns"][0], le=BOUNDS["history_turns"][1]
+    )
     daily_message_warning_threshold: int = Field(
         strict=True,
         ge=BOUNDS["daily_message_warning_threshold"][0],
@@ -262,12 +270,16 @@ def list_users(
             "count": counts.get(email, 0),
             "invited_at": invited_ats[email].isoformat() if email in invited_ats else None,
         }
-        for email in sorted(emails, key=lambda e: invited_ats.get(e, datetime.min.replace(tzinfo=timezone.utc)))
+        for email in sorted(
+            emails, key=lambda e: invited_ats.get(e, datetime.min.replace(tzinfo=timezone.utc))
+        )
     ]
 
     needle = q.strip().lower()
     if needle:
-        rows = [r for r in rows if needle in r["email"].lower() or needle in (r["name"] or "").lower()]
+        rows = [
+            r for r in rows if needle in r["email"].lower() or needle in (r["name"] or "").lower()
+        ]
 
     return {
         "users": rows[offset : offset + limit],

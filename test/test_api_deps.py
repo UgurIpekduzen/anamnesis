@@ -92,7 +92,9 @@ def test_a_token_google_rejects_is_a_401(monkeypatch):
         ("Something nobody anticipated", "other"),
     ],
 )
-def test_the_rejection_log_names_the_reason_without_echoing_the_token(monkeypatch, capsys, message, expected, log_lines):
+def test_the_rejection_log_names_the_reason_without_echoing_the_token(
+    monkeypatch, capsys, message, expected, log_lines
+):
     """A rejected token logs a WARNING with the classified reason, without leaking the token's own contents."""
     secret = "SECRET-TOKEN-MATERIAL"
     fake, _ = _verifier(error=ValueError(f"{message} [{secret}]"))
@@ -103,7 +105,11 @@ def test_the_rejection_log_names_the_reason_without_echoing_the_token(monkeypatc
 
     logged = capsys.readouterr().out
     (entry,) = log_lines(logged)
-    assert (entry["severity"], entry["event"], entry["reason"]) == ("WARNING", "token_rejected", expected)
+    assert (entry["severity"], entry["event"], entry["reason"]) == (
+        "WARNING",
+        "token_rejected",
+        expected,
+    )
     assert secret not in logged
 
 
