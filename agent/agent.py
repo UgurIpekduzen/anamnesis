@@ -5,6 +5,7 @@ linking it to a GitHub repo or Jira project, plus the system instruction
 that dispatches each user intent to the right tool.
 """
 
+import functools
 import os
 
 from google.adk.agents.llm_agent import Agent
@@ -28,24 +29,286 @@ from src.projects.validation import validate_github_repo, validate_project_key
 MAX_FACTS_PER_TOOL_CALL = int(os.environ.get("MAX_FACTS_PER_TOOL_CALL", 50))
 
 
-def build_agent(owner_uid: str, tenant_id: str) -> Agent:  # noqa: C901
+# Both owner_uid and tenant_id must never be parameters the LLM fills in —
+# owner_uid comes from the caller's verified identity, tenant_id from the
+# chat connection it was opened on (see api/routers/chat.py), never from
+# anything the model or user says in chat. So every tool function below
+# takes them as its first two, explicit parameters (flat, not a closure
+# over build_agent's locals — see _build_tools), and build_agent binds
+# both with functools.partial before handing the result to ADK.
+# functools.partial keeps inspect.signature's view of the remaining
+# parameters accurate, which is what ADK's FunctionTool schema is built
+# from, so the model never sees owner_uid/tenant_id in any tool's schema.
+
+
+def _get_tenant_facts(tenant_id: str, owner_uid: str) -> list[dict]:
+    return get_tenant_facts(tenant_id, owner_uid, limit=MAX_FACTS_PER_TOOL_CALL)
+
+
+def _publish_fact(tenant_id: str, owner_uid: str, content: str, category: str) -> str:
+    # A category outside the user's list comes back as text the model can
+    # act on (ask, or pick another); an uncaught exception would crash
+    # the whole turn (see _get_github_status below).
+    try:
+        return publish_fact(tenant_id, content, category, owner_uid)
+    except InvalidCategory as exc:
+        return f"Not published: {exc}"
+
+
+def _get_github_status(tenant_id: str, owner_uid: str) -> dict:
+    # ADK doesn't turn a raised exception into a tool result the model
+    # can read and explain — an uncaught one crashes the whole turn
+    # So no linked repo, no GitHub connection, and a real GitHub API failure (e.g. an expired
+    # token, surfaced as an HTTP error) must all become a result, not
+    # a crash — catching broadly on purpose, not just ValueError.
+    try:
+        return get_github_status(owner_uid, tenant_id)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _query_jira(tenant_id: str, owner_uid: str, query) -> dict:
+    # Shared by both Jira tools. Each failure becomes a result the model
+    # can explain, never a crashed turn (see _get_github_status).
+    jira_project_key = get_owned_tenant(tenant_id, owner_uid).get("jira_project_key")
+    if not jira_project_key:
+        return {"error": "This project has no linked Jira project key."}
+    try:
+        credentials = get_jira_credentials(owner_uid)
+    except ValueError as e:
+        # A saved token the current key can't read: say so
+        # instead of crashing the turn.
+        return {"error": str(e)}
+    if credentials is None:
+        return {"error": "No Jira account connected. Connect one in Settings."}
+    try:
+        return query(jira_project_key, **credentials)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _get_jira_status(tenant_id: str, owner_uid: str) -> dict:
+    """Query this project's open Jira issues — live data, not stored
+    facts. Returns {"error": "..."} if the project has no linked Jira
+    project key, or if this user hasn't connected a Jira account,
+    instead of guessing either one.
+    """
+    return _query_jira(tenant_id, owner_uid, get_jira_status)
+
+
+def _get_jira_recently_done(tenant_id: str, owner_uid: str) -> dict:
+    """Query this project's recently finished Jira issues — what was done
+    lately, with the date each was resolved. Live data, not stored
+    facts. Returns {"error": "..."} if the project has no linked Jira
+    project key, or if this user hasn't connected a Jira account,
+    instead of guessing either one. Returns only the most recent
+    issues; when "truncated" is true there are more that weren't listed.
+    """
+    return _query_jira(tenant_id, owner_uid, get_jira_recently_done)
+
+
+def _get_github_history(tenant_id: str, owner_uid: str) -> dict:
+    # Same failure handling as _get_github_status.
+    try:
+        return get_github_history(owner_uid, tenant_id)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _get_pending_facts(tenant_id: str, owner_uid: str) -> dict:
+    """List the facts waiting for the user's approval (in the Pending
+    tab), oldest first, each with its category and, when an already
+    saved fact says nearly the same, that fact's text as
+    "similar_to_saved". Read-only: you can't approve or reject them.
+    When "truncated" is true there are more waiting than listed.
+    """
+    try:
+        return get_pending_facts_summary(tenant_id, owner_uid)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _propose_link(tenant_id: str, owner_uid: str, kind: str, value: str) -> dict:
+    """Suggest linking this project to a GitHub repo or a Jira project.
+
+    Nothing is saved: this only shows the user a card with the suggested
+    value, and the link is made when they press its button.
+
+    Args:
+        kind (str): "github_repo" (value is "owner/name") or
+            "jira_project_key" (value is a key such as "APPCE").
+        value (str): The repo or key to suggest, exactly as the user
+            gave it.
+
+    Returns:
+        The proposal, or {"error": "..."} if the value isn't a valid repo
+        or key — tell the user why instead of suggesting it.
+    """
+    try:
+        if kind == "github_repo":
+            validate_github_repo(value)
+        elif kind == "jira_project_key":
+            validate_project_key(value)
+        else:
+            return {"error": 'kind must be "github_repo" or "jira_project_key".'}
+    except ValueError as e:
+        return {"error": str(e)}
+    current = get_owned_tenant(tenant_id, owner_uid).get(kind)
+    return {"proposal": "link", "kind": kind, "value": value, "current": current}
+
+
+def _propose_fact_update(
+    tenant_id: str,
+    owner_uid: str,
+    fact_id: str,
+    content: str | None = None,
+    category: str | None = None,
+) -> dict:
+    """Suggest changing a saved fact's content and/or category.
+
+    Nothing is changed: this only shows the user a card with the old and
+    the new text, and the change is made when they press its button.
+
+    Args:
+        fact_id (str): The fact_id from get_tenant_facts, exactly as
+            returned.
+        content (str | None): The new text, if it should change.
+        category (str | None): The new category, if it should change.
+
+    Returns:
+        The proposal, or {"error": "..."} if there is no such fact or
+        the category isn't one of the allowed ones.
+    """
+    if content is None and category is None:
+        return {"error": "Give the new content or the new category."}
+    try:
+        if category is not None:
+            validate_category_for(owner_uid, category)
+        fact = get_fact(tenant_id, fact_id, owner_uid)
+    except (ValueError, LookupError) as e:
+        return {"error": str(e)}
+    return {
+        "proposal": "fact_update",
+        "fact_id": fact_id,
+        "old": {"content": fact["content"], "category": fact["category"]},
+        "new": {
+            "content": fact["content"] if content is None else content,
+            "category": fact["category"] if category is None else category,
+        },
+    }
+
+
+def _propose_fact_delete(tenant_id: str, owner_uid: str, fact_id: str) -> dict:
+    """Suggest deleting a saved fact.
+
+    Nothing is deleted: this only shows the user a card with the fact,
+    and it is deleted when they press its button.
+
+    Args:
+        fact_id (str): The fact_id from get_tenant_facts, exactly as
+            returned.
+
+    Returns:
+        The proposal, or {"error": "..."} if there is no such fact.
+    """
+    try:
+        fact = get_fact(tenant_id, fact_id, owner_uid)
+    except LookupError as e:
+        return {"error": str(e)}
+    return {
+        "proposal": "fact_delete",
+        "fact_id": fact_id,
+        "old": {"content": fact["content"], "category": fact["category"]},
+    }
+
+
+def _build_tools(owner_uid: str, tenant_id: str) -> list:
+    """Bind owner_uid/tenant_id into each tool function above with
+    functools.partial, and give each bound tool the name (and, where it
+    reuses one, the docstring) ADK's schema is built from.
+
+    Returns the plain list build_agent passes as Agent(tools=...);
+    publish_fact is wrapped with require_confirmation=True by the caller,
+    not here, since that's Agent-construction concern, not binding.
+    """
+    tenant_facts = functools.partial(_get_tenant_facts, tenant_id, owner_uid)
+    publish = functools.partial(_publish_fact, tenant_id, owner_uid)
+    github_status = functools.partial(_get_github_status, tenant_id, owner_uid)
+    github_history = functools.partial(_get_github_history, tenant_id, owner_uid)
+    jira_status = functools.partial(_get_jira_status, tenant_id, owner_uid)
+    jira_recently_done = functools.partial(_get_jira_recently_done, tenant_id, owner_uid)
+    pending_facts = functools.partial(_get_pending_facts, tenant_id, owner_uid)
+    propose_link = functools.partial(_propose_link, tenant_id, owner_uid)
+    propose_fact_update = functools.partial(_propose_fact_update, tenant_id, owner_uid)
+    propose_fact_delete = functools.partial(_propose_fact_delete, tenant_id, owner_uid)
+
+    # Reuse each src.* function's own docstring so ADK's tool schema
+    # (built from name + docstring) stays accurate without duplicating
+    # the description here. jira_status/jira_recently_done keep their own
+    # (set on _get_jira_status/_get_jira_recently_done at definition) —
+    # their contract (no params, resolves the key itself) differs from
+    # get_jira_status'/get_jira_recently_done's.
+    for bound, original in [
+        (tenant_facts, get_tenant_facts),
+        (publish, publish_fact),
+        (github_status, get_github_status),
+        (github_history, get_github_history),
+    ]:
+        bound.__name__ = original.__name__
+        bound.__doc__ = original.__doc__
+
+    jira_status.__name__ = get_jira_status.__name__
+    jira_status.__doc__ = _get_jira_status.__doc__
+    jira_recently_done.__name__ = get_jira_recently_done.__name__
+    jira_recently_done.__doc__ = _get_jira_recently_done.__doc__
+    pending_facts.__name__ = "get_pending_facts"
+    pending_facts.__doc__ = _get_pending_facts.__doc__
+    propose_link.__name__ = "propose_link"
+    propose_link.__doc__ = _propose_link.__doc__
+    propose_fact_update.__name__ = "propose_fact_update"
+    propose_fact_update.__doc__ = _propose_fact_update.__doc__
+    propose_fact_delete.__name__ = "propose_fact_delete"
+    propose_fact_delete.__doc__ = _propose_fact_delete.__doc__
+
+    # The model has to know the list can be cut short, or it would treat
+    # a truncated list as the project's complete history.
+    tenant_facts.__doc__ += (
+        f"\n\n    Only the {MAX_FACTS_PER_TOOL_CALL} most recent facts are returned, newest"
+        " first — a project may have older ones that are not shown."
+    )
+
+    return [
+        tenant_facts,
+        # Wrapped with require_confirmation=True: this
+        # writes state, and the instruction's "ask the user
+        # first" rule alone isn't enough — a live prompt-injection
+        # test got a naturally-phrased request embedded in
+        # a GitHub issue title to call publish_fact with zero actual
+        # user confirmation. ADK pauses the turn and requires an
+        # explicit approve/reject from the client before running the
+        # real function (see api/routers/chat.py's chat handler).
+        FunctionTool(publish, require_confirmation=True),
+        github_status,
+        jira_status,
+        jira_recently_done,
+        github_history,
+        pending_facts,
+        # No side effects: the result is only a proposal
+        # the chat UI draws as a card. The link is made by the user
+        # pressing its button, which calls the validated REST endpoint.
+        propose_link,
+        propose_fact_update,
+        propose_fact_delete,
+    ]
+
+
+def build_agent(owner_uid: str, tenant_id: str) -> Agent:
     """Build an Agent scoped to one user's one project.
 
-    High cyclomatic complexity (mccabe) here is the nested tool closures
-    below, each with its own small branch/try-except, being counted
-    upward into this one function — not a single tangled control flow.
-    Splitting them into module-level functions would need owner_uid/
-    tenant_id passed explicitly or bound with functools.partial, which
-    touches the exact security-relevant mechanism the next paragraph
-    explains; not worth that risk to satisfy a metric.
-
-    Both owner_uid and tenant_id must never be parameters the LLM fills in
-    — owner_uid comes from the caller's verified identity, tenant_id from
-    the chat connection it was opened on (see api/routers/chat.py), never from
-    anything the model or user says in chat. So instead of exposing the
-    src.* functions directly as tools (which would put both in their
-    tool-calling schema), each tool here is a thin wrapper with both
-    already bound and dropped from the signature the model sees.
+    See _build_tools for how each tool gets owner_uid/tenant_id bound and
+    dropped from the signature the model sees — never exposing the src.*
+    functions directly as tools, which would put both in their
+    tool-calling schema.
 
     One Agent per (owner_uid, tenant_id) also means project management —
     creating, renaming, deleting a tenant — isn't something this agent can
@@ -58,202 +321,6 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:  # noqa: C901
             taken from the chat connection it was opened on — never
             something the model or user supplies in chat.
     """
-
-    def _get_tenant_facts() -> list[dict]:
-        return get_tenant_facts(tenant_id, owner_uid, limit=MAX_FACTS_PER_TOOL_CALL)
-
-    def _publish_fact(content: str, category: str) -> str:
-        # A category outside the user's list comes back as text the model can
-        # act on (ask, or pick another); an uncaught exception would crash
-        # the whole turn (see _get_github_status below).
-        try:
-            return publish_fact(tenant_id, content, category, owner_uid)
-        except InvalidCategory as exc:
-            return f"Not published: {exc}"
-
-    def _get_github_status() -> dict:
-        # ADK doesn't turn a raised exception into a tool result the model
-        # can read and explain — an uncaught one crashes the whole turn
-        # So no linked repo, no GitHub connection, and a real GitHub API failure (e.g. an expired
-        # token, surfaced as an HTTP error) must all become a result, not
-        # a crash — catching broadly on purpose, not just ValueError.
-        try:
-            return get_github_status(owner_uid, tenant_id)
-        except Exception as e:
-            return {"error": str(e)}
-
-    def _query_jira(query) -> dict:
-        # Shared by both Jira tools. Each failure becomes a result the model
-        # can explain, never a crashed turn (see _get_github_status).
-        jira_project_key = get_owned_tenant(tenant_id, owner_uid).get("jira_project_key")
-        if not jira_project_key:
-            return {"error": "This project has no linked Jira project key."}
-        try:
-            credentials = get_jira_credentials(owner_uid)
-        except ValueError as e:
-            # A saved token the current key can't read: say so
-            # instead of crashing the turn.
-            return {"error": str(e)}
-        if credentials is None:
-            return {"error": "No Jira account connected. Connect one in Settings."}
-        try:
-            return query(jira_project_key, **credentials)
-        except Exception as e:
-            return {"error": str(e)}
-
-    def _get_jira_status() -> dict:
-        """Query this project's open Jira issues — live data, not stored
-        facts. Returns {"error": "..."} if the project has no linked Jira
-        project key, or if this user hasn't connected a Jira account,
-        instead of guessing either one.
-        """
-        return _query_jira(get_jira_status)
-
-    def _get_jira_recently_done() -> dict:
-        """Query this project's recently finished Jira issues — what was done
-        lately, with the date each was resolved. Live data, not stored
-        facts. Returns {"error": "..."} if the project has no linked Jira
-        project key, or if this user hasn't connected a Jira account,
-        instead of guessing either one. Returns only the most recent
-        issues; when "truncated" is true there are more that weren't listed.
-        """
-        return _query_jira(get_jira_recently_done)
-
-    def _get_github_history() -> dict:
-        # Same failure handling as _get_github_status.
-        try:
-            return get_github_history(owner_uid, tenant_id)
-        except Exception as e:
-            return {"error": str(e)}
-
-    def _get_pending_facts() -> dict:
-        """List the facts waiting for the user's approval (in the Pending
-        tab), oldest first, each with its category and, when an already
-        saved fact says nearly the same, that fact's text as
-        "similar_to_saved". Read-only: you can't approve or reject them.
-        When "truncated" is true there are more waiting than listed.
-        """
-        try:
-            return get_pending_facts_summary(tenant_id, owner_uid)
-        except Exception as e:
-            return {"error": str(e)}
-
-    def _propose_link(kind: str, value: str) -> dict:
-        """Suggest linking this project to a GitHub repo or a Jira project.
-
-        Nothing is saved: this only shows the user a card with the suggested
-        value, and the link is made when they press its button.
-
-        Args:
-            kind (str): "github_repo" (value is "owner/name") or
-                "jira_project_key" (value is a key such as "APPCE").
-            value (str): The repo or key to suggest, exactly as the user
-                gave it.
-
-        Returns:
-            The proposal, or {"error": "..."} if the value isn't a valid repo
-            or key — tell the user why instead of suggesting it.
-        """
-        try:
-            if kind == "github_repo":
-                validate_github_repo(value)
-            elif kind == "jira_project_key":
-                validate_project_key(value)
-            else:
-                return {"error": 'kind must be "github_repo" or "jira_project_key".'}
-        except ValueError as e:
-            return {"error": str(e)}
-        current = get_owned_tenant(tenant_id, owner_uid).get(kind)
-        return {"proposal": "link", "kind": kind, "value": value, "current": current}
-
-    def _propose_fact_update(
-        fact_id: str, content: str | None = None, category: str | None = None
-    ) -> dict:
-        """Suggest changing a saved fact's content and/or category.
-
-        Nothing is changed: this only shows the user a card with the old and
-        the new text, and the change is made when they press its button.
-
-        Args:
-            fact_id (str): The fact_id from get_tenant_facts, exactly as
-                returned.
-            content (str | None): The new text, if it should change.
-            category (str | None): The new category, if it should change.
-
-        Returns:
-            The proposal, or {"error": "..."} if there is no such fact or
-            the category isn't one of the allowed ones.
-        """
-        if content is None and category is None:
-            return {"error": "Give the new content or the new category."}
-        try:
-            if category is not None:
-                validate_category_for(owner_uid, category)
-            fact = get_fact(tenant_id, fact_id, owner_uid)
-        except (ValueError, LookupError) as e:
-            return {"error": str(e)}
-        return {
-            "proposal": "fact_update",
-            "fact_id": fact_id,
-            "old": {"content": fact["content"], "category": fact["category"]},
-            "new": {
-                "content": fact["content"] if content is None else content,
-                "category": fact["category"] if category is None else category,
-            },
-        }
-
-    def _propose_fact_delete(fact_id: str) -> dict:
-        """Suggest deleting a saved fact.
-
-        Nothing is deleted: this only shows the user a card with the fact,
-        and it is deleted when they press its button.
-
-        Args:
-            fact_id (str): The fact_id from get_tenant_facts, exactly as
-                returned.
-
-        Returns:
-            The proposal, or {"error": "..."} if there is no such fact.
-        """
-        try:
-            fact = get_fact(tenant_id, fact_id, owner_uid)
-        except LookupError as e:
-            return {"error": str(e)}
-        return {
-            "proposal": "fact_delete",
-            "fact_id": fact_id,
-            "old": {"content": fact["content"], "category": fact["category"]},
-        }
-
-    # Reuse each src.* function's own docstring so ADK's tool schema
-    # (built from name + docstring) stays accurate without duplicating
-    # the description here. _get_jira_status keeps its own — its contract
-    # (no params, resolves the key itself) differs from get_jira_status'.
-    for wrapper, original in [
-        (_get_tenant_facts, get_tenant_facts),
-        (_publish_fact, publish_fact),
-        (_get_github_status, get_github_status),
-        (_get_github_history, get_github_history),
-    ]:
-        wrapper.__name__ = original.__name__
-        wrapper.__doc__ = original.__doc__
-
-    # Name only, not the docstring — its own (set above, at definition)
-    # describes its actual contract (no params), unlike get_jira_status'.
-    _get_jira_status.__name__ = get_jira_status.__name__
-    _get_jira_recently_done.__name__ = get_jira_recently_done.__name__
-    _get_pending_facts.__name__ = "get_pending_facts"
-    _propose_link.__name__ = "propose_link"
-    _propose_fact_update.__name__ = "propose_fact_update"
-    _propose_fact_delete.__name__ = "propose_fact_delete"
-
-    # The model has to know the list can be cut short, or it would treat
-    # a truncated list as the project's complete history.
-    _get_tenant_facts.__doc__ += (
-        f"\n\n    Only the {MAX_FACTS_PER_TOOL_CALL} most recent facts are returned, newest"
-        " first — a project may have older ones that are not shown."
-    )
-
     return Agent(
         model="gemini-2.5-flash",
         name="root_agent",
@@ -369,27 +436,5 @@ def build_agent(owner_uid: str, tenant_id: str) -> Agent:  # noqa: C901
             "or a Jira key is not a fact either, so never record one with "
             'publish_fact, even when the user says "save it".'
         ),
-        tools=[
-            _get_tenant_facts,
-            # Wrapped with require_confirmation=True: this
-            # writes state, and the instruction's "ask the user
-            # first" rule alone isn't enough — a live prompt-injection
-            # test got a naturally-phrased request embedded in
-            # a GitHub issue title to call publish_fact with zero actual
-            # user confirmation. ADK pauses the turn and requires an
-            # explicit approve/reject from the client before running the
-            # real function (see api/routers/chat.py's chat handler).
-            FunctionTool(_publish_fact, require_confirmation=True),
-            _get_github_status,
-            _get_jira_status,
-            _get_jira_recently_done,
-            _get_github_history,
-            _get_pending_facts,
-            # No side effects: the result is only a proposal
-            # the chat UI draws as a card. The link is made by the user
-            # pressing its button, which calls the validated REST endpoint.
-            _propose_link,
-            _propose_fact_update,
-            _propose_fact_delete,
-        ],
+        tools=_build_tools(owner_uid, tenant_id),
     )

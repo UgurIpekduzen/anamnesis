@@ -1,6 +1,7 @@
 """Tests for the ADK agent's tool wiring, wrappers, and instruction text."""
 
 import pytest
+from google.adk.tools.function_tool import FunctionTool
 
 import agent.agent as agent_module
 from src.facts.categories import InvalidCategory
@@ -222,9 +223,11 @@ def test_the_only_tool_that_writes_is_publish_fact_and_it_asks_first():
     tool_agent = agent_module.build_agent("test@example.com", "some_tenant")
 
     # A FunctionTool is what require_confirmation=True wraps a tool in;
-    # the plain functions read or only propose.
-    confirming = {_tool_name(t) for t in tool_agent.tools if hasattr(t, "func")}
-    plain = {_tool_name(t) for t in tool_agent.tools if not hasattr(t, "func")}
+    # every other entry is a bare, bound callable (functools.partial, which
+    # also happens to expose its own .func — not a usable signal here) that
+    # reads or only proposes.
+    confirming = {_tool_name(t) for t in tool_agent.tools if isinstance(t, FunctionTool)}
+    plain = {_tool_name(t) for t in tool_agent.tools if not isinstance(t, FunctionTool)}
 
     assert confirming == {"publish_fact"}
     assert plain == {
