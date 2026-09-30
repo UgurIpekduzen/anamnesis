@@ -1,3 +1,7 @@
+# Fires on a severity=ERROR structured log line with one of these event
+# names — the github_poll one can be muted from the app's own Admin panel
+# (src/integrations/github/alerts.py) by logging at WARNING instead,
+# without touching this policy or granting the app any new GCP permission.
 resource "google_monitoring_alert_policy" "app_errors" {
   for_each = toset(["agent_call_failed", "github_poll"])
 

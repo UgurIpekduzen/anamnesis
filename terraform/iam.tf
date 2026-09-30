@@ -1,3 +1,6 @@
+# One service account for every user's agent turns and Pub/Sub write path —
+# not per-user; data isolation between users is enforced in the app
+# (owner_uid scoping), not by separate GCP identities.
 resource "google_service_account" "agent_sa" {
   account_id = "anamnesis-agent"
 }

@@ -1,9 +1,11 @@
 variable "project_id" {
-  type = string
+  description = "The GCP project everything in this configuration is created in."
+  type        = string
 }
 
 variable "region" {
-  type = string
+  description = "The GCP region for regional resources (Cloud Run, Artifact Registry, Firestore)."
+  type        = string
 }
 
 variable "image_tag" {
@@ -25,7 +27,7 @@ variable "artifact_retention_days" {
 }
 
 variable "owner_email" {
-  description = "Google account authorized to access anamnesis-ui via IAP"
+  description = "The initial allowlisted Google account, with the owner/admin role — set from ALLOWED_EMAILS on the Cloud Run service; the app enforces its own sign-in and allowlist, not GCP IAM/IAP."
   type        = string
 }
 
