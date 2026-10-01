@@ -35,6 +35,7 @@ enforced inside the app via Google Sign-In + an email allowlist.
 
 - [Features](#features)
 - [Architecture](#architecture)
+- [When the LLM Is Used](#when-the-llm-is-used)
 - [Project Structure](#project-structure)
   - [Dependency Direction](#dependency-direction)
   - [Where New Code Goes](#where-new-code-goes)
@@ -123,6 +124,33 @@ platform engineering learning exercise:
 
 For details and the reasoning behind each decision, see the files under
 `terraform/` and their comments — every decision is explained there.
+
+## When the LLM Is Used
+
+Not every feature needs it. The agent (Gemini via Vertex AI) is called
+only where the input is unstructured and the output needs judgment —
+recording a fact from a free-form chat message, or turning a GitHub
+PR/issue into a fact. Everything else — live Jira/GitHub status,
+approving a pending fact, categories, admin stats — is plain,
+deterministic code: faster, free, and never wrong in a way a model call
+could be.
+
+| Feature | LLM? | Why |
+|---|---|---|
+| Recording a fact from chat | Yes | Free-form text → which category, what to store — needs interpretation |
+| GitHub PR/issue → fact | Yes | Same: unstructured activity → a judgment call about what's worth recording |
+| Live Jira/GitHub status | No | The data is already structured; showing it as-is is faster and free |
+| Approving/rejecting a pending fact | No | A yes/no the user makes, not a judgment call for the model |
+| Categories, settings, admin | No | Plain CRUD |
+
+If a wrong answer would just look wrong, the model is worth the risk.
+If a wrong answer could quietly corrupt stored data, prefer
+deterministic code — see the Pending facts approval flow, which keeps
+a human in the loop before anything the model infers actually gets
+written.
+
+`task eval:groundedness` measures the first category against the real
+model: is what the agent says backed by its tools' data, not invented.
 
 ## Project Structure
 
