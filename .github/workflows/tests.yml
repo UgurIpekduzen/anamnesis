@@ -44,6 +44,15 @@ jobs:
             sleep 1
           done
 
+      # A fresh key every run, not a stored one — it only ever encrypts fake
+      # tokens written to the ephemeral emulator, so there's nothing to keep
+      # consistent across runs or to leak by having it sit in the repo.
+      - name: Generate a test-only token encryption key
+        run: |
+          key=$(uv run python -c \
+            'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')
+          echo "GITHUB_TOKEN_ENCRYPTION_KEY=$key" >> "$GITHUB_ENV"
+
       - name: Run tests
         env:
           FIRESTORE_EMULATOR_HOST: localhost:8080
