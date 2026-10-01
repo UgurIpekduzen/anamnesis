@@ -36,23 +36,23 @@ enforced inside the app via Google Sign-In + an email allowlist.
 - [Features](#features)
 - [Architecture](#architecture)
 - [Project Structure](#project-structure)
-  - [Dependency direction](#dependency-direction)
-  - [Where new code goes](#where-new-code-goes)
-  - [General rules](#general-rules)
-  - [Entry points that must not move](#entry-points-that-must-not-move)
-  - [Not done yet](#not-done-yet)
+  - [Dependency Direction](#dependency-direction)
+  - [Where New Code Goes](#where-new-code-goes)
+  - [General Rules](#general-rules)
+  - [Entry Points That Must Not Move](#entry-points-that-must-not-move)
+  - [Not Done Yet](#not-done-yet)
 - [Prerequisites](#prerequisites)
-- [First-time GCP setup](#first-time-gcp-setup)
+- [First-Time GCP Setup](#first-time-gcp-setup)
 - [Deploying](#deploying)
-- [Local development](#local-development)
+- [Local Development](#local-development)
 - [Environment Variables](#environment-variables)
 - [Configuration](#configuration)
 - [API](#api)
-- [Code quality](#code-quality)
-- [Access control](#access-control)
+- [Code Quality](#code-quality)
+- [Access Control](#access-control)
 - [Access / Requesting a Test Invite](#access--requesting-a-test-invite)
 - [Cost](#cost)
-- [Encryption key: rotation and recovery](#encryption-key-rotation-and-recovery)
+- [Encryption Key: Rotation and Recovery](#encryption-key-rotation-and-recovery)
 - [License](#license)
 
 ## Features
@@ -152,7 +152,7 @@ test/                   unit tests; test/integration/ runs against the emulators
 screenshots/            screenshots
 ```
 
-### Dependency direction
+### Dependency Direction
 
 An import may only point to a package **lower** in this order:
 
@@ -179,7 +179,7 @@ through `api/runner.py`; for everything else they call `src` directly.)
 `test/test_architecture.py` fails on any import pointing up or sideways. A
 new `src` package needs a rank assigned there and listed above.
 
-### Where new code goes
+### Where New Code Goes
 
 | What you're adding | Where it goes |
 |---|---|
@@ -190,7 +190,7 @@ new `src` package needs a rank assigned there and listed above.
 | a maintenance command | `src/tools/`, with a `task` entry in `Taskfile.yml` |
 | something that checks a value has a certain shape | `src/projects/validation.py` |
 
-### General rules
+### General Rules
 
 - **Size.** A file over 300-400 lines is a candidate for splitting.
   `api/routers/chat.py` (the chat socket) sits right at this limit.
@@ -206,7 +206,7 @@ new `src` package needs a rank assigned there and listed above.
 - **No test should need real GCP.** Unit tests need nothing; integration
   tests need the emulators (`task test:integration`).
 
-### Entry points that must not move
+### Entry Points That Must Not Move
 
 Something outside the code calls each of these by name. Moving one isn't a
 refactor, it's a coordinated change.
@@ -223,7 +223,7 @@ that names a module the deployed image doesn't have yet breaks that
 revision. Change such a name in two steps: ship an image that answers to
 both names first, then change Terraform.
 
-### Not done yet
+### Not Done Yet
 
 - `test/` is flat and named by area (`test_api_tenants.py`,
   `test_categories_user.py`). Mirroring `src/` and `api/routers/` is
@@ -243,7 +243,7 @@ both names first, then change Terraform.
 - `gcloud auth application-default login`
 - A Google OAuth 2.0 Client ID (GCP Console → APIs & Services → Credentials)
 
-## First-time GCP setup
+## First-Time GCP Setup
 
 ```bash
 cp terraform/terraform.tfvars.example terraform/terraform.tfvars   # project_id, region, owner_email, google_oauth_client_id
@@ -266,7 +266,7 @@ TF_VAR_image_tag=<tag> task tf:apply
 
 Pushing to `main` does this automatically (GitHub Actions, WIF — no stored keys).
 
-## Local development
+## Local Development
 
 ```bash
 task dev:up
@@ -356,7 +356,7 @@ curl http://localhost:8010/tenants \
   -H "Authorization: Bearer <id-token>"
 ```
 
-## Code quality
+## Code Quality
 
 Every language here has its own linter/formatter, each running in its own
 Docker container — nothing to install on the host:
@@ -373,7 +373,7 @@ Config lives at the repo root or next to what it lints: `pyproject.toml`'s
 `[tool.ruff]`, `frontend/eslint.config.js` + `frontend/.prettierrc.json`,
 `terraform/.tflint.hcl`, `.yamllint.yml`.
 
-## Access control
+## Access Control
 
 Cloud Run itself is public (`allUsers`) — the old alternative, IAM-based
 access restricted to a Google Group, only worked because Streamlit had no
@@ -397,7 +397,7 @@ Everything is sized to stay within the GCP Always Free tier. `subscriber`
 can be torn down when not actively needed with
 `task gcloud:run:services:delete -- anamnesis-subscriber --region=<region>`.
 
-## Encryption key: rotation and recovery
+## Encryption Key: Rotation and Recovery
 
 Every user's GitHub and Jira token is encrypted with the key in the
 `github-token-encryption-key` secret before it is stored. The secret can
