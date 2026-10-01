@@ -2,7 +2,7 @@
 # Not used by local dev — docker-compose.yml runs the frontend's own Vite
 # dev server and the api service separately, via the plain Dockerfile.
 
-FROM node:20-slim AS frontend-build
+FROM node:26-slim AS frontend-build
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
