@@ -30,7 +30,7 @@ jobs:
       TF_VAR_owner_email: ${{ secrets.OWNER_EMAIL }}
       TF_VAR_google_oauth_client_id: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # A plan only reads, so it runs as the read-only account instead of
       # the one that can change the project.

@@ -21,7 +21,7 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # uv installs from uv.lock exactly (--frozen), so a merge never deploys
       # whatever happens to be the newest release that day.
@@ -78,7 +78,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - id: auth
         uses: google-github-actions/auth@v3
