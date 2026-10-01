@@ -48,7 +48,7 @@ resource "google_project_iam_member" "github_actions_viewer" {
 }
 
 resource "google_storage_bucket_iam_member" "github_actions_tfstate" {
-  bucket = "anamnesis-tfstate-gen-lang-client-0424267124"
+  bucket = "anamnesis-tfstate-b7db2ae1"
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.github_actions.email}"
 }
@@ -71,7 +71,7 @@ resource "google_project_iam_member" "github_actions_plan_security_reviewer" {
 }
 
 resource "google_storage_bucket_iam_member" "github_actions_plan_tfstate" {
-  bucket = "anamnesis-tfstate-gen-lang-client-0424267124"
+  bucket = "anamnesis-tfstate-b7db2ae1"
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.github_actions_plan.email}"
 }
