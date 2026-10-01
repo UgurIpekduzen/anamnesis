@@ -1,6 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket = "anamnesis-tfstate-gen-lang-client-0424267124"
+    bucket = "anamnesis-tfstate-b7db2ae1"
     prefix = "terraform/state"
   }
 }
