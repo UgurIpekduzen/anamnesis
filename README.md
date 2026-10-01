@@ -53,6 +53,7 @@ enforced inside the app via Google Sign-In + an email allowlist.
 - [Access / Requesting a Test Invite](#access--requesting-a-test-invite)
 - [Cost](#cost)
 - [Encryption key: rotation and recovery](#encryption-key-rotation-and-recovery)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Features
@@ -418,6 +419,14 @@ task secrets:github-key:reload      # load the single remaining key
 If the key is ever lost with no backup, stored tokens can't be decrypted
 by anyone and every user has to reconnect GitHub/Jira in Settings — keep
 one offline copy of the current key.
+
+## Contributing
+
+This is a personal learning project, not a product looking for
+contributors — pull requests and issues aren't monitored or accepted.
+
+Found a security issue? See [SECURITY.md](SECURITY.md) for how to
+report it privately.
 
 ## License
 
