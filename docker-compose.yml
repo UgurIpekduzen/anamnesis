@@ -149,6 +149,11 @@ services:
       # rebuilding the image (same pattern as adk-web below).
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html
+      # Without these two, `npm install` (task frontend:install) ran
+      # against the image's stale, baked-in copies instead of the host's —
+      # silently never updating package-lock.json (APPCE-131).
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/package-lock.json:/app/package-lock.json
       # Anonymous volume so the container's own npm-installed
       # node_modules isn't shadowed by the host bind mounts above.
       - /app/node_modules
