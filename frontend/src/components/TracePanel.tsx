@@ -2,6 +2,11 @@ import type { TraceCall, TraceTurn } from "../trace";
 import { describeArgs, describeResult, prettyJson } from "../traceView";
 import "./TracePanel.css";
 
+// Sidebar "Trace" tab: a debug view of the agent's tool calls per chat turn
+// (arguments, results, timing), built from the ChatEvent stream App.tsx
+// collects — not something an end user needs, but useful for seeing what
+// the agent actually did.
+
 interface Props {
   turns: TraceTurn[];
 }
@@ -108,7 +113,11 @@ function CallView({ call }: { call: TraceCall }) {
       <div className="trace-section-label">Arguments</div>
       <ArgsView args={call.args} />
       <div className="trace-section-label">Result</div>
-      {pending ? <p className="trace-empty">Waiting for the tool…</p> : <ResultView result={call.result} />}
+      {pending ? (
+        <p className="trace-empty">Waiting for the tool…</p>
+      ) : (
+        <ResultView result={call.result} />
+      )}
       {/* The table is a reading aid; the exact payload is still one click away. */}
       <details className="trace-raw">
         <summary>Raw JSON</summary>
@@ -120,7 +129,11 @@ function CallView({ call }: { call: TraceCall }) {
 
 function TracePanel({ turns }: Props) {
   if (turns.length === 0) {
-    return <p className="trace-empty">No agent activity yet. Send a message to see the tools it calls.</p>;
+    return (
+      <p className="trace-empty">
+        No agent activity yet. Send a message to see the tools it calls.
+      </p>
+    );
   }
 
   // Newest first — in a narrow sidebar the latest turn is what you came for.
@@ -144,10 +157,14 @@ function TracePanel({ turns }: Props) {
 
           {turn.calls.length === 0 ? (
             <p className="trace-empty">
-              {turn.status === "running" ? "Thinking…" : "The agent answered without calling any tools."}
+              {turn.status === "running"
+                ? "Thinking…"
+                : "The agent answered without calling any tools."}
             </p>
           ) : (
-            turn.calls.map((call, i) => <CallView key={call.id ?? `${call.name}-${i}`} call={call} />)
+            turn.calls.map((call, i) => (
+              <CallView key={call.id ?? `${call.name}-${i}`} call={call} />
+            ))
           )}
         </details>
       ))}

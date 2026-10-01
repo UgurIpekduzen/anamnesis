@@ -1,3 +1,6 @@
+"""Rebuilds an ADK session's in-memory conversation history from Firestore-
+saved chat turns, for when a process restart has dropped it."""
+
 import asyncio
 import uuid
 from collections.abc import Callable
@@ -15,7 +18,7 @@ async def restore_session(
     The ADK session lives in this process's memory, so after a restart (a
     deploy, Cloud Run scaling to zero) the model would have forgotten a
     conversation the UI still shows. This seeds a fresh session from the
-    turns saved in Firestore (src/projects/chat_history.py) — see APPCE-60.
+    turns saved in Firestore (src/projects/chat_history.py).
 
     Only the question/answer text is restored, not the tool calls and
     results of the original turns; the model sees what was said and can call
@@ -24,15 +27,25 @@ async def restore_session(
     load_turns is only called when there is actually a session to rebuild,
     so a connection to a warm session costs no Firestore reads.
 
+    Args:
+        runner (unannotated): The ADK Runner whose session_service holds
+            the in-memory session to seed.
+        session_id (str): The ADK session id to look up or create.
+        load_turns (Callable[[], list[dict]]): Called only when no
+            in-memory session exists yet; returns the saved question/answer
+            turns to replay, oldest first.
+
     Returns True if it seeded a session, False if there was nothing to do:
     a session already in memory (never overwrite a live one), no saved
     turns, or another connection restoring it first.
     """
     service = runner.session_service
-    if await service.get_session(app_name=runner.app_name, user_id=owner_uid, session_id=session_id):
+    if await service.get_session(
+        app_name=runner.app_name, user_id=owner_uid, session_id=session_id
+    ):
         return False
 
-    # Blocking Firestore reads — off the event loop (APPCE-62).
+    # Blocking Firestore reads — off the event loop.
     turns = await asyncio.to_thread(load_turns)
     if not turns:
         return False

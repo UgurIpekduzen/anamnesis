@@ -1,3 +1,7 @@
+"""The FastAPI app entrypoint: builds the app instance, wires up CORS,
+security headers and request logging middleware, mounts each router, and
+(in production) serves the built frontend as static files."""
+
 import time
 from pathlib import Path
 
@@ -5,13 +9,24 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from api.routers import admin, categories, chat, connections, facts, internal, pending, settings, status, tenants
+from api.routers import (
+    admin,
+    categories,
+    chat,
+    connections,
+    facts,
+    internal,
+    pending,
+    settings,
+    status,
+    tenants,
+)
 from src.core.log import log
 
 app = FastAPI(title="Anamnesis API")
 
 # Local dev only — the Vite dev server's own origin. Harmless in
-# production (APPCE-56): the built frontend is served from this same
+# production: the built frontend is served from this same
 # origin there (see the StaticFiles mount at the bottom of this file), so
 # the browser never even sends a cross-origin request for the CORS
 # headers below to matter.
@@ -24,7 +39,7 @@ app.add_middleware(
 
 
 # What the page loads: its own files, plus Google sign-in (script, its iframe,
-# its styles and requests). It ran report-only first (APPCE-119) and the live
+# its styles and requests). It ran report-only first and the live
 # app showed no violation, so it is enforced. If a new page needs another
 # source, add it here; the browser console names what was refused.
 _CONTENT_SECURITY_POLICY = "; ".join(
@@ -45,6 +60,16 @@ _CONTENT_SECURITY_POLICY = "; ".join(
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
+    """Add the response headers CORSMiddleware doesn't cover: MIME sniffing,
+    clickjacking, referrer, and Content-Security-Policy protections.
+
+    Args:
+        request (Request): The incoming request; unused beyond satisfying
+            the middleware signature — the headers added are the same for
+            every response.
+        call_next (unannotated): The next handler in the middleware chain,
+            awaited to get the response these headers are added to.
+    """
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -55,11 +80,18 @@ async def add_security_headers(request: Request, call_next):
 
 @app.middleware("http")
 async def log_request_duration(request: Request, call_next):
-    """One line per REST call: how long the server took to answer (APPCE-68).
+    """One line per REST call: how long the server took to answer.
 
     Only the path is logged, never the query string. CORS preflights are
     skipped as noise, and the chat WebSocket isn't an HTTP request (it stays
     open for a whole conversation, so a duration would mean nothing).
+
+    Args:
+        request (Request): The incoming request; its method and path are
+            logged (never the query string).
+        call_next (unannotated): The next handler in the middleware chain,
+            awaited to get the response whose status code is logged, and
+            to measure elapsed time.
     """
     started = time.perf_counter()
     response = await call_next(request)
@@ -90,7 +122,7 @@ app.include_router(chat.router)
 
 # Registered last on purpose: Starlette only falls through to a mount once
 # no route above it has already matched the path, so this can never shadow
-# an API route above. Only present in the production image (APPCE-56) —
+# an API route above. Only present in the production image —
 # the Dockerfile bakes the React build in here; local dev keeps using the
 # separate Vite dev server instead, so this directory won't exist there.
 _FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend_dist"

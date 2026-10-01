@@ -1,4 +1,4 @@
-# The app on the emulators instead of real GCP (APPCE-120), for working with a
+# The app on the emulators instead of real GCP, for working with a
 # copy of the data (task db:dump / db:load) without touching the real database
 # or the deployed subscriber. Used by `task local:up`, on top of
 # docker-compose.yml:

@@ -1,3 +1,7 @@
+"""Persists finished chat turns per tenant, with a TTL-backed expiry, so a
+conversation's recent history can be resent to the model on later turns
+without keeping every tool call and result it produced along the way."""
+
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -6,7 +10,7 @@ from google.cloud import firestore
 from src.core.firestore_client import get_client
 from src.projects.tenants import CHAT_TURNS_COLLECTION, get_owned_tenant
 
-# Saved conversation turns (APPCE-60): one document per *finished* turn,
+# Saved conversation turns: one document per *finished* turn,
 # holding just the question and the final answer as text. Tool calls and
 # their (often large) results are deliberately not stored — the model can
 # call the tools again, and leaving them out keeps writes to one per turn
@@ -26,6 +30,11 @@ def _turns_ref(tenant_id: str):
 def append_turn(tenant_id: str, owner_uid: str, question: str, answer: str) -> None:
     """Save one finished turn under tenant_id.
 
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        question (str): The user's message for this turn.
+        answer (str): The agent's final answer for this turn.
+
     Raises:
         PermissionError: if the tenant isn't owner_uid's.
     """
@@ -44,6 +53,10 @@ def append_turn(tenant_id: str, owner_uid: str, question: str, answer: str) -> N
 def load_recent_turns(tenant_id: str, owner_uid: str, limit: int) -> list[dict]:
     """Return up to `limit` of the most recent unexpired turns, oldest first.
 
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        limit (int): The most turns to return.
+
     Raises:
         PermissionError: if the tenant isn't owner_uid's.
     """
@@ -55,7 +68,12 @@ def load_recent_turns(tenant_id: str, owner_uid: str, limit: int) -> list[dict]:
     # inequality on one field with an ordering on another needs a composite
     # index, and expiry is cheap to apply to at most `limit` rows here.
     now = datetime.now(timezone.utc)
-    docs = _turns_ref(tenant_id).order_by("created_at", direction=firestore.Query.DESCENDING).limit(limit).stream()
+    docs = (
+        _turns_ref(tenant_id)
+        .order_by("created_at", direction=firestore.Query.DESCENDING)
+        .limit(limit)
+        .stream()
+    )
     turns = [doc.to_dict() for doc in docs]
     live = [turn for turn in turns if turn["expire_at"] > now]
     return [
@@ -66,6 +84,9 @@ def load_recent_turns(tenant_id: str, owner_uid: str, limit: int) -> list[dict]:
 
 def clear_turns(tenant_id: str, owner_uid: str) -> None:
     """Delete every saved turn under tenant_id.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
 
     Raises:
         PermissionError: if the tenant isn't owner_uid's.

@@ -1,7 +1,7 @@
 import { API_BASE } from "./client";
 
 // No token in the URL: URLs end up in access logs. The socket authenticates
-// with its first frame instead (see Chat.tsx and APPCE-67).
+// with its first frame instead (see Chat.tsx).
 export function chatSocketUrl(tenantId: string): string {
   // API_BASE is relative in production (see above), so there's no origin
   // to turn into a ws(s):// URL — build one from the page's own instead.

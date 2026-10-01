@@ -9,6 +9,12 @@ vars:
   KEY_SECRET: github-token-encryption-key
 
 tasks:
+  compose:check:
+    desc: Validate docker-compose.yml, and its docker-compose.local.yml overlay, syntax only — no containers started
+    cmds:
+      - docker compose config --quiet
+      - docker compose -f docker-compose.yml -f docker-compose.local.yml config --quiet
+
   tf:init:
     cmds:
       - docker compose run --rm terraform init
@@ -32,6 +38,22 @@ tasks:
     aliases: [tp]
     cmds:
       - docker compose run --rm terraform plan
+
+  tf:lint:
+    desc: Lint the Terraform files (tflint) — naming, unused declarations, provider best practices that fmt/validate don't cover
+    cmds:
+      - docker compose run --rm tflint --init
+      - docker compose run --rm tflint --recursive
+
+  docker:lint:
+    desc: Lint every Dockerfile (hadolint) — cache-busting, version pinning and other best practices `docker build` doesn't check
+    cmds:
+      - docker compose run --rm hadolint Dockerfile Dockerfile.app Dockerfile.gcloud frontend/Dockerfile
+
+  yaml:lint:
+    desc: Lint every YAML file (yamllint) — compose files, GitHub Actions workflows, dependabot.yml
+    cmds:
+      - docker compose run --rm yamllint .
 
   tf:apply:
     aliases: [ta]
@@ -81,7 +103,7 @@ tasks:
 
   alert:test:
     aliases: [at]
-    desc: Write a fake ERROR log line so an alert policy fires and mails the owner (APPCE-109) — task alert:test [EVENT=agent_call_failed|github_poll]
+    desc: Write a fake ERROR log line so an alert policy fires and mails the owner — task alert:test [EVENT=agent_call_failed|github_poll]
     vars:
       EVENT: '{{.EVENT | default "agent_call_failed"}}'
     requires:
@@ -101,7 +123,7 @@ tasks:
         echo "No mail? A policy mails at most once an hour and stays open for 30 minutes after the last matching line."
 
   uv:lock:
-    desc: Re-resolve pyproject.toml into uv.lock without upgrading anything already locked (uv runs in Docker, APPCE-96)
+    desc: Re-resolve pyproject.toml into uv.lock without upgrading anything already locked (uv runs in Docker)
     cmds:
       - docker compose run --rm uv lock
 
@@ -133,6 +155,16 @@ tasks:
     cmds:
       - docker compose run --rm uv run pytest test/ --ignore=test/integration {{.CLI_ARGS}}
 
+  py:lint:
+    desc: Lint the Python code (ruff) — task py:lint -- --fix
+    cmds:
+      - docker compose run --rm --entrypoint sh -e HOME=/tmp uv -c "uvx ruff check {{.CLI_ARGS}} ."
+
+  py:format:
+    desc: Reformat the Python code (ruff format)
+    cmds:
+      - docker compose run --rm --entrypoint sh -e HOME=/tmp uv -c "uvx ruff format ."
+
   emulators:up:
     desc: Start the Firestore and Pub/Sub emulators in the background
     cmds:
@@ -143,8 +175,28 @@ tasks:
     cmds:
       - docker compose down firestore-emulator pubsub-emulator
 
+  env:init:
+    desc: Create .env (and .env.production, if present) from their .example files if missing, and lock permissions to you only — both hold real secrets/project info in plain text
+    cmds:
+      - test -f .env || cp .env.example .env
+      - chmod 600 .env
+      - test -f .env.production || cp .env.production.example .env.production
+      - chmod 600 .env.production
+
+  dev:up:
+    desc: One-shot local dev setup — .env, encryption key, emulators, api, subscriber, frontend
+    cmds:
+      - task: env:init
+      - |
+        if ! grep -q "GITHUB_TOKEN_ENCRYPTION_KEY=." .env; then
+          KEY=$(docker compose run --rm gcloud secrets versions access latest --secret={{.KEY_SECRET}})
+          sed -i "s|^GITHUB_TOKEN_ENCRYPTION_KEY=.*|GITHUB_TOKEN_ENCRYPTION_KEY=$KEY|" .env
+        fi
+      - task: local:up
+      - task: frontend:up
+
   local:up:
-    desc: Run the app on the emulators, not real GCP (APPCE-120) — then load a copy of the data with task db:load -- backups/<file>.json
+    desc: Run the app on the emulators, not real GCP — then load a copy of the data with task db:load -- backups/<file>.json
     cmds:
       - docker compose up -d firestore-emulator pubsub-emulator
       - until curl -s -o /dev/null localhost:8085 && curl -s -o /dev/null localhost:8080; do sleep 1; done
@@ -169,6 +221,7 @@ tasks:
   db:load:
     desc: Load a dump into the Firestore EMULATOR (never the real database) — task db:load -- backups/<file>.json
     cmds:
+      - mkdir -p backups
       - docker compose up -d firestore-emulator
       - docker compose build -q api
       - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.tools.db_backup load {{.CLI_ARGS}}
@@ -178,6 +231,7 @@ tasks:
     cmds:
       # A stopped emulator would be started empty and reported as "everything missing": refuse instead.
       - docker compose ps --status running -q firestore-emulator | grep -q . || { echo "The Firestore emulator isn't running (task local:up)."; exit 1; }
+      - mkdir -p backups
       - docker compose build -q api
       - docker compose run --rm -v "$PWD/backups:/app/backups" -e FIRESTORE_EMULATOR_HOST=firestore-emulator:8080 -e GCP_PROJECT_ID=anamnesis-local api python -m src.tools.db_backup verify {{.CLI_ARGS}}
 
@@ -193,6 +247,7 @@ tasks:
   db:restore:
     desc: Show what writing a dump into the REAL database would change; write it only with -- backups/<file>.json --confirm-project <project id>
     cmds:
+      - mkdir -p backups
       - docker compose build -q api
       - docker compose run --rm -v "$PWD/backups:/app/backups" api python -m src.tools.db_backup restore {{.CLI_ARGS}}
 
@@ -219,7 +274,7 @@ tasks:
 
   api:up:
     aliases: [up]
-    desc: Run the FastAPI backend in the background (APPCE-53)
+    desc: Run the FastAPI backend in the background
     cmds:
       # The API's code is baked into its image (no bind mount), so without
       # --build a restart quietly keeps running the previous code. Docker's
@@ -237,8 +292,19 @@ tasks:
     cmds:
       - docker compose down api
 
+  frontend:build:
+    desc: Rebuild the frontend image — needed after editing frontend/Dockerfile or frontend/package.json (frontend:up/test/lint don't rebuild on their own)
+    cmds:
+      - docker compose build frontend
+
+  frontend:install:
+    desc: Install/update a frontend dependency and refresh package-lock.json, then rebuild the image — task frontend:install -- <package>
+    cmds:
+      - docker compose run --rm frontend npm install {{.CLI_ARGS}}
+      - task: frontend:build
+
   frontend:up:
-    desc: Run the React dev server in the background (APPCE-52)
+    desc: Run the React dev server in the background
     cmds:
       - docker compose up -d frontend
 
@@ -251,6 +317,21 @@ tasks:
     desc: Type-check the frontend (needs the dev server container running — task frontend:up)
     cmds:
       - docker compose exec -T frontend npx tsc -b
+
+  frontend:test:
+    desc: Run the frontend test suite (Vitest) in a one-off container — task frontend:test -- <vitest args>
+    cmds:
+      - docker compose run --rm frontend npx vitest run {{.CLI_ARGS}}
+
+  frontend:lint:
+    desc: Lint the frontend (ESLint) in a one-off container — task frontend:lint -- --fix
+    cmds:
+      - docker compose run --rm frontend npx eslint . {{.CLI_ARGS}}
+
+  frontend:format:
+    desc: Reformat the frontend (Prettier) in a one-off container
+    cmds:
+      - docker compose run --rm frontend npx prettier --write .
 
   frontend:down:
     desc: Stop the React dev server
@@ -321,13 +402,13 @@ tasks:
       - docker compose run --rm gcloud secrets versions access latest --secret={{.KEY_SECRET}}
 
   secrets:github-key:rotate:
-    desc: Start a key rotation (APPCE-103) — put a new key in front of the current one, so new tokens use it and old ones stay readable. Then run, in order, reload, reencrypt and retire. SECRET=<name> targets another secret, for a rehearsal only.
+    desc: Start a key rotation — put a new key in front of the current one, so new tokens use it and old ones stay readable. Then run, in order, reload, reencrypt and retire. SECRET=<name> targets another secret, for a rehearsal only.
     vars:
       SECRET: '{{.SECRET | default .KEY_SECRET}}'
     cmds:
       - |
         # The app must already be running code that can read a list of keys
-        # (APPCE-103): an older one reads "new,old" as a single, invalid key
+        # an older one reads "new,old" as a single, invalid key
         # and fails on the first token. Refuse to start unless the deployed
         # image was built from a commit that contains that change.
         DEPLOYED=$(docker compose run --rm -T gcloud run services describe {{.APP_SERVICE}} --region={{.REGION}} --format="value(spec.template.spec.containers[0].image)" | tr -d '\r\n' | sed 's/.*://')

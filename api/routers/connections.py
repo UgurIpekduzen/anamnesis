@@ -6,7 +6,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_current_owner_uid
 from src.integrations.github.client import validate_github_token
-from src.integrations.github.connections import delete_github_connection, has_github_connection, save_github_token
+from src.integrations.github.connections import (
+    delete_github_connection,
+    has_github_connection,
+    save_github_token,
+)
 from src.integrations.jira.client import validate_jira_credentials
 from src.integrations.jira.connections import (
     delete_jira_connection,
@@ -19,6 +23,8 @@ router = APIRouter()
 
 
 class GithubConnectionUpdate(BaseModel):
+    """Body for PUT /github/connection: the personal access token to save."""
+
     model_config = ConfigDict(extra="forbid")
 
     token: str = Field(strict=True, min_length=1, max_length=255)
@@ -26,6 +32,7 @@ class GithubConnectionUpdate(BaseModel):
 
 @router.get("/github/connection")
 def read_github_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Whether the signed-in user has a GitHub token saved."""
     return {"connected": has_github_connection(owner_uid)}
 
 
@@ -33,6 +40,11 @@ def read_github_connection(owner_uid: str = Depends(get_current_owner_uid)) -> d
 def update_github_connection(
     body: GithubConnectionUpdate, owner_uid: str = Depends(get_current_owner_uid)
 ) -> dict:
+    """Validate and save the signed-in user's GitHub token.
+
+    Args:
+        body (GithubConnectionUpdate): The request body — see GithubConnectionUpdate.
+    """
     # Validated before it ever reaches Firestore — an invalid/wrong-kind
     # token must not get encrypted and stored, only to fail on first use.
     try:
@@ -45,11 +57,14 @@ def update_github_connection(
 
 @router.delete("/github/connection")
 def remove_github_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Delete the signed-in user's saved GitHub token."""
     delete_github_connection(owner_uid)
     return {"connected": False}
 
 
 class JiraConnectionUpdate(BaseModel):
+    """Body for PUT /jira/connection: the credentials to save."""
+
     model_config = ConfigDict(extra="forbid")
 
     email: str = Field(strict=True, min_length=1, max_length=255)
@@ -59,6 +74,8 @@ class JiraConnectionUpdate(BaseModel):
 
 @router.get("/jira/connection")
 def read_jira_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Whether the signed-in user has Jira credentials saved, and their
+    workspace address if so."""
     connected = has_jira_connection(owner_uid)
     # The workspace address (not the token) lets the UI link a project's
     # Jira key; there is nothing to link when nothing is connected.
@@ -66,7 +83,14 @@ def read_jira_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dic
 
 
 @router.put("/jira/connection")
-def update_jira_connection(body: JiraConnectionUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+def update_jira_connection(
+    body: JiraConnectionUpdate, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    """Validate and save the signed-in user's Jira credentials.
+
+    Args:
+        body (JiraConnectionUpdate): The request body — see JiraConnectionUpdate.
+    """
     # Validated before it ever reaches Firestore — bad credentials must
     # not get encrypted and stored, only to fail on first use.
     try:
@@ -79,5 +103,6 @@ def update_jira_connection(body: JiraConnectionUpdate, owner_uid: str = Depends(
 
 @router.delete("/jira/connection")
 def remove_jira_connection(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Delete the signed-in user's saved Jira credentials."""
     delete_jira_connection(owner_uid)
     return {"connected": False}

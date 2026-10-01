@@ -1,3 +1,7 @@
+"""Auth for the scheduler-only endpoint: verifies Cloud Scheduler's own
+OIDC identity, kept separate from api/deps.py's user-facing allowlist
+check since it authenticates a service account, not a signed-in user."""
+
 import os
 
 from fastapi import Header, HTTPException
@@ -19,9 +23,13 @@ def verify_scheduler_token(authorization: str | None = Header(default=None)) -> 
     test files import api.main (and transitively this module) with
     different env vars set, and whichever one runs first in a shared
     test process would otherwise "win" for the rest of the session.
+
+    Args:
+        authorization (str | None): The raw Authorization header value,
+            expected as "Bearer <token>"; None if the header was absent.
     """
     # The service account Cloud Scheduler signs its OIDC token as when it
-    # calls this endpoint (APPCE-80) — set once the Terraform-side service
+    # calls this endpoint — set once the Terraform-side service
     # account + scheduler job exist. Deliberately a *different* check from
     # api.deps's user-facing ALLOWED_EMAILS: this endpoint is never meant
     # to be reachable by a signed-in user, only by the scheduler itself.
@@ -37,7 +45,7 @@ def verify_scheduler_token(authorization: str | None = Header(default=None)) -> 
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
 
-    token = authorization[len("Bearer "):]
+    token = authorization[len("Bearer ") :]
     try:
         claims = id_token.verify_oauth2_token(token, _request, expected_audience)
     except ValueError as exc:

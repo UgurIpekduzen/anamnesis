@@ -6,7 +6,7 @@ import { GOOGLE_CLIENT_ID } from "./config";
 //
 // A moment's outcome, as GIS reports it to prompt()'s optional callback:
 // whether the One Tap UI was shown at all, and if not (or if the user
-// closed it), why (see APPCE-69/77). Whether prompt() itself uses the
+// closed it), why. Whether prompt() itself uses the
 // legacy popup flow or FedCM is entirely up to the browser — there is no
 // config flag for it (use_fedcm_for_prompt exists in older docs but is
 // now ignored) — and under FedCM the display-related methods
@@ -68,7 +68,7 @@ export function whenGoogleReady(fn: () => (() => void) | void): () => void {
 // when there is exactly one Google session that already approved this
 // app — without it, prompt() always shows the One Tap UI and waits for a
 // click, so the ~50-minute background refresh timer (App.tsx) was never
-// actually silent (APPCE-69).
+// actually silent.
 // use_fedcm_for_button opts the rendered Sign In button into Chrome's
 // native FedCM flow where supported (M125+ desktop, M128+ Android); GIS
 // falls back to the classic button on browsers that don't support it, so
@@ -88,8 +88,11 @@ export function initGoogleAuth(onCredential: (idToken: string) => void): void {
 // background refresh to log — never the credential or anything from it.
 export function describePromptMoment(notification: PromptMomentNotification): string {
   if (notification.isDisplayMoment?.()) return "displayed";
-  if (notification.isNotDisplayed?.()) return `not_displayed:${notification.getNotDisplayedReason?.() ?? "?"}`;
-  if (notification.isSkippedMoment?.()) return `skipped:${notification.getSkippedReason?.() ?? "?"}`;
-  if (notification.isDismissedMoment?.()) return `dismissed:${notification.getDismissedReason?.() ?? "?"}`;
+  if (notification.isNotDisplayed?.())
+    return `not_displayed:${notification.getNotDisplayedReason?.() ?? "?"}`;
+  if (notification.isSkippedMoment?.())
+    return `skipped:${notification.getSkippedReason?.() ?? "?"}`;
+  if (notification.isDismissedMoment?.())
+    return `dismissed:${notification.getDismissedReason?.() ?? "?"}`;
   return "unknown";
 }

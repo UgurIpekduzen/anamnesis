@@ -15,7 +15,15 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Lower rank = lower layer. accounts and projects share a rank on purpose: they
 # know nothing of each other.
-RANK = {"core": 0, "accounts": 1, "projects": 1, "facts": 2, "integrations": 3, "tools": 4, "subscriber": 4}
+RANK = {
+    "core": 0,
+    "accounts": 1,
+    "projects": 1,
+    "facts": 2,
+    "integrations": 3,
+    "tools": 4,
+    "subscriber": 4,
+}
 
 
 def _imported_modules(path: Path) -> set[str]:
@@ -43,12 +51,14 @@ def _src_files():
 
 
 def test_every_src_package_has_a_rank():
+    """Every package under src/ is listed in RANK."""
     # A new package must be placed in RANK (and in docs/structure.md) on purpose.
     packages = {package for _, package in _src_files()}
     assert packages <= set(RANK), f"unranked packages: {sorted(packages - set(RANK))}"
 
 
 def test_src_imports_only_downwards():
+    """No src/ package imports from a package of equal or higher rank."""
     upwards = []
     for path, package in _src_files():
         for module in _imported_modules(path):
@@ -60,6 +70,8 @@ def test_src_imports_only_downwards():
 
 @pytest.mark.parametrize("above", ["api", "agent", "eval"])
 def test_src_never_imports_the_layers_that_use_it(above):
+    """No file under src/ imports from api, agent, or eval — those layers
+    consume src, not the other way around."""
     offenders = []
     for path, _ in _src_files():
         for module in _imported_modules(path):
@@ -69,6 +81,7 @@ def test_src_never_imports_the_layers_that_use_it(above):
 
 
 def test_routers_do_not_import_each_other():
+    """No file under api/routers/ imports another router module or api.main."""
     # Each router stands on its own; what two of them share belongs in src/ or api/deps.py.
     offenders = []
     for path in sorted((ROOT / "api" / "routers").glob("*.py")):

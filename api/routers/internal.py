@@ -10,15 +10,19 @@ router = APIRouter()
 
 @router.get("/health")
 def health() -> dict:
+    """Liveness check with no auth — used by Cloud Run and uptime checks."""
     return {"status": "ok"}
 
 
 def poll_all_tenants() -> dict:
-    # Deferred: pulls in the GitHub fact-extraction LLM call chain, which
-    # only /internal/poll-github needs — same reasoning as the lazy
-    # ADK/Pub-Sub imports elsewhere in the API (APPCE-50). A real
-    # module-level name (not a local import inside the endpoint) so tests
-    # can monkeypatch.setattr(internal, "poll_all_tenants", ...).
+    """Lazily import and run the GitHub activity poll across every tenant.
+
+    Deferred: pulls in the GitHub fact-extraction LLM call chain, which
+    only /internal/poll-github needs — same reasoning as the lazy
+    ADK/Pub-Sub imports elsewhere in the API. A real
+    module-level name (not a local import inside the endpoint) so tests
+    can monkeypatch.setattr(internal, "poll_all_tenants", ...).
+    """
     from src.integrations.github.polling import poll_all_tenants as _poll_all_tenants
 
     return _poll_all_tenants()
@@ -26,4 +30,13 @@ def poll_all_tenants() -> dict:
 
 @router.post("/internal/poll-github")
 def poll_github(_: None = Depends(verify_scheduler_token)) -> dict:
+    """Scheduler-only endpoint that triggers a GitHub activity poll across
+    every tenant; gated by verify_scheduler_token, never reachable by a
+    signed-in user.
+
+    Args:
+        _ (None): Unused — the result of verify_scheduler_token, whose
+            side effect (raising if the caller isn't Cloud Scheduler) is
+            the point; its return value carries no information.
+    """
     return poll_all_tenants()

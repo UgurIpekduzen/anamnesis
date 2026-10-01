@@ -1,7 +1,13 @@
+// Root component: owns auth state, the selected tenant, and the sidebar/
+// dialog wiring that every other component plugs into. Anything that needs
+// to be shared across the chat, the sidebar tabs and the dialogs (the ID
+// token, refresh keys, the trace log) lives here rather than in a context,
+// since the tree is shallow enough that prop drilling stays readable.
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import "./App.css";
 import AccountMenu from "./components/AccountMenu";
+import AdminDialog from "./components/AdminDialog";
 import Auth from "./components/Auth";
 import Chat from "./components/Chat";
 import Facts from "./components/Facts";
@@ -14,6 +20,7 @@ import TracePanel from "./components/TracePanel";
 import UsageCounter from "./components/UsageCounter";
 import { describePromptMoment, initGoogleAuth, whenGoogleReady } from "./googleAuth";
 import { useConnections } from "./hooks/useConnections";
+import { useIsOwner } from "./hooks/useIsOwner";
 import { useRefreshKey } from "./hooks/useRefreshKey";
 import { useResizableSidebar } from "./hooks/useResizableSidebar";
 import { useTenants } from "./hooks/useTenants";
@@ -24,9 +31,8 @@ type SidebarTab = "facts" | "pending" | "status" | "trace";
 
 // Re-prompts in the background well before a token's ~1 hour lifetime
 // runs out, so the user is (usually) never asked to sign in again
-// mid-session — see APPCE-54 for the tradeoffs behind this. Lives at
-// the app level (not Auth.tsx) since it must keep running after the
-// sign-in screen unmounts.
+// mid-session. Lives at the app level (not Auth.tsx) since it must keep
+// running after the sign-in screen unmounts.
 const SILENT_REFRESH_INTERVAL_MS = 50 * 60 * 1000;
 
 // When to re-read the facts after a fact was published: the write goes
@@ -42,6 +48,17 @@ const LAST_RELOAD_KEY = "anamnesis.accountNotAllowedReloadAt";
 const RELOAD_LOOP_WINDOW_MS = 30_000;
 const ACCOUNT_NOT_ALLOWED_NOTICE =
   "This account isn't invited to Anamnesis yet. Ask the owner to add it, or sign in with a different account.";
+
+// A project-specific address (not the owner's personal one) for access
+// requests. mailto: puts it in the page's source, so it will be public once
+// the repo is; it exists only to receive this kind of request.
+const CONTACT_EMAIL = "anamnesis.project@gmail.com";
+const CONTACT_MAILTO =
+  `mailto:${CONTACT_EMAIL}` +
+  "?subject=" +
+  encodeURIComponent("Anamnesis access request") +
+  "&body=" +
+  encodeURIComponent("Google account email you'd like invited:\n\n");
 
 function takeParkedNotice(): string | null {
   try {
@@ -66,8 +83,9 @@ function App() {
   const sidebar = useResizableSidebar();
   const [googleReady, setGoogleReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   // Why the user landed back on the sign-in screen (the chat socket was
-  // rejected, APPCE-69, or the account isn't allowed in, APPCE-114).
+  // rejected, or the account isn't allowed in).
   const [signInNotice, setSignInNotice] = useState<string | null>(takeParkedNotice);
 
   // The token is refreshed silently about every 50 minutes; the account it
@@ -75,7 +93,12 @@ function App() {
   const userId = useMemo(() => tokenSubject(idToken), [idToken]);
   const idTokenRef = useRef(idToken);
   idTokenRef.current = idToken;
-  const { githubConnected, jira: jiraConnection } = useConnections(idTokenRef, userId, connectionsReloadKey);
+  const { githubConnected, jira: jiraConnection } = useConnections(
+    idTokenRef,
+    userId,
+    connectionsReloadKey,
+  );
+  const isOwner = useIsOwner(idTokenRef, userId);
   const {
     tenants,
     selectedTenantId,
@@ -103,7 +126,7 @@ function App() {
       setGoogleReady(true);
       const refreshInterval = setInterval(() => {
         // The notification carries no user data, just why nothing was
-        // shown — logged so a silently-failing refresh (see APPCE-69) is
+        // shown — logged so a silently-failing refresh is
         // diagnosable from the console instead of invisible.
         window.google?.accounts.id.prompt((notification) => {
           const outcome = describePromptMoment(notification);
@@ -120,7 +143,7 @@ function App() {
     dispatchTrace({ ...event, at: Date.now() });
     // On send, and again when the turn ends: the server counts the message
     // alongside the model call, so the count read right after sending can
-    // still be the old one (APPCE-72).
+    // still be the old one.
     if (event.type === "sent" || event.type === "answered" || event.type === "failed") {
       bumpUsage();
     }
@@ -176,7 +199,8 @@ function App() {
     window.google?.accounts.id.disableAutoSelect();
     let reloadedJustNow = false;
     try {
-      reloadedJustNow = Date.now() - Number(sessionStorage.getItem(LAST_RELOAD_KEY) ?? 0) < RELOAD_LOOP_WINDOW_MS;
+      reloadedJustNow =
+        Date.now() - Number(sessionStorage.getItem(LAST_RELOAD_KEY) ?? 0) < RELOAD_LOOP_WINDOW_MS;
       if (!reloadedJustNow) {
         sessionStorage.setItem(LAST_RELOAD_KEY, String(Date.now()));
         sessionStorage.setItem(SIGN_IN_NOTICE_KEY, ACCOUNT_NOT_ALLOWED_NOTICE);
@@ -208,7 +232,21 @@ function App() {
         <div className="signin-gate">
           <h1>Anamnesis</h1>
           <p>Personal Project Context Engine</p>
-          {signInNotice && <p className="session-expired">{signInNotice}</p>}
+          {signInNotice && (
+            <p className="session-expired">
+              {signInNotice}
+              {signInNotice === ACCOUNT_NOT_ALLOWED_NOTICE && (
+                <>
+                  {" "}
+                  <a href={CONTACT_MAILTO}>Request access</a>.
+                  <br />
+                  <span className="signin-hint">
+                    We'll only use this email to consider your request.
+                  </span>
+                </>
+              )}
+            </p>
+          )}
           <Auth ready={googleReady} />
         </div>
       </div>
@@ -222,7 +260,11 @@ function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onSignOut={signOut}
         onChangeAccount={changeAccount}
+        isOwner={isOwner}
+        onOpenAdmin={() => setAdminOpen(true)}
       />
+
+      {adminOpen && <AdminDialog idToken={idToken} onClose={() => setAdminOpen(false)} />}
 
       {settingsOpen && (
         <SettingsDialog
@@ -234,9 +276,6 @@ function App() {
             // The Facts tab lists groups in the user's category order.
             bumpFacts();
           }}
-          // The warning threshold lives in Settings, so the counter in the
-          // sidebar has to refetch to pick up a new one.
-          onSaved={() => bumpUsage()}
         />
       )}
 
@@ -299,10 +338,25 @@ function App() {
                     ? "Refresh pending facts"
                     : "Refresh status"
               }
-              onClick={() => (sidebarTab === "facts" ? bumpFacts() : sidebarTab === "pending" ? bumpPendingFacts() : bumpStatus())}
+              onClick={() =>
+                sidebarTab === "facts"
+                  ? bumpFacts()
+                  : sidebarTab === "pending"
+                    ? bumpPendingFacts()
+                    : bumpStatus()
+              }
               disabled={!selectedTenantId}
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <polyline points="23 4 23 10 17 10" />
                 <polyline points="1 20 1 14 7 14" />
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -342,7 +396,12 @@ function App() {
           ) : selectedTenantId ? (
             // Keyed by tenant so switching projects doesn't flash the
             // previous project's facts while the new list loads.
-            <Facts key={selectedTenantId} idToken={idToken} tenantId={selectedTenantId} refreshKey={factsRefreshKey} />
+            <Facts
+              key={selectedTenantId}
+              idToken={idToken}
+              tenantId={selectedTenantId}
+              refreshKey={factsRefreshKey}
+            />
           ) : (
             <p className="sidebar-empty">Select a project to see its facts.</p>
           )}

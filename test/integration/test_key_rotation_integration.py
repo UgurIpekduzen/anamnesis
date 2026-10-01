@@ -1,3 +1,5 @@
+"""Integration tests for re-encrypting stored tokens when the encryption key rotates."""
+
 import uuid
 
 import pytest
@@ -18,12 +20,14 @@ def _use_keys(monkeypatch, *keys):
 
 @pytest.fixture(autouse=True)
 def fresh_cache():
+    """Clear the cached Fernet instance after each test so key changes in one test don't leak into the next."""
     yield
     token_encryption._get_fernet.cache_clear()
 
 
 @pytest.fixture
 def owner():
+    """Yield a unique owner UID and delete its documents from every rotated collection afterwards."""
     owner_uid = f"rotation-{uuid.uuid4().hex[:8]}@example.com"
     yield owner_uid
     client = get_client()
@@ -32,6 +36,7 @@ def owner():
 
 
 def test_a_rotation_moves_both_kinds_of_token_to_the_new_key(monkeypatch, owner):
+    """Rotation re-encrypts both a GitHub token and Jira credentials so they read back with the new key alone."""
     old, new = Fernet.generate_key().decode(), Fernet.generate_key().decode()
     _use_keys(monkeypatch, old)
     save_github_token(owner, "ghp_secret")
@@ -51,6 +56,7 @@ def test_a_rotation_moves_both_kinds_of_token_to_the_new_key(monkeypatch, owner)
 
 
 def test_check_finds_tokens_that_still_need_the_old_key_and_changes_nothing(monkeypatch, owner):
+    """A dry-run check reports a token as unreadable when the old key is missing, without rewriting anything."""
     old, new = Fernet.generate_key().decode(), Fernet.generate_key().decode()
     _use_keys(monkeypatch, old)
     save_github_token(owner, "ghp_secret")
@@ -65,6 +71,7 @@ def test_check_finds_tokens_that_still_need_the_old_key_and_changes_nothing(monk
 
 
 def test_one_unreadable_token_does_not_stop_the_others(monkeypatch, owner):
+    """One token that cannot be decrypted with the current keys does not stop rotation of the others."""
     lost, current = Fernet.generate_key().decode(), Fernet.generate_key().decode()
     _use_keys(monkeypatch, lost)
     other_owner = f"rotation-{uuid.uuid4().hex[:8]}@example.com"
@@ -82,6 +89,7 @@ def test_one_unreadable_token_does_not_stop_the_others(monkeypatch, owner):
 
 
 def test_main_exits_non_zero_when_something_is_unreadable(monkeypatch, owner):
+    """The CLI's check command exits with a non-zero status when a stored token is unreadable."""
     lost, current = Fernet.generate_key().decode(), Fernet.generate_key().decode()
     _use_keys(monkeypatch, lost)
     save_github_token(owner, "ghp_x")

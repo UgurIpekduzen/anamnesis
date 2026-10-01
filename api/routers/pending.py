@@ -9,7 +9,7 @@ from src.facts.categories import InvalidCategory
 router = APIRouter()
 
 
-# Lazily-importing wrappers (APPCE-50, same pattern as get_runner/
+# Lazily-importing wrappers (same pattern as get_runner/
 # restore_session in the chat router): src.facts.pending_facts pulls in
 # google-cloud-pubsub (via src.facts.publisher, for the approve path), which
 # only these endpoints need — deferring it keeps it off every other request's
@@ -17,31 +17,62 @@ router = APIRouter()
 # test/test_api_pending_facts.py's monkeypatch.setattr(pending, ...)
 # still works.
 def list_pending_facts(tenant_id: str, owner_uid: str) -> list[dict]:
+    """Deferred-import wrapper around src.facts.pending_facts.list_pending_facts.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+    """
     from src.facts.pending_facts import list_pending_facts as _list_pending_facts
 
     return _list_pending_facts(tenant_id, owner_uid)
 
 
 def approve_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
+    """Deferred-import wrapper around src.facts.pending_facts.approve_pending_fact.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        pending_fact_id (str): The pending fact's id, as returned by
+            get_pending_facts.
+    """
     from src.facts.pending_facts import approve_pending_fact as _approve_pending_fact
 
     return _approve_pending_fact(tenant_id, pending_fact_id, owner_uid)
 
 
 def reject_pending_fact(tenant_id: str, pending_fact_id: str, owner_uid: str) -> None:
+    """Deferred-import wrapper around src.facts.pending_facts.reject_pending_fact.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        pending_fact_id (str): The pending fact's id, as returned by
+            get_pending_facts.
+    """
     from src.facts.pending_facts import reject_pending_fact as _reject_pending_fact
 
     return _reject_pending_fact(tenant_id, pending_fact_id, owner_uid)
 
 
 def get_pending_fact_stats(tenant_id: str, owner_uid: str) -> dict:
+    """Deferred-import wrapper around src.facts.pending_facts.get_pending_fact_stats.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+    """
     from src.facts.pending_facts import get_pending_fact_stats as _get_pending_fact_stats
 
     return _get_pending_fact_stats(tenant_id, owner_uid)
 
 
 @router.get("/tenants/{tenant_id}/pending_facts")
-def get_pending_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> list[dict]:
+def get_pending_facts(
+    tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)
+) -> list[dict]:
+    """Facts staged from GitHub activity, awaiting approval or rejection.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+    """
     try:
         return list_pending_facts(tenant_id, owner_uid)
     except PermissionError:
@@ -49,7 +80,14 @@ def get_pending_facts(tenant_id: str, owner_uid: str = Depends(get_current_owner
 
 
 @router.get("/tenants/{tenant_id}/pending_facts/stats")
-def get_pending_facts_stats(tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+def get_pending_facts_stats(
+    tenant_id: str, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    """How many pending facts have been approved vs. rejected so far.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+    """
     try:
         return get_pending_fact_stats(tenant_id, owner_uid)
     except PermissionError:
@@ -60,6 +98,13 @@ def get_pending_facts_stats(tenant_id: str, owner_uid: str = Depends(get_current
 def approve_pending_fact_endpoint(
     tenant_id: str, pending_fact_id: str, owner_uid: str = Depends(get_current_owner_uid)
 ) -> dict:
+    """Approve a pending fact, turning it into a real, stored fact.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        pending_fact_id (str): The pending fact's id, as returned by
+            get_pending_facts.
+    """
     try:
         approve_pending_fact(tenant_id, pending_fact_id, owner_uid)
     except PermissionError:
@@ -76,6 +121,13 @@ def approve_pending_fact_endpoint(
 def reject_pending_fact_endpoint(
     tenant_id: str, pending_fact_id: str, owner_uid: str = Depends(get_current_owner_uid)
 ) -> dict:
+    """Reject a pending fact, discarding it.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+        pending_fact_id (str): The pending fact's id, as returned by
+            get_pending_facts.
+    """
     try:
         reject_pending_fact(tenant_id, pending_fact_id, owner_uid)
     except PermissionError:

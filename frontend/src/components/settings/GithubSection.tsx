@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 
-import { connectGithub, disconnectGithub, getGithubConnection, type GithubConnection } from "../../api";
+import {
+  connectGithub,
+  disconnectGithub,
+  getGithubConnection,
+  type GithubConnection,
+} from "../../api";
 import InfoLabel from "./InfoLabel";
 
 interface Props {
   idToken: string;
 }
 
+// The signed-in user's own GitHub connection: connect with a fine-grained
+// PAT, or disconnect.
 function GithubSection({ idToken }: Props) {
   const [github, setGithub] = useState<GithubConnection | null>(null);
   const [githubToken, setGithubToken] = useState("");

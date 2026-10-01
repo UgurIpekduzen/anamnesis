@@ -1,3 +1,9 @@
+"""The event-driven write path's receiving end: a minimal HTTP server that
+Pub/Sub pushes fact-publish messages to, which then calls create_fact. Runs
+as its own Cloud Run service, separate from the API, so a slow or failing
+Firestore write never blocks a chat request.
+"""
+
 import base64
 import json
 import os
@@ -7,7 +13,7 @@ from src.facts.facts import create_fact
 from src.core.log import log
 
 # A push carries one fact (at most 2000 characters, base64 in a JSON envelope),
-# so a body this large is not a delivery. Read nothing past it (APPCE-119).
+# so a body this large is not a delivery. Read nothing past it.
 MAX_BODY_BYTES = 64 * 1024
 
 
@@ -26,7 +32,7 @@ def _process_push_message(body: bytes) -> int:
             tenant_id=payload["tenant_id"],
             content=payload["content"],
             category=payload["category"],
-            # .get, not [] — messages published before APPCE-81 added this
+            # .get, not [] — messages published before this
             # field have none, and should still default to "chat".
             source=payload.get("source", "chat"),
         )
@@ -35,7 +41,7 @@ def _process_push_message(body: bytes) -> int:
         # still return a non-2xx (rather than silently ack-ing) so
         # Pub/Sub's existing retry/DLQ policy eventually routes it to
         # the dead-letter topic instead of just dropping it — same
-        # intent as the old pull-based nack() path (APPCE-30).
+        # intent as the old pull-based nack() path.
         # The size only, never the body: it holds a fact's text, and logs are
         # kept and read more widely than the facts themselves.
         log("WARNING", "malformed_push_message", size=len(body))
@@ -47,11 +53,13 @@ def _process_push_message(body: bytes) -> int:
 
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # Cloud Run's own health/startup probes.
+        """Answer Cloud Run's health/startup probes with a bare 200."""
         self.send_response(200)
         self.end_headers()
 
     def do_POST(self):
+        """Handle a Pub/Sub push delivery: read the body (rejecting anything
+        over MAX_BODY_BYTES) and hand it to _process_push_message."""
         try:
             length = int(self.headers.get("Content-Length", ""))
             if length < 0:
@@ -70,10 +78,15 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, *args):
-        pass  # Cloud Run's own request logging covers this; stay quiet.
+        """Suppress BaseHTTPRequestHandler's default per-request stderr log —
+        Cloud Run's own request logging already covers this."""
+        pass
 
 
 def run():
+    """Start the push-subscriber HTTP server and block forever, serving
+    Pub/Sub push deliveries on the port Cloud Run assigns (PORT env var,
+    8080 otherwise)."""
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(("0.0.0.0", port), _Handler)
     log("INFO", "subscriber_listening", port=port)

@@ -1,4 +1,4 @@
-"""Setup shared by every test (APPCE-106)."""
+"""Setup shared by every test."""
 
 import json
 import os
@@ -11,8 +11,12 @@ import pytest
 # test modules are collected.
 os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
 os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
-os.environ.setdefault("GITHUB_POLLER_SERVICE_ACCOUNT_EMAIL", "poller@test-project.iam.gserviceaccount.com")
-os.environ.setdefault("GITHUB_POLLER_AUDIENCE", "https://anamnesis-app.example/internal/poll-github")
+os.environ.setdefault(
+    "GITHUB_POLLER_SERVICE_ACCOUNT_EMAIL", "poller@test-project.iam.gserviceaccount.com"
+)
+os.environ.setdefault(
+    "GITHUB_POLLER_AUDIENCE", "https://anamnesis-app.example/internal/poll-github"
+)
 
 OWNER = "test@example.com"
 
@@ -22,6 +26,7 @@ def log_lines():
     """Reads the structured log lines (src.core.log) out of what a test captured."""
 
     def read(captured_out: str) -> list[dict]:
+        """Parse each line of captured stdout as JSON, skipping lines that aren't."""
         lines = []
         for line in captured_out.splitlines():
             try:

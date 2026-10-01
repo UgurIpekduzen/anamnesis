@@ -1,0 +1,22 @@
+extends: default
+
+# Taskfile.yml's only findings are line-length, on ~100 single-line `desc:`
+# strings — the same call already made for long Python test docstrings and
+# eval fixture strings elsewhere in this repo: they're prose, not code
+# structure, so wrapping them by hand offers no real readability gain for
+# the risk of touching that many lines.
+ignore: |
+  Taskfile.yml
+
+rules:
+  # 100 everywhere else in this repo (pyproject.toml, frontend/.prettierrc.json).
+  line-length:
+    max: 100
+  # None of this repo's YAML files use a leading `---` — not worth
+  # retrofitting for a purely cosmetic default.
+  document-start: disable
+  # GitHub Actions workflows require the literal key `on:`, which YAML 1.1
+  # (what this rule checks against) treats as a boolean — a well-known
+  # false positive for this file type, not an actual ambiguity here.
+  truthy:
+    check-keys: false

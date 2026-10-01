@@ -4,7 +4,7 @@ export interface Tenant {
   tenant_id: string;
   name: string;
   jira_project_key: string | null;
-  // "owner/name" of the linked GitHub repo (APPCE-83), or null.
+  // "owner/name" of the linked GitHub repo, or null.
   github_repo: string | null;
 }
 
@@ -51,7 +51,7 @@ export async function deleteTenant(idToken: string, tenantId: string): Promise<v
   if (!res.ok) throw new Error(`deleteTenant failed: ${res.status}`);
 }
 
-// Which GitHub repo / Jira project a project is linked to (APPCE-107). A
+// Which GitHub repo / Jira project a project is linked to. A
 // value links or changes it, null unlinks it. A 400 carries the reason the
 // value was refused (not an owner/name repo, not a Jira key ...) — surface it.
 export async function setTenantLink(

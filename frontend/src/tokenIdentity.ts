@@ -1,7 +1,7 @@
 // Who a Google ID token belongs to. The token itself changes every ~50
 // minutes when it is silently refreshed, but its `sub` claim — Google's
 // stable id for the account — does not, so this is what tells "the same
-// user with a fresh token" apart from "a different account" (APPCE-65).
+// user with a fresh token" apart from "a different account".
 export function tokenSubject(idToken: string | null): string | null {
   if (!idToken) return null;
   try {

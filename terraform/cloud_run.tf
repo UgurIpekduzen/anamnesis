@@ -19,6 +19,10 @@ resource "google_cloud_run_v2_service" "ui" {
   template {
     service_account = google_service_account.agent_sa.email
 
+    # Capped at one instance: the API caches an ADK Runner and a session per
+    # (owner_uid, tenant_id) in process memory (see api/runner.py). A second
+    # instance would keep its own, separate cache, so a user's conversation
+    # could silently reset depending on which instance handled a request.
     scaling {
       max_instance_count = 1
     }
@@ -67,12 +71,19 @@ resource "google_cloud_run_v2_service" "ui" {
         name  = "GITHUB_POLLER_AUDIENCE"
         value = local.github_poller_audience
       }
+      env {
+        name  = "GLOBAL_DAILY_MESSAGE_LIMIT"
+        value = tostring(var.global_daily_message_limit)
+      }
     }
 
     max_instance_request_concurrency = 40
   }
 }
 
+# Public at the network level — actual authorization (Google Sign-In +
+# the ALLOWED_EMAILS allowlist above) is enforced inside the app itself,
+# not by IAM. See README.md's "Access control" section for why.
 resource "google_cloud_run_v2_service_iam_member" "app_public" {
   name     = google_cloud_run_v2_service.ui.name
   location = var.region
@@ -93,6 +104,9 @@ resource "google_cloud_run_v2_service" "subscriber" {
   template {
     service_account = google_service_account.agent_sa.email
 
+    # Capped for cost, not correctness — unlike the ui service above, this
+    # one holds no per-request in-memory state that a second instance
+    # would fragment.
     scaling {
       max_instance_count = 1
     }
@@ -109,6 +123,8 @@ resource "google_cloud_run_v2_service" "subscriber" {
   }
 }
 
+# Not public: the Pub/Sub push subscription (pubsub.tf) authenticates as
+# agent_sa with an OIDC token, so only that identity may invoke it.
 resource "google_cloud_run_v2_service_iam_member" "subscriber_pubsub_invoker" {
   name     = google_cloud_run_v2_service.subscriber.name
   location = var.region

@@ -1,5 +1,5 @@
 // Recalling earlier messages in the chat box with the arrow keys, like a
-// shell (APPCE-112). Kept pure so the walk through the list is easy to read
+// shell. Kept pure so the walk through the list is easy to read
 // and reason about.
 
 // Consecutive repeats collapse into one, so ↑ doesn't stall on the same text.
@@ -29,5 +29,7 @@ export function step(
   }
   if (index === null) return null;
   const next = index + 1;
-  return next >= messages.length ? { index: null, text: draft } : { index: next, text: messages[next] };
+  return next >= messages.length
+    ? { index: null, text: draft }
+    : { index: next, text: messages[next] };
 }

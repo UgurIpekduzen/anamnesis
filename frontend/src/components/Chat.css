@@ -53,9 +53,9 @@
   color: var(--text-muted);
 }
 
-/* A require_confirmation=True tool call waiting on approve/reject
-   (APPCE-91) — deliberately inline, not a modal: it's a normal part of
-   the conversation flow, not a separate decision blocking the whole app. */
+/* A require_confirmation=True tool call waiting on approve/reject —
+   deliberately inline, not a modal: it's a normal part of the
+   conversation flow, not a separate decision blocking the whole app. */
 .chat-confirm {
   align-self: flex-start;
   max-width: 80%;

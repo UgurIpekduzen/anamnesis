@@ -19,7 +19,17 @@ interface Props {
   onChanged: (newlySelectedId?: string) => void;
 }
 
-function TenantSelector({ idToken, tenants, selectedId, onSelect, error, onRetry, onChanged }: Props) {
+// The sidebar's project dropdown, plus inline create/rename/delete —
+// project lifecycle lives here, not in chat (see the onChanged prop above).
+function TenantSelector({
+  idToken,
+  tenants,
+  selectedId,
+  onSelect,
+  error,
+  onRetry,
+  onChanged,
+}: Props) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -41,7 +51,9 @@ function TenantSelector({ idToken, tenants, selectedId, onSelect, error, onRetry
       setNewName("");
       onChanged(tenant_id);
     } catch (e) {
-      setActionError(e instanceof NameTakenError ? e.message : "Couldn't create the project. Please try again.");
+      setActionError(
+        e instanceof NameTakenError ? e.message : "Couldn't create the project. Please try again.",
+      );
     }
     setBusy(false);
   }
@@ -124,7 +136,11 @@ function TenantSelector({ idToken, tenants, selectedId, onSelect, error, onRetry
         <p>No projects found.</p>
       ) : (
         <div className="tenant-row">
-          <select value={selectedId ?? ""} onChange={(e) => onSelect(e.target.value)} disabled={adding || renaming}>
+          <select
+            value={selectedId ?? ""}
+            onChange={(e) => onSelect(e.target.value)}
+            disabled={adding || renaming}
+          >
             {tenants.map((tenant) => (
               <option key={tenant.tenant_id} value={tenant.tenant_id}>
                 {tenant.name}

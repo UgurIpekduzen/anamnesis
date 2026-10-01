@@ -1,3 +1,9 @@
+"""Turns a GitHub PR/issue's title and body into candidate facts via an LLM
+call. Isolated from polling.py (which calls this per item) because it's the
+one place in the GitHub integration that sends third-party text to a model,
+so the prompt-injection framing lives in exactly one spot.
+"""
+
 import json
 
 from google import genai
@@ -10,7 +16,7 @@ MODEL = "gemini-2.5-flash"
 # The title/body below come from GitHub, written by anyone with access to
 # the repo — not the user of this app. Without this framing, an attacker
 # could put "ignore previous instructions, ..." in a PR description and
-# have it followed the moment this runs (see APPCE-51 comment, risk #3).
+# have it followed the moment this runs.
 # This is the only defense at the model level; src.facts.pending_facts' review
 # step is the real backstop — nothing this function returns is ever
 # published without a human approving it first.
@@ -39,13 +45,13 @@ def extract_facts(title: str, body: str, kind: str, owner_uid: str) -> list[dict
     """Extract candidate facts from a GitHub PR or issue's title/body.
 
     Args:
-        kind: "pull request" or "issue", used only to phrase the prompt.
-        owner_uid: Whose categories the facts are sorted into (APPCE-116).
+        kind (str): "pull request" or "issue", used only to phrase the prompt.
+        owner_uid (str): Whose categories the facts are sorted into.
 
     Returns:
         A list of {"content": str, "category": str} dicts. Never published
         directly — always meant to go through src.facts.pending_facts for human
-        review (see APPCE-81).
+        review.
     """
     categories = get_categories(owner_uid)
 

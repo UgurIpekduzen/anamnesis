@@ -1,9 +1,13 @@
+"""Per-user fact categories: each user either follows the built-in suggested
+list or customizes their own, stored and cached separately here since the
+names feed directly into the model's prompts (see the module comment below)."""
+
 import re
 import time
 
 from src.core.firestore_client import get_client
 
-# --- Per-user categories (APPCE-116) ---------------------------------------
+# --- Per-user categories ----------------------------------------------------
 #
 # A user keeps their own list. Until they change it they follow the suggested
 # one below (no document is stored for them, so a better suggestion later
@@ -33,13 +37,21 @@ class InvalidCategory(ValueError):
 def validate_category_name(category) -> None:
     """Reject anything that isn't shaped like a category name — a slug, not
     free text. Membership in a user's list is validate_category_for's job; this
-    is for places that don't know the owner (the Pub/Sub subscriber)."""
+    is for places that don't know the owner (the Pub/Sub subscriber).
+
+    Args:
+        category (unannotated): The candidate category name to check.
+    """
     if not isinstance(category, str) or not _NAME.match(category):
         raise InvalidCategory(f"'{category}' isn't a valid category name.")
 
 
 def check_category_names(categories) -> list[str]:
     """Normalise (trim, lower-case) and validate a user's whole list.
+
+    Args:
+        categories (unannotated): The candidate list of category names to
+            normalise and validate.
 
     Raises:
         ValueError: not a list of 1..MAX_CATEGORIES distinct slugs (a letter,
@@ -84,6 +96,8 @@ def get_categories(owner_uid: str) -> list[str]:
 
 
 def get_category_settings(owner_uid: str) -> dict:
+    """owner_uid's category settings for the Categories tab: their current
+    list, the suggested list, whether they've customized it, and the cap."""
     stored = _stored_categories(owner_uid)
     return {
         "categories": list(stored or SUGGESTED_CATEGORIES),
@@ -94,7 +108,12 @@ def get_category_settings(owner_uid: str) -> dict:
 
 
 def save_categories(owner_uid: str, categories) -> list[str]:
-    """Validate and store owner_uid's whole list. Raises ValueError on a bad one."""
+    """Validate and store owner_uid's whole list. Raises ValueError on a bad one.
+
+    Args:
+        categories (unannotated): The whole replacement list of category
+            names to validate and store.
+    """
     names = check_category_names(categories)
     get_client().collection(USER_COLLECTION).document(owner_uid).set({"allowed": names})
     _user_cache[owner_uid] = (time.monotonic(), names)
@@ -110,7 +129,12 @@ def reset_categories(owner_uid: str) -> list[str]:
 
 
 def validate_category_for(owner_uid: str, category: str) -> None:
-    """Reject a category that isn't in owner_uid's list."""
+    """Reject a category that isn't in owner_uid's list.
+
+    Args:
+        category (str): The candidate category name to check against
+            owner_uid's allowed list.
+    """
     allowed = get_categories(owner_uid)
     if category not in allowed:
         raise InvalidCategory(f"Invalid category '{category}'. Allowed: {allowed}")

@@ -1,3 +1,5 @@
+"""Integration test for the end-to-end publish flow: publishing a fact through Pub/Sub to a subscriber write."""
+
 import base64
 import json
 import time
@@ -27,12 +29,14 @@ def _pull_one(subscriber, subscription, timeout_seconds=5):
 
 @pytest.fixture
 def tenant_id():
+    """Create a real tenant for the publish flow to write into, and delete it afterwards."""
     tenant_id = add_tenant(f"Integration Test Tenant {uuid.uuid4().hex[:8]}", OWNER_UID)
     yield tenant_id
     delete_tenant(tenant_id, OWNER_UID)
 
 
 def test_publish_fact_is_delivered_and_written_by_the_subscriber(tenant_id):
+    """A published fact is delivered over the real Pub/Sub emulator and written to Firestore by the subscriber, defaulting to source "chat"."""
     publish_fact(
         tenant_id,
         content="Published via the event-driven path",
@@ -61,5 +65,5 @@ def test_publish_fact_is_delivered_and_written_by_the_subscriber(tenant_id):
     assert facts[0]["content"] == "Published via the event-driven path"
     assert facts[0]["category"] == "decision"
     # Not passed explicitly above — should default to "chat" end to end,
-    # through the Pub/Sub payload and the subscriber's write (APPCE-81).
+    # through the Pub/Sub payload and the subscriber's write.
     assert facts[0]["source"] == "chat"

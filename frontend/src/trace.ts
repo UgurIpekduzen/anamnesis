@@ -62,7 +62,10 @@ export function traceReducer(turns: TraceTurn[], action: TraceAction): TraceTurn
     case "tool_call":
       return updateLastTurn(turns, (turn) => ({
         ...turn,
-        calls: [...turn.calls, { id: action.id, name: action.name, args: action.args, startedAt: action.at }],
+        calls: [
+          ...turn.calls,
+          { id: action.id, name: action.name, args: action.args, startedAt: action.at },
+        ],
       }));
 
     case "tool_result":
@@ -70,7 +73,9 @@ export function traceReducer(turns: TraceTurn[], action: TraceAction): TraceTurn
         const index = resolveCall(turn.calls, action.id, action.name);
         if (index === -1) return turn;
         const calls = turn.calls.map((call, i) =>
-          i === index ? { ...call, result: action.result, durationMs: action.at - call.startedAt } : call,
+          i === index
+            ? { ...call, result: action.result, durationMs: action.at - call.startedAt }
+            : call,
         );
         return { ...turn, calls };
       });

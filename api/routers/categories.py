@@ -10,6 +10,8 @@ router = APIRouter()
 
 
 class CategoriesUpdate(BaseModel):
+    """Request body for PUT /categories: the caller's whole replacement category list."""
+
     # forbid: an unknown field is a client bug. The list itself is checked in
     # src/facts/categories.py (length, names, duplicates); the cap here only keeps an
     # absurd request from being parsed at all.
@@ -18,14 +20,27 @@ class CategoriesUpdate(BaseModel):
     categories: list[str] = Field(max_length=50)
 
 
-# The user's own categories (APPCE-116): the suggested list until they change it.
+# The user's own categories: the suggested list until they change it.
 @router.get("/categories")
 def read_categories(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Return the signed-in user's category settings: their current list
+    (own if customized, else the suggested default), the suggested list,
+    whether they've customized it, and the max allowed count."""
     return get_category_settings(owner_uid)
 
 
 @router.put("/categories")
-def update_categories(body: CategoriesUpdate, owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+def update_categories(
+    body: CategoriesUpdate, owner_uid: str = Depends(get_current_owner_uid)
+) -> dict:
+    """Replace the signed-in user's whole category list and return the updated settings.
+
+    Args:
+        body (CategoriesUpdate): The request body — see CategoriesUpdate.
+
+    Raises:
+        HTTPException: 400 if the list fails validation (see save_categories).
+    """
     # owner_uid comes from the verified token, never the body.
     try:
         save_categories(owner_uid, body.categories)
@@ -36,5 +51,7 @@ def update_categories(body: CategoriesUpdate, owner_uid: str = Depends(get_curre
 
 @router.delete("/categories")
 def delete_categories(owner_uid: str = Depends(get_current_owner_uid)) -> dict:
+    """Reset the signed-in user's categories back to the suggested default
+    and return the updated settings."""
     reset_categories(owner_uid)
     return get_category_settings(owner_uid)

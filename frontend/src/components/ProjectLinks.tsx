@@ -4,6 +4,10 @@ import { setTenantLink, type JiraConnection, type Tenant } from "../api";
 import ConfirmDialog from "./ConfirmDialog";
 import "./ProjectLinks.css";
 
+// Sidebar card, shown above the tabs, for viewing and editing the selected
+// project's GitHub repo / Jira project key links (the Row component below
+// handles both, in place, with its own edit/unlink affordances).
+
 interface Props {
   idToken: string;
   tenant: Tenant;
@@ -41,7 +45,10 @@ function stateOf(linked: string | null, accountConnected: boolean | null): State
 // A pasted repo address is a natural thing to type; reduce it to owner/name.
 // Only a convenience: the server checks the result again.
 function githubRepoFrom(raw: string): string {
-  return raw.replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/\/+$/, "");
+  return raw
+    .replace(/^https?:\/\/github\.com\//i, "")
+    .replace(/\.git$/i, "")
+    .replace(/\/+$/, "");
 }
 
 // A repo name is wrapped after its "/" rather than in the middle of a word:
@@ -128,7 +135,12 @@ function Row({
   return (
     <div className="project-link-row">
       <span className="project-link-label">{label}</span>
-      <span className={`project-link-dot project-link-${state}`} role="img" aria-label={DOT_LABEL[state]} title={DOT_LABEL[state]}>
+      <span
+        className={`project-link-dot project-link-${state}`}
+        role="img"
+        aria-label={DOT_LABEL[state]}
+        title={DOT_LABEL[state]}
+      >
         {DOT[state]}
       </span>
 
@@ -173,11 +185,21 @@ function Row({
               )}
             </span>
             <span className="project-link-actions">
-              <button className="project-link-action" title={value ? `Change the ${noun}` : `Link a ${noun}`} onClick={startEditing} disabled={busy}>
+              <button
+                className="project-link-action"
+                title={value ? `Change the ${noun}` : `Link a ${noun}`}
+                onClick={startEditing}
+                disabled={busy}
+              >
                 {value ? "✎" : "+"}
               </button>
               {value && (
-                <button className="project-link-action" title={`Unlink the ${noun}`} onClick={() => setConfirming(true)} disabled={busy}>
+                <button
+                  className="project-link-action"
+                  title={`Unlink the ${noun}`}
+                  onClick={() => setConfirming(true)}
+                  disabled={busy}
+                >
                   ✕
                 </button>
               )}
@@ -220,7 +242,9 @@ function ProjectLinks({ idToken, tenant, githubConnected, jira, onChanged }: Pro
         noun="GitHub repo"
         state={stateOf(repo, githubConnected)}
         value={repo}
-        href={repo ? `https://github.com/${repo.split("/").map(encodeURIComponent).join("/")}` : null}
+        href={
+          repo ? `https://github.com/${repo.split("/").map(encodeURIComponent).join("/")}` : null
+        }
         placeholder="owner/repo"
         linkHint="Link a repo to see its pull requests and issues."
         accountHint="Connect your GitHub account in Settings."

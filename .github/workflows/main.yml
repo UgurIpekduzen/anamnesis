@@ -6,12 +6,13 @@ on:
       - main
 
 # Read-only by default; only the deploy job below is granted id-token, the
-# right to mint a Google credential (APPCE-100).
+# right to mint a Google credential.
 permissions:
   contents: read
 
 env:
-  IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/anamnesis/app:${{ github.sha }}
+  # One expression; wrapping it would break it.
+  IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/anamnesis/app:${{ github.sha }}  # yamllint disable-line rule:line-length
 
 jobs:
   # Runs third-party code (every locked dependency) and holds no cloud
@@ -23,7 +24,7 @@ jobs:
       - uses: actions/checkout@v5
 
       # uv installs from uv.lock exactly (--frozen), so a merge never deploys
-      # whatever happens to be the newest release that day (APPCE-96).
+      # whatever happens to be the newest release that day.
       - uses: astral-sh/setup-uv@v7
         with:
           version: "0.9.30"
@@ -34,13 +35,32 @@ jobs:
 
       - name: Start Firestore and Pub/Sub emulators
         run: |
-          docker run -d --name firestore-emulator -p 8080:8080 gcr.io/google.com/cloudsdktool/cloud-sdk:emulators gcloud emulators firestore start --host-port=0.0.0.0:8080
-          docker run -d --name pubsub-emulator -p 8085:8085 gcr.io/google.com/cloudsdktool/cloud-sdk:emulators gcloud beta emulators pubsub start --project=anamnesis-local --host-port=0.0.0.0:8085
+          docker run -d --name firestore-emulator -p 8080:8080 \
+            gcr.io/google.com/cloudsdktool/cloud-sdk:emulators \
+            gcloud emulators firestore start --host-port=0.0.0.0:8080
+          docker run -d --name pubsub-emulator -p 8085:8085 \
+            gcr.io/google.com/cloudsdktool/cloud-sdk:emulators \
+            gcloud beta emulators pubsub start --project=anamnesis-local --host-port=0.0.0.0:8085
 
       - name: Wait for emulators to be ready
         run: |
-          for i in $(seq 1 30); do (echo > /dev/tcp/localhost/8080) 2>/dev/null && break; sleep 1; done
-          for i in $(seq 1 30); do (echo > /dev/tcp/localhost/8085) 2>/dev/null && break; sleep 1; done
+          for i in $(seq 1 30); do
+            (echo > /dev/tcp/localhost/8080) 2>/dev/null && break
+            sleep 1
+          done
+          for i in $(seq 1 30); do
+            (echo > /dev/tcp/localhost/8085) 2>/dev/null && break
+            sleep 1
+          done
+
+      # A fresh key every run, not a stored one — it only ever encrypts fake
+      # tokens written to the ephemeral emulator, so there's nothing to keep
+      # consistent across runs or to leak by having it sit in the repo.
+      - name: Generate a test-only token encryption key
+        run: |
+          key=$(uv run python -c \
+            'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')
+          echo "GITHUB_TOKEN_ENCRYPTION_KEY=$key" >> "$GITHUB_ENV"
 
       - name: Run tests
         env:

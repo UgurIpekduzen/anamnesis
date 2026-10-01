@@ -1,7 +1,7 @@
 import { API_BASE } from "./client";
 
 // What is open in the project's linked Jira project and GitHub repo, read
-// live on the server with the user's own credentials (APPCE-110). "state"
+// live on the server with the user's own credentials. "state"
 // says whether there is anything to show and, if not, why.
 export interface JiraIssue {
   key: string;

@@ -16,10 +16,10 @@
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 24px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
@@ -28,15 +28,61 @@
   font-size: 18px;
 }
 
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  /* Stays visible while the sections below scroll — the same sticky-edge
+     trick .settings-actions used at the bottom, mirrored at the top. */
+  position: sticky;
+  top: -20px;
+  margin: -20px -20px 0;
+  padding: 16px 20px 0;
+  background: var(--bg-card);
+  z-index: 1;
+}
+
+.settings-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.settings-close:hover {
+  color: var(--text);
+}
+
 .settings-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* Without this, .settings-dialog (also a flex column) can shrink a
+     later section well below its actual content height under overflow
+     pressure — Alerts, the last one, measured offsetHeight 55 against a
+     scrollHeight of 153 with this unset, while the sections above it
+     weren't touched at all. */
+  flex-shrink: 0;
 }
 
 .settings-label {
   font-weight: 600;
   font-size: 14px;
+}
+
+/* A top-level section heading (e.g. "Users", "Message settings") — set
+   apart from an ordinary field label like "Conversation memory" below it,
+   which stays on .settings-label, so the hierarchy is visible at a glance
+   rather than every heading looking the same weight. */
+.settings-section-label {
+  font-weight: 700;
+  font-size: 16px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-info-wrapper {
@@ -59,6 +105,12 @@
   visibility: hidden;
   opacity: 0;
   position: absolute;
+  /* Anchored to the ⓘ's left edge, extending rightward. The dialog's
+     overflow-y: auto makes the browser clip overflow-x too (they can't
+     differ once one of them isn't visible), so this only stays fully
+     on-screen because every ⓘ that uses it now sits near the left edge
+     (a section heading like "Users", not a long field label) — centering
+     it instead once clipped the left side for exactly that case. */
   left: 0;
   top: 100%;
   margin-top: 6px;
@@ -100,8 +152,7 @@
   line-height: 1.4;
 }
 
-.settings-hint.invalid,
-.settings-error {
+.settings-hint.invalid {
   color: var(--error-text);
 }
 
@@ -109,69 +160,25 @@
   border-color: var(--error-text);
 }
 
-.settings-error {
-  margin: 0;
-  font-size: 13px;
+.settings-access-role {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 8px;
+  white-space: nowrap;
 }
 
-.settings-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  /* Stays visible while the sections above scroll. */
-  position: sticky;
-  bottom: -24px;
-  margin-bottom: -24px;
-  padding: 12px 0 24px;
-  background: var(--bg-card);
-}
-
-.settings-actions-right {
-  display: flex;
-  gap: 8px;
-}
-
-/* A regular outlined button like Cancel, so it can be found; it used to be
-   plain text that looked like a label. */
-.settings-reset:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.settings-save {
-  background: var(--accent);
+.settings-access-role[aria-pressed="true"] {
   border-color: var(--accent);
-  color: #0e1117;
+  color: var(--accent);
 }
 
-.settings-save:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.settings-save:disabled {
+.settings-access-role:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-.settings-access-list {
-  list-style: none;
-  margin: 0 0 8px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.settings-access-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 8px;
 }
 
 .settings-access-remove {
@@ -189,6 +196,25 @@
 }
 
 .settings-access-remove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-access-wipe {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.settings-access-wipe:hover:not(:disabled) {
+  color: var(--error-text);
+}
+
+.settings-access-wipe:disabled {
   opacity: 0.5;
   cursor: default;
 }

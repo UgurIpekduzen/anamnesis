@@ -1,3 +1,8 @@
+# Two GitHub Actions service accounts below, with deliberately different
+# scopes: github_actions (deploy-capable, main-branch only) and
+# github_actions_plan (read-only + securityReviewer, any branch/PR) — a PR
+# workflow needs to run `terraform plan` without ever being able to touch
+# real infrastructure, so it gets the narrower identity.
 resource "google_iam_workload_identity_pool" "github_actions" {
   workload_identity_pool_id = "github-actions-pool"
   display_name              = "GitHub Actions Pool"
@@ -28,6 +33,8 @@ resource "google_service_account" "github_actions" {
   display_name = "GitHub Actions CI/CD"
 }
 
+# Scoped to the main branch specifically (attribute.ref), not the whole
+# repo — only a push to main (the deploy workflow) may assume this identity.
 resource "google_service_account_iam_member" "github_actions_wif" {
   service_account_id = google_service_account.github_actions.name
   role               = "roles/iam.workloadIdentityUser"
@@ -69,6 +76,8 @@ resource "google_storage_bucket_iam_member" "github_actions_plan_tfstate" {
   member = "serviceAccount:${google_service_account.github_actions_plan.email}"
 }
 
+# Scoped to the whole repo (attribute.repository), not just main — any
+# branch or PR workflow may assume this identity, since it's read-only.
 resource "google_service_account_iam_member" "github_actions_plan_wif" {
   service_account_id = google_service_account.github_actions_plan.name
   role               = "roles/iam.workloadIdentityUser"
@@ -102,6 +111,8 @@ resource "google_cloud_run_v2_service_iam_member" "github_actions_subscriber_dep
   member   = "serviceAccount:${google_service_account.github_actions.email}"
 }
 
+# Deploying a Cloud Run revision that runs as agent_sa (cloud_run.tf)
+# requires this grant on the deploying identity, not just run.developer above.
 resource "google_service_account_iam_member" "github_actions_act_as_agent" {
   service_account_id = google_service_account.agent_sa.name
   role               = "roles/iam.serviceAccountUser"

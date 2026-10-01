@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 const MIN_SIDEBAR_WIDTH = 260;
 // The sidebar can be dragged as wide as the window allows, but the chat
 // keeps at least this much room — otherwise the drag handle could leave the
-// screen and the sidebar couldn't be dragged back (APPCE-73). App.css caps
+// screen and the sidebar couldn't be dragged back. App.css caps
 // it the same way if the window is made smaller afterwards.
 const MIN_MAIN_WIDTH = 320;
 

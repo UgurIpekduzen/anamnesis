@@ -1,3 +1,8 @@
+"""Provides the single shared Firestore client used by every module that
+reads or writes tenant data, so the client's connection setup and auth
+happen once per (project, endpoint) instead of on every call.
+"""
+
 import os
 from functools import lru_cache
 
@@ -21,8 +26,8 @@ def get_client() -> firestore.Client:
     """One shared client per (project, endpoint).
 
     A new client pays channel setup and auth on its first call (~1 s), so
-    building one per operation dominated every request's latency
-    (APPCE-61). The client is thread-safe, so sharing it is fine.
+    building one per operation dominated every request's latency.
+    The client is thread-safe, so sharing it is fine.
     """
     project_id = os.environ.get("GCP_PROJECT_ID")
     if not project_id:

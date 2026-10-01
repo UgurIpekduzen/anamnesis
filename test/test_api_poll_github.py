@@ -1,3 +1,5 @@
+"""Tests for the internal POST /internal/poll-github endpoint."""
+
 import pytest
 from starlette.testclient import TestClient
 
@@ -8,11 +10,15 @@ from api.routers import internal
 
 @pytest.fixture
 def api(monkeypatch):
-    monkeypatch.setattr(internal, "poll_all_tenants", lambda: {"polled": 2, "created": 5, "errors": []})
+    """Stub poll_all_tenants with a fixed result and return a TestClient."""
+    monkeypatch.setattr(
+        internal, "poll_all_tenants", lambda: {"polled": 2, "created": 5, "errors": []}
+    )
     yield TestClient(api_main.app)
 
 
 def test_a_valid_scheduler_identity_can_trigger_a_poll(api):
+    """POST triggers a poll and returns its result when the scheduler auth dependency is satisfied."""
     api_main.app.dependency_overrides[verify_scheduler_token] = lambda: None
 
     response = api.post("/internal/poll-github")
@@ -22,6 +28,7 @@ def test_a_valid_scheduler_identity_can_trigger_a_poll(api):
 
 
 def test_a_request_without_scheduler_auth_is_refused(api):
+    """POST returns 401 when no scheduler bearer token is sent."""
     # No override — falls through to the real dependency, which requires a
     # bearer token that was never sent.
     assert api.post("/internal/poll-github").status_code == 401

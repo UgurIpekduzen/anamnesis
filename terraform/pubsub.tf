@@ -36,6 +36,10 @@ resource "google_pubsub_subscription" "fact_events_sub" {
   }
 }
 
+# Only needed to look up the project number below, for Pub/Sub's own
+# service agent identity (service-<number>@gcp-sa-pubsub...) — that agent,
+# not agent_sa, is what actually moves a message to the DLQ topic after
+# max_delivery_attempts, and it needs its own IAM grants to do that.
 resource "google_project_service" "serviceusage" {
   service = "serviceusage.googleapis.com"
 }
@@ -73,6 +77,9 @@ resource "google_pubsub_subscription_iam_member" "agent_subscribe" {
   member       = "serviceAccount:${google_service_account.agent_sa.email}"
 }
 
+# The push subscription's OIDC token (above) is signed as agent_sa — Pub/Sub's
+# service agent needs this grant to mint that token on agent_sa's behalf when
+# it delivers a push.
 resource "google_service_account_iam_member" "pubsub_can_mint_agent_tokens" {
   service_account_id = google_service_account.agent_sa.name
   role               = "roles/iam.serviceAccountTokenCreator"

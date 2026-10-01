@@ -1,3 +1,5 @@
+"""Tests for encrypting, decrypting, and rotating stored GitHub tokens."""
+
 import pytest
 from cryptography.fernet import Fernet
 
@@ -7,6 +9,7 @@ from src.core.token_encryption import UnreadableToken
 
 @pytest.fixture(autouse=True)
 def fresh_cache(monkeypatch):
+    """Set a fresh GITHUB_TOKEN_ENCRYPTION_KEY and clear the cached Fernet instance before and after each test."""
     monkeypatch.setenv("GITHUB_TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
     token_encryption._get_fernet.cache_clear()
     yield
@@ -14,6 +17,7 @@ def fresh_cache(monkeypatch):
 
 
 def test_a_token_round_trips_through_encrypt_and_decrypt():
+    """A token encrypted with encrypt_token decrypts back to the original value."""
     value = "ghp_exampleTokenValue1234567890"
     ciphertext = token_encryption.encrypt_token(value)
     assert ciphertext != value
@@ -21,6 +25,7 @@ def test_a_token_round_trips_through_encrypt_and_decrypt():
 
 
 def test_encrypting_the_same_value_twice_gives_different_ciphertext():
+    """Encrypting the same value twice produces different ciphertext, since Fernet includes a random IV."""
     # Fernet includes a random IV, so equal plaintexts must not produce
     # equal ciphertexts — otherwise two users with the same secret would be
     # distinguishable from the stored value alone.
@@ -29,12 +34,14 @@ def test_encrypting_the_same_value_twice_gives_different_ciphertext():
 
 
 def test_a_missing_key_is_an_error(monkeypatch):
+    """Encrypting without GITHUB_TOKEN_ENCRYPTION_KEY set raises a RuntimeError."""
     monkeypatch.delenv("GITHUB_TOKEN_ENCRYPTION_KEY")
     with pytest.raises(RuntimeError):
         token_encryption.encrypt_token("ghp_x")
 
 
 def test_tampered_ciphertext_fails_to_decrypt():
+    """Ciphertext that has been altered by even one character fails to decrypt."""
     ciphertext = token_encryption.encrypt_token("ghp_exampleTokenValue1234567890")
     tampered = ciphertext[:-1] + ("A" if ciphertext[-1] != "A" else "B")
     with pytest.raises(Exception):
@@ -47,6 +54,7 @@ def _use_keys(monkeypatch, *keys):
 
 
 def test_a_secret_written_under_an_old_key_is_still_readable_after_a_new_key_is_added(monkeypatch):
+    """A secret encrypted under one key is still decryptable once a new key is added ahead of it in the key list."""
     old, new = Fernet.generate_key().decode(), Fernet.generate_key().decode()
     _use_keys(monkeypatch, old)
     ciphertext = token_encryption.encrypt_token("ghp_written_before_the_rotation")
@@ -57,6 +65,7 @@ def test_a_secret_written_under_an_old_key_is_still_readable_after_a_new_key_is_
 
 
 def test_new_secrets_are_encrypted_with_the_first_key(monkeypatch):
+    """A newly encrypted secret uses only the first key in the list, not any of the others."""
     old, new = Fernet.generate_key().decode(), Fernet.generate_key().decode()
     _use_keys(monkeypatch, new, old)
     ciphertext = token_encryption.encrypt_token("ghp_x")
@@ -67,6 +76,7 @@ def test_new_secrets_are_encrypted_with_the_first_key(monkeypatch):
 
 
 def test_rotating_moves_a_secret_to_the_first_key(monkeypatch):
+    """rotate_token re-encrypts a secret under the current first key, so it remains readable once the old key is dropped and the original ciphertext no longer is."""
     old, new = Fernet.generate_key().decode(), Fernet.generate_key().decode()
     _use_keys(monkeypatch, old)
     ciphertext = token_encryption.encrypt_token("ghp_x")
@@ -82,6 +92,7 @@ def test_rotating_moves_a_secret_to_the_first_key(monkeypatch):
 
 
 def test_keys_may_be_separated_by_commas_with_spaces(monkeypatch):
+    """Keys in GITHUB_TOKEN_ENCRYPTION_KEY may be separated by commas with surrounding spaces."""
     first, second = Fernet.generate_key().decode(), Fernet.generate_key().decode()
     _use_keys(monkeypatch, first)
     ciphertext = token_encryption.encrypt_token("ghp_x")
@@ -93,6 +104,7 @@ def test_keys_may_be_separated_by_commas_with_spaces(monkeypatch):
 
 
 def test_a_lost_key_is_reported_as_an_unreadable_token_with_a_useful_message(monkeypatch):
+    """When the key a secret was encrypted with is no longer configured, decrypting raises UnreadableToken with a reconnect message that never includes the ciphertext."""
     _use_keys(monkeypatch, Fernet.generate_key().decode())
     ciphertext = token_encryption.encrypt_token("ghp_x")
 
@@ -106,6 +118,7 @@ def test_a_lost_key_is_reported_as_an_unreadable_token_with_a_useful_message(mon
 
 
 def test_an_unreadable_token_is_a_value_error():
+    """UnreadableToken is a subclass of ValueError, since existing callers rely on that to turn it into a user-facing message."""
     # The existing callers that turn ValueError into a user-facing message
     # rely on this.
     assert issubclass(UnreadableToken, ValueError)

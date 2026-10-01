@@ -1,3 +1,8 @@
+"""The event-driven entry point for creating a fact: publishes to Pub/Sub
+rather than writing to Firestore directly, so a caller doesn't depend on
+Firestore's availability. src.facts.facts.create_fact does the actual
+write, on the subscriber side of that same event."""
+
 import json
 
 from src.facts.categories import validate_category_for
@@ -7,20 +12,22 @@ from src.projects.tenants import get_owned_tenant
 TOPIC_ID = "fact-events"
 
 
-def publish_fact(tenant_id: str, content: str, category: str, owner_uid: str, source: str = "chat") -> str:
+def publish_fact(
+    tenant_id: str, content: str, category: str, owner_uid: str, source: str = "chat"
+) -> str:
     """Publish a fact-creation event instead of writing to Firestore directly.
 
     A subscriber (src/subscriber.py) picks up the message and performs the
     actual Firestore write, decoupling the caller from Firestore's
     availability. Ownership is checked here, before the message is
     published — the subscriber trusts tenant_id once a message reaches
-    it, since only this function can have put it there (see APPCE-48).
+    it, since only this function can have put it there.
 
     Args:
-        tenant_id: The project identifier, e.g. "my_project".
-        content: The fact text.
-        category: One of the owner's categories (see src.facts.categories).
-        source: Where this fact came from — "chat" or "github" (see
+        tenant_id (str): The project identifier, e.g. "my_project".
+        content (str): The fact text.
+        category (str): One of the owner's categories (see src.facts.categories).
+        source (str): Where this fact came from — "chat" or "github" (see
             src.facts.facts.create_fact).
 
     Returns:

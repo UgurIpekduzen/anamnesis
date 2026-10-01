@@ -1,3 +1,5 @@
+"""Tests for verifying the OIDC token Cloud Scheduler presents on internal requests."""
+
 import pytest
 from fastapi import HTTPException
 
@@ -8,6 +10,7 @@ SCHEDULER_EMAIL = "poller@test-project.iam.gserviceaccount.com"
 
 def _verifier(claims=None, error=None):
     def fake(token, request, audience):
+        """Return the configured claims, or raise the configured error."""
         if error:
             raise error
         return claims
@@ -16,14 +19,20 @@ def _verifier(claims=None, error=None):
 
 
 def test_a_valid_scheduler_token_is_accepted(monkeypatch):
-    monkeypatch.setattr(internal_auth.id_token, "verify_oauth2_token", _verifier(claims={"email": SCHEDULER_EMAIL}))
+    """A token whose email claim matches the configured scheduler service account is accepted without raising."""
+    monkeypatch.setattr(
+        internal_auth.id_token, "verify_oauth2_token", _verifier(claims={"email": SCHEDULER_EMAIL})
+    )
 
     internal_auth.verify_scheduler_token(authorization=f"Bearer tok")  # noqa: F541
 
 
 def test_a_token_for_a_different_identity_is_rejected(monkeypatch):
+    """A valid token whose email claim is not the scheduler service account is rejected with a 403."""
     monkeypatch.setattr(
-        internal_auth.id_token, "verify_oauth2_token", _verifier(claims={"email": "someone-else@example.com"})
+        internal_auth.id_token,
+        "verify_oauth2_token",
+        _verifier(claims={"email": "someone-else@example.com"}),
     )
 
     with pytest.raises(HTTPException) as exc:
@@ -32,6 +41,7 @@ def test_a_token_for_a_different_identity_is_rejected(monkeypatch):
 
 
 def test_an_invalid_token_is_rejected(monkeypatch):
+    """A token that fails OIDC verification is rejected with a 401."""
     monkeypatch.setattr(
         internal_auth.id_token, "verify_oauth2_token", _verifier(error=ValueError("bad signature"))
     )
@@ -42,12 +52,14 @@ def test_an_invalid_token_is_rejected(monkeypatch):
 
 
 def test_a_missing_bearer_token_is_rejected():
+    """A missing Authorization header is rejected with a 401."""
     with pytest.raises(HTTPException) as exc:
         internal_auth.verify_scheduler_token(authorization=None)
     assert exc.value.status_code == 401
 
 
 def test_misconfiguration_fails_closed(monkeypatch):
+    """A missing GITHUB_POLLER_SERVICE_ACCOUNT_EMAIL setting is rejected with a 503 instead of skipping the identity check."""
     monkeypatch.delenv("GITHUB_POLLER_SERVICE_ACCOUNT_EMAIL", raising=False)
 
     with pytest.raises(HTTPException) as exc:

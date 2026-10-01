@@ -2,10 +2,14 @@ import { useEffect, useState, type MutableRefObject } from "react";
 
 import { getGithubConnection, getJiraConnection, type JiraConnection } from "../api";
 
-// Whether the user's GitHub/Jira accounts are connected (APPCE-105) — null
+// Whether the user's GitHub/Jira accounts are connected — null
 // until known. Re-read when the account changes and whenever `reloadKey`
 // changes (Settings closing, where they get connected or disconnected).
-export function useConnections(idTokenRef: MutableRefObject<string | null>, userId: string | null, reloadKey: number) {
+export function useConnections(
+  idTokenRef: MutableRefObject<string | null>,
+  userId: string | null,
+  reloadKey: number,
+) {
   const [githubConnected, setGithubConnected] = useState<boolean | null>(null);
   const [jira, setJira] = useState<JiraConnection | null>(null);
 

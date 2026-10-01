@@ -1,3 +1,7 @@
+"""Detects near-duplicate facts by plain text comparison, so the UI can warn
+before saving a fact that already exists in another wording — deliberately
+not a model call, since it needs to give the same answer every time."""
+
 import re
 from difflib import SequenceMatcher
 
@@ -30,6 +34,11 @@ def find_similar_facts(content: str, facts: list[dict]) -> list[dict]:
     every time, and it runs on every confirmation to save a fact. Facts in
     any category count — a duplicate filed under another category is still
     a duplicate.
+
+    Args:
+        content (str): The candidate fact text to compare against.
+        facts (list[dict]): The saved facts to compare against, each with
+            at least "content".
 
     Returns:
         Up to MAX_SIMILAR facts ({"fact_id", "content", "category"}), the

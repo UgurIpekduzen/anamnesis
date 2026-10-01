@@ -25,3 +25,15 @@ package = false
 [tool.pytest.ini_options]
 # Tests import `src...`, `api...` and `agent...` from the repo root.
 pythonpath = ["."]
+
+[tool.ruff]
+# Not PEP 8's 79 — that's narrower than this codebase's descriptive names
+# and f-strings comfortably fit, and 100 is what `ruff format` was run
+# with repo-wide. Kept as project config so future runs use the same width.
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C901"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10

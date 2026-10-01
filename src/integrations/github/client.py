@@ -1,6 +1,11 @@
+"""Validates a GitHub personal access token before it's stored, separate
+from connections.py (which stores it) so the check that talks to GitHub's
+API is testable and reusable on its own.
+"""
+
 import requests
 
-# Fine-grained PATs are the only kind accepted (APPCE-79): a classic PAT's
+# Fine-grained PATs are the only kind accepted: a classic PAT's
 # scopes (e.g. "repo") grant access to a user's entire account, so a leaked
 # one is far more damaging than a leaked fine-grained token, which is
 # limited to the repos its owner explicitly selected. The prefix alone is
@@ -10,6 +15,9 @@ FINE_GRAINED_PREFIX = "github_pat_"
 
 def validate_github_token(token: str) -> None:
     """Reject anything that isn't a live, fine-grained GitHub PAT.
+
+    Args:
+        token (str): The candidate GitHub personal access token to check.
 
     Raises:
         ValueError: the token is the wrong kind, or GitHub doesn't

@@ -14,7 +14,7 @@ import "./PendingFacts.css";
 interface Props {
   idToken: string;
   tenantId: string;
-  // Bumped by the parent to refetch — a poll (APPCE-80) can add new
+  // Bumped by the parent to refetch — a poll can add new
   // pending facts outside of any action taken in this UI.
   refreshKey: number;
   // Reported up so the sidebar tab can show a count badge, and so
@@ -49,7 +49,7 @@ function PendingFacts({ idToken, tenantId, refreshKey, onCountChange, onApproved
       .catch((err) => setError(String(err)));
   }
 
-  useEffect(load, [idToken, tenantId, refreshKey]);
+  useEffect(load, [idToken, tenantId, refreshKey, onCountChange]);
   useEffect(loadStats, [idToken, tenantId, refreshKey]);
 
   async function approve(pendingFactId: string) {
@@ -98,8 +98,12 @@ function PendingFacts({ idToken, tenantId, refreshKey, onCountChange, onApproved
           aria-label={`${stats.approved} approved, ${stats.rejected} rejected`}
         >
           {/* Sized by count, so a segment with nothing in it takes no room. */}
-          {stats.approved > 0 && <div className="approval-bar-approved" style={{ flexGrow: stats.approved }} />}
-          {stats.rejected > 0 && <div className="approval-bar-rejected" style={{ flexGrow: stats.rejected }} />}
+          {stats.approved > 0 && (
+            <div className="approval-bar-approved" style={{ flexGrow: stats.approved }} />
+          )}
+          {stats.rejected > 0 && (
+            <div className="approval-bar-rejected" style={{ flexGrow: stats.rejected }} />
+          )}
         </div>
         <div className="approval-legend">
           <span className="approval-dot approval-dot-approved" /> {stats.approved} approved
@@ -140,7 +144,10 @@ function PendingFacts({ idToken, tenantId, refreshKey, onCountChange, onApproved
             >
               Approve
             </button>
-            <button onClick={() => reject(fact.pending_fact_id)} disabled={busyId === fact.pending_fact_id}>
+            <button
+              onClick={() => reject(fact.pending_fact_id)}
+              disabled={busyId === fact.pending_fact_id}
+            >
               Reject
             </button>
           </div>

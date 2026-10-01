@@ -19,9 +19,43 @@ services:
       - ~/.config/gcloud:/root/.config/gcloud:ro
     entrypoint: ["terraform"]
 
+  tflint:
+    # Style/correctness linter fmt/validate don't cover: naming
+    # convention, unused declarations, provider-specific best practices
+    # (via the google ruleset plugin below).
+    image: ghcr.io/terraform-linters/tflint:latest
+    working_dir: /data
+    volumes:
+      - ./terraform:/data
+      # Plugin binaries tflint --init downloads, cached across runs so
+      # every `task tf:lint` doesn't re-fetch the google ruleset.
+      - tflint_plugins:/root/.tflint.d/plugins
+    entrypoint: ["tflint"]
+
+  hadolint:
+    # Dockerfile best-practice linter — cache-busting apt-get patterns,
+    # missing version pins, pointless layers, none of which `docker build`
+    # itself catches.
+    image: hadolint/hadolint:latest
+    working_dir: /work
+    volumes:
+      - .:/work:ro
+    entrypoint: ["hadolint"]
+
+  yamllint:
+    # Style linter for every YAML file here — the compose files
+    # themselves, GitHub Actions workflows, dependabot.yml — `docker
+    # compose config`/GitHub's own parser only check that they're valid,
+    # not consistently styled.
+    image: cytopia/yamllint:latest
+    working_dir: /work
+    volumes:
+      - .:/work:ro
+    entrypoint: ["yamllint"]
+
   uv:
     # uv runs in a container like gcloud/terraform above — nothing is
-    # installed on the host (APPCE-96). The environment is built inside the
+    # installed on the host. The environment is built inside the
     # container (/tmp, gone with it), not in ./.venv: a venv created there
     # points at the container's Python and would be broken on the host.
     # A named volume would persist it, but Docker creates those root-owned,
@@ -60,8 +94,8 @@ services:
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
       GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-us-central1}
       # Not a secret — a Google OAuth client ID is meant to be public,
-      # it's embedded in the frontend's JS bundle too (see APPCE-54).
-      GOOGLE_OAUTH_CLIENT_ID: 430288501339-aiifao42l0fp6qirm2kiluh8fv4qfb3k.apps.googleusercontent.com
+      # it's embedded in the frontend's JS bundle too.
+      GOOGLE_OAUTH_CLIENT_ID: 430288501339-aiifao42l0fp6qirm2kiluh8fv4qfb3k.apps.googleusercontent.com  # yamllint disable-line rule:line-length
       # Who may sign in locally, from .env (see .env.example). Empty means
       # nobody can.
       ALLOWED_EMAILS: ${ALLOWED_EMAILS:-}
@@ -103,6 +137,11 @@ services:
     build:
       context: ./frontend
     restart: unless-stopped
+    # Runs as the invoking user (same pattern as the uv service above) —
+    # without this, npm install/vite write into the bind-mounted src/ and
+    # package-lock.json as the container's root, leaving files the host
+    # user can't touch again without sudo (hit for real once already).
+    user: "${UV_UID:-1000}:${UV_GID:-1000}"
     ports:
       - "5173:5173"
     volumes:
@@ -124,7 +163,7 @@ services:
       - firestore-emulator
       - pubsub-emulator
     # Brings in GITHUB_TOKEN_ENCRYPTION_KEY (Jira/GitHub credentials are
-    # per-user now, connected from Settings — see APPCE-79, APPCE-87).
+    # per-user, connected from Settings, and encrypted with this key).
     # Safe to combine with the environment overrides below: Compose always
     # lets `environment:` win over `env_file:` for the same key, so the
     # emulator hostnames here still take priority over .env's localhost
@@ -143,3 +182,6 @@ services:
       # without rebuilding the image.
       - ./agent:/app/agent
       - ./src:/app/src
+
+volumes:
+  tflint_plugins:

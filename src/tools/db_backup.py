@@ -1,4 +1,4 @@
-"""Back up, restore and wipe the whole Firestore database (APPCE-120).
+"""Back up, restore and wipe the whole Firestore database.
 
     python -m src.tools.db_backup dump FILE      read the database into a JSON file
     python -m src.tools.db_backup load FILE      write a dump into the EMULATOR
@@ -65,6 +65,17 @@ def _document_refs(parent):
 
 
 def dump(path: str) -> int:
+    """Read every document in the database get_client() points at and write
+    it to path as JSON. Read-only against the database; overwrites path if
+    it already exists.
+
+    Args:
+        path (str): Filesystem path to write the JSON dump to; overwritten
+            if it already exists.
+
+    Returns:
+        How many documents were written.
+    """
     client = get_client()
     documents = []
     for ref in _document_refs(client):
@@ -91,13 +102,23 @@ def _read_dump(path: str) -> dict:
 
 
 def load(path: str) -> int:
+    """Write every document from the dump at path into the database, with no
+    confirmation step. Refuses to run unless FIRESTORE_EMULATOR_HOST is set,
+    so this can only ever write to the emulator, never the real database.
+
+    Args:
+        path (str): Filesystem path of the JSON dump to load.
+
+    Returns:
+        How many documents were written.
+    """
     # The quick way into the emulator, with nothing to confirm. Against the
     # real database it refuses: that is restore()'s job, which shows what it
     # would change first.
     if not os.environ.get("FIRESTORE_EMULATOR_HOST"):
         raise SystemExit(
-            "Refusing to load: FIRESTORE_EMULATOR_HOST is not set, so this would write to the real database. "
-            "Use restore to write a dump there on purpose."
+            "Refusing to load: FIRESTORE_EMULATOR_HOST is not set, so this would write to the "
+            "real database. Use restore to write a dump there on purpose."
         )
     payload = _read_dump(path)
     client = get_client()
@@ -110,6 +131,9 @@ def verify(path: str) -> dict:
     """Compare the database with a dump, document by document. Read-only, and
     unlike restore it doesn't care which project the dump came from, so it can
     check a dump that was loaded into the emulator.
+
+    Args:
+        path (str): Filesystem path of the JSON dump to compare against.
 
     Returns:
         {"same": n, "different": n, "missing": n, "extra": n}: missing are in the
@@ -142,6 +166,12 @@ def restore(path: str, confirm_project: str | None) -> dict:
     The dump must have been taken from this same project, so another project's
     data can't be written here by mistake.
 
+    Args:
+        path (str): Filesystem path of the JSON dump to write.
+        confirm_project (str | None): The project id to write to — must
+            equal the database's own project id to actually write. None
+            (the default) only reports what would change.
+
     Returns:
         {"new": n, "changed": n, "unchanged": n, "written": bool}
     """
@@ -149,10 +179,13 @@ def restore(path: str, confirm_project: str | None) -> dict:
     client = get_client()
     if payload["project"] != client.project:
         raise SystemExit(
-            f"This dump is from project '{payload['project']}', not '{client.project}'; nothing was written."
+            f"This dump is from project '{payload['project']}', not '{client.project}'; "
+            "nothing was written."
         )
     if confirm_project is not None and confirm_project != client.project:
-        raise SystemExit(f"--confirm-project must be exactly '{client.project}'; nothing was written.")
+        raise SystemExit(
+            f"--confirm-project must be exactly '{client.project}'; nothing was written."
+        )
 
     counts = {"new": 0, "changed": 0, "unchanged": 0}
     to_write = []
@@ -182,7 +215,13 @@ def restore(path: str, confirm_project: str | None) -> dict:
 
 def wipe(confirm_project: str | None) -> tuple[int, bool]:
     """Count (and, when confirm_project is this database's project id, delete)
-    every document. Returns (documents, deleted)."""
+    every document. Returns (documents, deleted).
+
+    Args:
+        confirm_project (str | None): The project id to delete from — must
+            equal the database's own project id to actually delete. None
+            (the default) only counts what would be deleted.
+    """
     client = get_client()
     refs = list(_document_refs(client))
     # The same number a dump reports: a parent with no fields of its own is only
@@ -191,7 +230,9 @@ def wipe(confirm_project: str | None) -> tuple[int, bool]:
     if confirm_project is None:
         return count, False
     if confirm_project != client.project:
-        raise SystemExit(f"--confirm-project must be exactly '{client.project}'; nothing was deleted.")
+        raise SystemExit(
+            f"--confirm-project must be exactly '{client.project}'; nothing was deleted."
+        )
     # Children come after their parent in `refs`, so delete in reverse.
     for ref in reversed(refs):
         ref.delete()
@@ -199,6 +240,15 @@ def wipe(confirm_project: str | None) -> tuple[int, bool]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the dump/load/verify/restore/wipe CLI described in this module's
+    docstring. dump and verify only read the database; load, restore and
+    wipe can write to or delete from it (load only against the emulator;
+    restore and wipe require --confirm-project against the real one).
+
+    Args:
+        argv (list[str] | None): Command-line arguments to parse. None (the
+            default) reads from sys.argv; an explicit list is used in tests.
+    """
     parser = argparse.ArgumentParser(prog="python -m src.tools.db_backup")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("dump").add_argument("file")
@@ -220,23 +270,35 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Loaded {load(args.file)} documents")
     elif args.command == "verify":
         result = verify(args.file)
-        print(f"{result['same']} same, {result['different']} different, {result['missing']} missing, {result['extra']} extra")
+        print(
+            f"{result['same']} same, {result['different']} different, "
+            f"{result['missing']} missing, {result['extra']} extra"
+        )
         if result["different"] or result["missing"] or result["extra"]:
             return 1
         print("OK: the database holds exactly what the dump holds.")
     elif args.command == "restore":
         result = restore(args.file, args.confirm_project)
-        summary = f"{result['new']} new, {result['changed']} would be overwritten, {result['unchanged']} already the same"
+        summary = (
+            f"{result['new']} new, {result['changed']} would be overwritten, "
+            f"{result['unchanged']} already the same"
+        )
         if result["written"]:
             print(f"Restored: {summary.replace('would be overwritten', 'overwritten')}")
         else:
-            print(f"Would write: {summary}. Nothing was written; add --confirm-project {project} to write it.")
+            print(
+                f"Would write: {summary}. Nothing was written; "
+                f"add --confirm-project {project} to write it."
+            )
     else:
         count, deleted = wipe(args.confirm_project)
         if deleted:
             print(f"Deleted {count} documents")
         else:
-            print(f"Would delete {count} documents. Nothing was deleted; add --confirm-project {project} to delete.")
+            print(
+                f"Would delete {count} documents. Nothing was deleted; "
+                f"add --confirm-project {project} to delete."
+            )
     return 0
 
 

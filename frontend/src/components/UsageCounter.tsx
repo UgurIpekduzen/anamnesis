@@ -23,7 +23,9 @@ function UsageCounter({ idToken, refreshKey }: Props) {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    getUsage(idToken).then(setUsage).catch(() => setUsage(null));
+    getUsage(idToken)
+      .then(setUsage)
+      .catch(() => setUsage(null));
   }, [idToken, refreshKey]);
 
   // Keeps the countdown moving while the page sits open.
@@ -38,7 +40,8 @@ function UsageCounter({ idToken, refreshKey }: Props) {
   // The user's own warning threshold, shown as a tick on the bar; capped so
   // one set above the hard limit can't push it off the end.
   const thresholdPercent = Math.min(100, (usage.threshold / usage.limit) * 100);
-  const state = usage.count >= usage.limit ? "full" : usage.count >= usage.threshold ? "warning" : "ok";
+  const state =
+    usage.count >= usage.limit ? "full" : usage.count >= usage.threshold ? "warning" : "ok";
 
   return (
     <div className="usage">
@@ -57,14 +60,22 @@ function UsageCounter({ idToken, refreshKey }: Props) {
         title={`${usage.count} of ${usage.limit} messages`}
       >
         <div className="usage-bar-fill" style={{ width: `${percent}%` }} />
-        <div className="usage-bar-threshold" style={{ left: `${thresholdPercent}%` }} title="Your warning threshold" />
+        <div
+          className="usage-bar-threshold"
+          style={{ left: `${thresholdPercent}%` }}
+          title="Your warning threshold"
+        />
       </div>
       <small className="usage-meta">Resets in {formatResetsIn(usage.resets_at, now)}</small>
       {state === "full" && (
-        <p className="usage-warning">Daily limit reached — new messages are refused until it resets.</p>
+        <p className="usage-warning">
+          Daily limit reached — new messages are refused until it resets.
+        </p>
       )}
       {state === "warning" && (
-        <p className="usage-warning">You've sent a lot of messages today — just flagging it, nothing is blocked yet.</p>
+        <p className="usage-warning">
+          You've sent a lot of messages today — just flagging it, nothing is blocked yet.
+        </p>
       )}
     </div>
   );

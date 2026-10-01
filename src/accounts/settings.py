@@ -1,31 +1,46 @@
+"""Shared, owner-configurable settings (history length, warning threshold)
+that apply to every user of this deployment, as opposed to a per-user
+preference — set once by the owner rather than tuned individually."""
+
 import os
 import time
 
 from src.core.firestore_client import get_client
 from src.accounts.usage import DAILY_MESSAGE_WARNING_THRESHOLD
 
-# Per-user preferences (APPCE-58). The env-configured values used to be the
-# only ones; they're now the defaults a user starts from.
+# One shared configuration for everyone, not a per-user
+# preference: history_turns scales the tokens resent to the shared agent_sa
+# on every message, so it's a cost lever the owner sets once, the same way
+# DAILY_MESSAGE_HARD_LIMIT and GLOBAL_DAILY_MESSAGE_LIMIT are shared knobs
+# rather than something each invited user tunes for themselves. The
+# env-configured values are the defaults until the owner changes them.
 DEFAULTS = {
     "history_turns": int(os.environ.get("MAX_HISTORY_TURNS", 20)),
     "daily_message_warning_threshold": DAILY_MESSAGE_WARNING_THRESHOLD,
 }
 
 # Hard bounds, enforced on write AND on read. history_turns' upper bound is
-# what keeps a user from turning the history cap off and running up the
-# shared agent_sa's Vertex AI bill (APPCE-57/59); the threshold is only a
-# soft UI warning, so its bounds are about sanity, not cost.
+# what keeps this from being turned off and running up the shared
+# agent_sa's Vertex AI bill; the threshold is only a soft UI
+# warning, so its bounds are about sanity, not cost.
 BOUNDS = {
     "history_turns": (1, 50),
     "daily_message_warning_threshold": (1, 1000),
 }
 
-# Read on every model call (agent/history.py), so a short in-process cache
-# spares Firestore a read per call. save_settings writes through it, so the
-# instance that handled the save sees the change immediately; another Cloud
-# Run instance can lag by up to this long.
+# Read on every model call (agent/history.py) and every chat message, so a
+# short in-process cache spares Firestore a read each time. save_settings
+# writes through it, so the instance that handled the save sees the change
+# immediately; another Cloud Run instance can lag by up to this long.
 CACHE_TTL_SECONDS = 30
-_cache: dict[str, tuple[float, dict]] = {}
+_cache: tuple[float, dict] | None = None
+
+_DOC_PATH = ("config", "message_settings")
+
+
+def _doc_ref():
+    collection, doc_id = _DOC_PATH
+    return get_client().collection(collection).document(doc_id)
 
 
 def _clean(name: str, value) -> int:
@@ -36,29 +51,38 @@ def _clean(name: str, value) -> int:
     return min(max(value, low), high)
 
 
-def get_settings(owner_uid: str) -> dict:
-    """Return owner_uid's settings, falling back to the defaults for
-    anything unset — and clamping anything stored outside today's bounds."""
-    cached = _cache.get(owner_uid)
-    if cached and time.monotonic() - cached[0] < CACHE_TTL_SECONDS:
-        return dict(cached[1])
+def get_settings() -> dict:
+    """The shared settings, falling back to the defaults for anything
+    unset — and clamping anything stored outside today's bounds."""
+    global _cache
 
-    doc = get_client().collection("user_settings").document(owner_uid).get()
+    if _cache and time.monotonic() - _cache[0] < CACHE_TTL_SECONDS:
+        return dict(_cache[1])
+
+    doc = _doc_ref().get()
     stored = doc.to_dict() if doc.exists else {}
     settings = {name: _clean(name, stored.get(name)) for name in DEFAULTS}
 
-    _cache[owner_uid] = (time.monotonic(), settings)
+    _cache = (time.monotonic(), settings)
     return dict(settings)
 
 
-def save_settings(owner_uid: str, settings: dict) -> dict:
-    """Validate and store a full settings set for owner_uid.
+def save_settings(settings: dict) -> dict:
+    """Validate and store the shared settings. Owner-only — see
+    api/routers/admin.py.
+
+    Args:
+        settings (dict): The full settings mapping to validate and store —
+            must contain exactly the keys in DEFAULTS (history_turns,
+            daily_message_warning_threshold), each within BOUNDS.
 
     Raises:
         ValueError: on an unknown field, a missing field, or a value outside
             BOUNDS — rejected rather than silently clamped, so the caller
             learns its input was wrong.
     """
+    global _cache
+
     unknown = set(settings) - set(DEFAULTS)
     if unknown:
         raise ValueError(f"Unknown setting(s): {sorted(unknown)}")
@@ -73,18 +97,6 @@ def save_settings(owner_uid: str, settings: dict) -> dict:
             raise ValueError(f"{name} must be an integer between {low} and {high}")
         validated[name] = value
 
-    get_client().collection("user_settings").document(owner_uid).set(validated)
-    _cache[owner_uid] = (time.monotonic(), dict(validated))
+    _doc_ref().set(validated)
+    _cache = (time.monotonic(), dict(validated))
     return dict(validated)
-
-
-def reset_settings(owner_uid: str) -> dict:
-    """Drop owner_uid's stored settings so they fall back to the defaults.
-
-    Deletes the document rather than writing the default values into it:
-    a stored copy would freeze today's defaults for this user, while no
-    document means they keep following whatever the defaults become.
-    """
-    get_client().collection("user_settings").document(owner_uid).delete()
-    _cache.pop(owner_uid, None)
-    return dict(DEFAULTS)

@@ -11,6 +11,8 @@ resource "google_firestore_database" "default" {
   depends_on                        = [google_project_service.firestore]
 }
 
+# Firestore's built-in TTL deletes a chat_turns document once its own
+# expire_at timestamp passes, without a scheduled job or manual cleanup.
 resource "google_firestore_field" "chat_turns_ttl" {
   collection = "chat_turns"
   field      = "expire_at"

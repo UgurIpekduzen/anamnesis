@@ -1,5 +1,5 @@
 """What is open in a project's linked Jira project and GitHub repo, for the
-Status panel (APPCE-110): the same live data the chat tools read, with no
+Status panel: the same live data the chat tools read, with no
 model in between — exact, and it costs no tokens.
 
 Each function returns a dict with a "state": "ok" (with the data),
@@ -16,7 +16,10 @@ from src.integrations.jira.connections import get_jira_credentials
 from src.projects.tenants import get_owned_tenant
 
 
-_NOT_FOUND = {"Jira": "Jira couldn't find the project.", "GitHub": "GitHub couldn't find the repo, or the token has no access to it."}
+_NOT_FOUND = {
+    "Jira": "Jira couldn't find the project.",
+    "GitHub": "GitHub couldn't find the repo, or the token has no access to it.",
+}
 
 
 def _failure(service: str, exc: Exception) -> str:
@@ -36,13 +39,22 @@ def _failure(service: str, exc: Exception) -> str:
 
 
 def _jira_issue(line: str, base_url: str) -> dict:
-    # get_jira_status returns "KEY · Type · Status · Summary" lines (APPCE-104).
+    # get_jira_status returns "KEY · Type · Status · Summary" lines.
     key, kind, status, summary = line.split(" · ", 3)
-    return {"key": key, "type": kind, "status": status, "summary": summary, "url": f"{base_url}/browse/{key}"}
+    return {
+        "key": key,
+        "type": kind,
+        "status": status,
+        "summary": summary,
+        "url": f"{base_url}/browse/{key}",
+    }
 
 
 def get_project_jira_status(tenant_id: str, owner_uid: str) -> dict:
     """Open Jira issues of the project's linked Jira project.
+
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
 
     Raises:
         PermissionError: the project isn't this user's.
@@ -73,6 +85,9 @@ def get_project_jira_status(tenant_id: str, owner_uid: str) -> dict:
 def get_project_github_status(tenant_id: str, owner_uid: str) -> dict:
     """Open pull requests and issues of the project's linked GitHub repo.
 
+    Args:
+        tenant_id (str): The project identifier, e.g. "my_project".
+
     Raises:
         PermissionError: the project isn't this user's.
     """
@@ -88,6 +103,11 @@ def get_project_github_status(tenant_id: str, owner_uid: str) -> dict:
     return {
         "state": "ok",
         "repo": repo,
-        "pull_requests": [{"number": pr["number"], "title": pr["title"], "url": pr["url"]} for pr in result["pull_requests"]],
-        "issues": [{"number": i["number"], "title": i["title"], "url": i["url"]} for i in result["issues"]],
+        "pull_requests": [
+            {"number": pr["number"], "title": pr["title"], "url": pr["url"]}
+            for pr in result["pull_requests"]
+        ],
+        "issues": [
+            {"number": i["number"], "title": i["title"], "url": i["url"]} for i in result["issues"]
+        ],
     }

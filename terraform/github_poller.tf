@@ -2,6 +2,10 @@ resource "google_project_service" "cloudscheduler" {
   service = "cloudscheduler.googleapis.com"
 }
 
+# A distinct identity from agent_sa, used only to call the poll endpoint —
+# api/internal_auth.py checks the caller against this exact account, a
+# separate, narrower trust boundary from the user-facing allowlist in
+# api/deps.py.
 resource "google_service_account" "github_poller" {
   account_id = "anamnesis-github-poller"
 }
@@ -15,7 +19,7 @@ resource "google_cloud_run_v2_service_iam_member" "github_poller_invoker" {
 
 resource "google_cloud_scheduler_job" "github_poller" {
   name       = "anamnesis-github-poller"
-  schedule   = "0 */2 * * *" # her 2 saatte bir — istediğin sıklığa göre değiştir
+  schedule   = "0 */2 * * *" # every 2 hours — change to whatever frequency you want
   region     = var.region
   depends_on = [google_project_service.cloudscheduler]
 

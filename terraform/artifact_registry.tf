@@ -8,6 +8,11 @@ resource "google_artifact_registry_repository" "app_images" {
   location      = var.region
   depends_on    = [google_project_service.artifactregistry]
 
+  # Two policies, evaluated together: an image is deleted only once it's
+  # both past the keep-recent count and older than the delete-old cutoff —
+  # so a burst of deploys doesn't get pruned down to nothing right away,
+  # and a stale image doesn't linger forever just because few deploys
+  # happened since.
   cleanup_policy_dry_run = false
 
   cleanup_policies {

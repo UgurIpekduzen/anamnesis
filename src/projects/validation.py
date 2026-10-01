@@ -10,31 +10,38 @@ import re
 
 # A Jira project key: an uppercase letter, then uppercase letters, digits or
 # underscores. The key is put into a JQL query (project = "KEY"), so anything
-# else — a quote above all — could change what the query means (APPCE-107).
+# else — a quote above all — could change what the query means.
 _PROJECT_KEY_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,49}$")
 
 # owner/name only — GitHub usernames/orgs are alphanumeric-or-hyphen (not
 # leading/trailing), repo names add underscore and dot. Rejecting anything
 # else keeps this from ever being treated as an arbitrary URL downstream
-# (SSRF risk, see APPCE-51 comment #2).
+# (SSRF risk).
 _GITHUB_REPO_PATTERN = re.compile(r"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})/[a-zA-Z0-9_.-]{1,100}$")
 
 
 def validate_project_key(project_key: str) -> None:
     """Reject anything that isn't a plain Jira project key such as "APPCE".
 
+    Args:
+        project_key (str): The candidate Jira project key to check.
+
     Raises:
         ValueError: the key has characters a Jira project key can't have.
     """
     if not isinstance(project_key, str) or not _PROJECT_KEY_PATTERN.match(project_key):
         raise ValueError(
-            "A Jira project key is uppercase letters, digits and underscores, starting with a letter "
-            "(for example APPCE)."
+            "A Jira project key is uppercase letters, digits and underscores, "
+            "starting with a letter (for example APPCE)."
         )
 
 
 def validate_github_repo(github_repo: str) -> None:
     """Reject anything that isn't a plain "owner/name" GitHub repo.
+
+    Args:
+        github_repo (str): The candidate GitHub repo to check, as
+            "owner/name".
 
     Raises:
         ValueError: github_repo isn't a plain "owner/name" string.

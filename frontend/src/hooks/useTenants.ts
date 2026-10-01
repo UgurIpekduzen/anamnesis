@@ -8,7 +8,7 @@ import { useRefreshKey } from "./useRefreshKey";
 // is reloaded, and the selection reset, only when the account changes.
 //
 // `onForbidden` is called when the server says this account isn't allowed in
-// at all (APPCE-114): showing "couldn't load" with a Retry would be wrong.
+// at all: showing "couldn't load" with a Retry would be wrong.
 export function useTenants(
   idTokenRef: MutableRefObject<string | null>,
   userId: string | null,
@@ -31,7 +31,7 @@ export function useTenants(
 
   // Re-read the project list without touching the selection, unlike the
   // effect below (which resets everything). Used after the assistant links a
-  // GitHub repo or Jira key, so the project card shows it (APPCE-105).
+  // GitHub repo or Jira key, so the project card shows it.
   function refreshQuietly() {
     const token = idTokenRef.current;
     if (!token) return;
@@ -52,7 +52,7 @@ export function useTenants(
     // while the new account's list is still loading (matters most for
     // "Change account", which swaps idToken without a full page reset).
     // Keyed on the account, not the token: a plain token refresh must not
-    // reset the selected project or throw away the Trace (APPCE-65).
+    // reset the selected project or throw away the Trace.
     setTenants([]);
     setSelectedTenantId(null);
     setError(false);
@@ -66,7 +66,8 @@ export function useTenants(
         setTenants(fetched);
         const pending = pendingSelectRef.current;
         pendingSelectRef.current = null;
-        const preferred = pending && fetched.some((t) => t.tenant_id === pending) ? pending : fetched[0]?.tenant_id;
+        const preferred =
+          pending && fetched.some((t) => t.tenant_id === pending) ? pending : fetched[0]?.tenant_id;
         setSelectedTenantId(preferred ?? null);
       })
       .catch((err) => {

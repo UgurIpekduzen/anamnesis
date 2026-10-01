@@ -47,7 +47,10 @@ function cellText(value: unknown): string {
 
 export function describeArgs(args: unknown): ArgsView {
   if (!isPlainObject(args) || Object.keys(args).length === 0) return { kind: "none" };
-  return { kind: "table", rows: Object.entries(args).map(([name, value]) => [name, cellText(value)]) };
+  return {
+    kind: "table",
+    rows: Object.entries(args).map(([name, value]) => [name, cellText(value)]),
+  };
 }
 
 export function describeResult(response: unknown): ResultView {
@@ -67,7 +70,11 @@ export function describeResult(response: unknown): ResultView {
       for (const row of value) {
         for (const key of Object.keys(row)) if (!columns.includes(key)) columns.push(key);
       }
-      return { kind: "table", columns, rows: value.map((row) => columns.map((column) => cellText(row[column]))) };
+      return {
+        kind: "table",
+        columns,
+        rows: value.map((row) => columns.map((column) => cellText(row[column]))),
+      };
     }
     // A list of scalars (or a mixed list) doesn't fit the column-per-key
     // table above — one row per element instead of a JSON array.
