@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import {
   getGithubStatus,
@@ -10,7 +10,10 @@ import {
 import "./StatusPanel.css";
 
 // Sidebar "Status" tab content: read-only snapshot of the selected project's
-// open Jira issues and GitHub pull requests/issues.
+// open Jira issues and GitHub pull requests/issues. Each of the three lists
+// (Jira issues, GitHub pull requests, GitHub issues) is its own collapsible,
+// independently-scrolling <details> — same pattern as TracePanel — so a
+// long list in one doesn't push the others out of view.
 
 interface Props {
   idToken: string;
@@ -47,7 +50,7 @@ function StatusPanel({ idToken, tenantId, refreshKey }: Props) {
   return (
     <div className="status-panel">
       <JiraSection status={jira} />
-      <GithubSection status={github} />
+      <GithubSections status={github} />
     </div>
   );
 }
@@ -65,15 +68,33 @@ function Empty({ state, service, hint }: { state: string; service: string; hint:
   return null;
 }
 
-function JiraSection({ status }: { status: Loaded<JiraStatus> }) {
+// A collapsible, independently-scrolling area — the shared shell every
+// status list (Jira issues, GitHub pull requests, GitHub issues) renders
+// inside of.
+function StatusDetails({
+  title,
+  scope,
+  children,
+}: {
+  title: string;
+  scope?: string;
+  children: ReactNode;
+}) {
   return (
-    <section className="status-section">
-      <h3>
-        Open Jira issues
-        {status !== "loading" && status.state === "ok" && (
-          <span className="status-scope"> · {status.project_key}</span>
-        )}
-      </h3>
+    <details className="status-details" open>
+      <summary>
+        <span className="status-details-title">{title}</span>
+        {scope && <span className="status-scope"> · {scope}</span>}
+      </summary>
+      <div className="status-details-body">{children}</div>
+    </details>
+  );
+}
+
+function JiraSection({ status }: { status: Loaded<JiraStatus> }) {
+  const scope = status !== "loading" && status.state === "ok" ? status.project_key : undefined;
+  return (
+    <StatusDetails title="Open Jira issues" scope={scope}>
       {status === "loading" ? (
         <p className="status-hint">Loading…</p>
       ) : status.state === "error" ? (
@@ -106,58 +127,61 @@ function JiraSection({ status }: { status: Loaded<JiraStatus> }) {
           )}
         </>
       )}
-    </section>
+    </StatusDetails>
   );
 }
 
-function GithubList({ title, items }: { title: string; items: GithubItem[] }) {
+function GithubList({ items }: { items: GithubItem[] }) {
+  if (items.length === 0) return <p className="status-hint">None open.</p>;
+  return (
+    <ul className="status-list">
+      {items.map((item) => (
+        <li key={item.number}>
+          <a href={item.url} target="_blank" rel="noopener noreferrer">
+            #{item.number}
+          </a>
+          <span className="status-title">{item.title}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Loading/error/not-linked states don't yet know which lists there'll be,
+// so they share one generic "GitHub" box; once connected, pull requests and
+// issues split into their own boxes so one long list doesn't push the other
+// out of view.
+function GithubSections({ status }: { status: Loaded<GithubStatus> }) {
+  if (status === "loading") {
+    return (
+      <StatusDetails title="GitHub">
+        <p className="status-hint">Loading…</p>
+      </StatusDetails>
+    );
+  }
+  if (status.state === "error") {
+    return (
+      <StatusDetails title="GitHub">
+        <p className="status-error">{status.message}</p>
+      </StatusDetails>
+    );
+  }
+  if (status.state !== "ok") {
+    return (
+      <StatusDetails title="GitHub">
+        <Empty state={status.state} service="GitHub repo" hint="Link one from the project card above." />
+      </StatusDetails>
+    );
+  }
   return (
     <>
-      <h4>{title}</h4>
-      {items.length === 0 ? (
-        <p className="status-hint">None open.</p>
-      ) : (
-        <ul className="status-list">
-          {items.map((item) => (
-            <li key={item.number}>
-              <a href={item.url} target="_blank" rel="noopener noreferrer">
-                #{item.number}
-              </a>
-              <span className="status-title">{item.title}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <StatusDetails title="Pull requests" scope={status.repo}>
+        <GithubList items={status.pull_requests} />
+      </StatusDetails>
+      <StatusDetails title="Issues" scope={status.repo}>
+        <GithubList items={status.issues} />
+      </StatusDetails>
     </>
-  );
-}
-
-function GithubSection({ status }: { status: Loaded<GithubStatus> }) {
-  return (
-    <section className="status-section">
-      <h3>
-        Open on GitHub
-        {status !== "loading" && status.state === "ok" && (
-          <span className="status-scope"> · {status.repo}</span>
-        )}
-      </h3>
-      {status === "loading" ? (
-        <p className="status-hint">Loading…</p>
-      ) : status.state === "error" ? (
-        <p className="status-error">{status.message}</p>
-      ) : status.state !== "ok" ? (
-        <Empty
-          state={status.state}
-          service="GitHub repo"
-          hint="Link one from the project card above."
-        />
-      ) : (
-        <>
-          <GithubList title="Pull requests" items={status.pull_requests} />
-          <GithubList title="Issues" items={status.issues} />
-        </>
-      )}
-    </section>
   );
 }
 
